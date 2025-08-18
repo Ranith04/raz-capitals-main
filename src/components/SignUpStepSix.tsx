@@ -1,5 +1,6 @@
 'use client';
 
+import { AuthService } from '@/lib/authService';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 
@@ -71,7 +72,7 @@ export default function SignUpStepSix() {
     setSignature('');
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     // Reset errors
@@ -92,12 +93,21 @@ export default function SignUpStepSix() {
       setErrors(newErrors);
       return;
     }
-    
-    // Handle KYC submission here
-    console.log('Signature:', signature, 'Terms agreed:', agreeToTerms);
-    
-    // Navigate to completion or next step
-    router.push('/signup/step-7');
+
+    try {
+      // Save step 6 data using auth service
+      const result = await AuthService.submitKyc();
+
+      if (result.success) {
+        // Navigate to step 7
+        router.push('/signup/step-7');
+      } else {
+        alert(result.message);
+      }
+    } catch (error) {
+      console.error('Error saving step 6 data:', error);
+      alert('Failed to save your information. Please try again.');
+    }
   };
 
   const handleBack = () => {

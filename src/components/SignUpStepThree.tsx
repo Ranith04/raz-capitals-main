@@ -1,5 +1,6 @@
 'use client';
 
+import { AuthService } from '@/lib/authService';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 
@@ -45,7 +46,7 @@ export default function SignUpStepThree() {
     setShowCountryDropdown(false);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     // Reset errors
@@ -71,8 +72,23 @@ export default function SignUpStepThree() {
       return;
     }
     
-    // Navigate to next step
-    router.push('/signup/step-4');
+    try {
+      const result = await AuthService.saveStep3ToUsers({
+        dob: dateOfBirth,
+        gender,
+        country_of_birth: countryOfBirth,
+        residential_address: residentialAddress,
+      });
+
+      if (result.success) {
+        router.push('/signup/step-4');
+      } else {
+        alert(result.message);
+      }
+    } catch (error) {
+      console.error('Error saving step 3:', error);
+      alert('Failed to save your information. Please try again.');
+    }
   };
 
   const handleBack = () => {

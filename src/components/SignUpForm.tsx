@@ -1,5 +1,6 @@
 'use client';
 
+import { AuthService } from '@/lib/authService';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
@@ -8,13 +9,14 @@ export default function SignUpForm() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState({ email: '', password: '' });
+  const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
 
   const togglePasswordVisibility = () => {
     setShowPassword(!showPassword);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     // Reset errors
@@ -25,19 +27,46 @@ export default function SignUpForm() {
     
     if (!email.trim()) {
       newErrors.email = 'Please fill out this field.';
+    } else if (!/\S+@\S+\.\S+/.test(email)) {
+      newErrors.email = 'Please enter a valid email address.';
     }
     
     if (!password.trim()) {
       newErrors.password = 'Please fill out this field.';
+    } else if (password.length < 6) {
+      newErrors.password = 'Password must be at least 6 characters long.';
     }
     
     if (newErrors.email || newErrors.password) {
       setErrors(newErrors);
       return;
     }
-    
-    // Navigate to step 2
-    router.push('/signup/step-2');
+
+    setIsLoading(true);
+
+    try {
+      // Create user account using Supabase Auth
+      const result = await AuthService.createUserAccount({
+        email: email.trim(),
+        password: password
+      });
+
+      if (result.success) {
+        // Show success message
+        alert(result.message);
+        
+        // Navigate to step 2
+        router.push('/signup/step-2');
+      } else {
+        // Show error message
+        alert(result.message);
+      }
+    } catch (error) {
+      console.error('Signup error:', error);
+      alert('An unexpected error occurred. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -79,6 +108,7 @@ export default function SignUpForm() {
             }}
             placeholder="Enter your email address"
             required
+            disabled={isLoading}
           />
           {errors.email && (
             <div className="mt-2 flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium" style={{ backgroundColor: '#FEF3C7', color: '#92400E' }}>
@@ -116,11 +146,13 @@ export default function SignUpForm() {
               }}
               placeholder="Enter your password"
               required
+              disabled={isLoading}
             />
             <button
               type="button"
               onClick={togglePasswordVisibility}
               className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-500 hover:text-gray-700"
+              disabled={isLoading}
             >
               {showPassword ? (
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -147,20 +179,35 @@ export default function SignUpForm() {
         {/* Submit Button */}
         <button
           type="submit"
-          className="w-full py-3 px-6 rounded-lg font-semibold transition-colors duration-200 text-white"
+          className="w-full py-3 px-6 rounded-lg font-semibold transition-colors duration-200 text-white disabled:opacity-50 disabled:cursor-not-allowed"
           style={{ 
             backgroundColor: '#A0C8A9'
           }}
           onMouseEnter={(e) => {
-            const target = e.target as HTMLButtonElement;
-            target.style.backgroundColor = '#8FB89A';
+            if (!isLoading) {
+              const target = e.target as HTMLButtonElement;
+              target.style.backgroundColor = '#8FB89A';
+            }
           }}
           onMouseLeave={(e) => {
-            const target = e.target as HTMLButtonElement;
-            target.style.backgroundColor = '#A0C8A9';
+            if (!isLoading) {
+              const target = e.target as HTMLButtonElement;
+              target.style.backgroundColor = '#A0C8A9';
+            }
           }}
+          disabled={isLoading}
         >
-          Next
+          {isLoading ? (
+            <div className="flex items-center justify-center">
+              <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              Creating Account...
+            </div>
+          ) : (
+            'Next'
+          )}
         </button>
       </form>
 

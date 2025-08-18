@@ -1,5 +1,6 @@
 'use client';
 
+import { AuthService } from '@/lib/authService';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
@@ -11,7 +12,7 @@ export default function SignUpStepFive() {
   const [errors, setErrors] = useState({ bankName: '', accountNumber: '', ifscCode: '', bankDocument: '' });
   const router = useRouter();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     // Reset errors
@@ -41,8 +42,22 @@ export default function SignUpStepFive() {
       return;
     }
     
-    // Navigate to next step
-    router.push('/signup/step-6');
+    try {
+      const result = await AuthService.saveBankDetails({
+        bankName: bankName.trim(),
+        accountNumber: accountNumber.trim(),
+        ifscCode: ifscCode.trim(),
+        bankDocument: bankDocument as File,
+      });
+      if (result.success) {
+        router.push('/signup/step-6');
+      } else {
+        alert(result.message);
+      }
+    } catch (error) {
+      console.error('Error saving bank details:', error);
+      alert('Failed to save bank details. Please try again.');
+    }
   };
 
   const handleBack = () => {

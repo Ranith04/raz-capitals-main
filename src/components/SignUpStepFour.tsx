@@ -1,5 +1,6 @@
 'use client';
 
+import { AuthService } from '@/lib/authService';
 import { useRouter } from 'next/navigation';
 
 import { useEffect, useRef, useState } from 'react';
@@ -76,7 +77,7 @@ export default function SignUpStepFour() {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     // Reset errors
@@ -109,8 +110,22 @@ export default function SignUpStepFour() {
     }
     
 
-    // Navigate to next step
-    router.push('/signup/step-5');
+    try {
+      const result = await AuthService.saveKycDocuments({
+        primaryDocumentType,
+        primaryDocument: primaryDocument as File,
+        secondaryDocumentType,
+        secondaryDocument: secondaryDocument as File,
+      });
+      if (result.success) {
+        router.push('/signup/step-5');
+      } else {
+        alert(result.message);
+      }
+    } catch (error) {
+      console.error('Error saving KYC docs:', error);
+      alert('Failed to upload documents. Please try again.');
+    }
   };
 
   const handleBack = () => {
