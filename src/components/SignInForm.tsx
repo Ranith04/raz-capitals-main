@@ -1,15 +1,18 @@
 'use client';
 
+import { supabase } from '@/lib/supabaseClient';
 import { LoginCredentials } from '@/types';
 import { authenticateUser, getRedirectPath, storeUserSession } from '@/utils/auth';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
 export default function SignInForm() {
+  const [loginMethod, setLoginMethod] = useState<'email' | 'trading'>('email');
   const [email, setEmail] = useState('');
+  const [tradingId, setTradingId] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [errors, setErrors] = useState({ email: '', password: '' });
+  const [errors, setErrors] = useState({ email: '', tradingId: '', password: '' });
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
 
@@ -21,20 +24,26 @@ export default function SignInForm() {
     e.preventDefault();
     
     // Reset errors
-    setErrors({ email: '', password: '' });
+    setErrors({ email: '', tradingId: '', password: '' });
     
-    // Validate fields
-    const newErrors = { email: '', password: '' };
+    // Validate fields based on login method
+    const newErrors = { email: '', tradingId: '', password: '' };
     
-    if (!email.trim()) {
-      newErrors.email = 'Please fill out this field.';
+    if (loginMethod === 'email') {
+      if (!email.trim()) {
+        newErrors.email = 'Please fill out this field.';
+      }
+    } else {
+      if (!tradingId.trim()) {
+        newErrors.tradingId = 'Please enter your Trading ID.';
+      }
     }
     
     if (!password.trim()) {
       newErrors.password = 'Please fill out this field.';
     }
     
-    if (newErrors.email || newErrors.password) {
+    if (newErrors.email || newErrors.tradingId || newErrors.password) {
       setErrors(newErrors);
       return;
     }
@@ -43,13 +52,85 @@ export default function SignInForm() {
     setIsLoading(true);
     
     try {
-      // Authenticate user with role-based system
-      const credentials: LoginCredentials = { email, password };
-      const authResponse = await authenticateUser(credentials);
+      let authResponse: any = null;
       
-      if (authResponse.success && authResponse.user && authResponse.token) {
+      if (loginMethod === 'email') {
+        // Email authentication
+        const credentials: LoginCredentials = { email, password };
+        authResponse = await authenticateUser(credentials);
+      } else {
+        // Trading credentials authentication
+        try {
+          console.log('Attempting trading credentials login:', { tradingId, password });
+          
+          // Check if trading credentials exist in tradingaccounts table
+          const { data: tradingAccount, error } = await supabase
+            .from('tradingaccounts')
+            .select('user_id, account_uid, account_password')
+            .eq('account_uid', tradingId)
+            .eq('account_password', password)
+            .single();
+
+          console.log('Trading account query result:', { tradingAccount, error });
+
+          if (error || !tradingAccount) {
+            console.error('Trading credentials not found:', error);
+            setErrors({ email: '', tradingId: '', password: 'Invalid Trading ID or Password' });
+            setIsLoading(false);
+            return;
+          }
+
+          // Get user profile from users table
+          const { data: userProfile, error: profileError } = await supabase
+            .from('users')
+            .select('*')
+            .eq('user_uuid', tradingAccount.user_id)
+            .single();
+
+          console.log('User profile lookup result:', { userProfile, profileError, userId: tradingAccount.user_id });
+          console.log('User profile fields:', Object.keys(userProfile || {}));
+
+          if (profileError || !userProfile) {
+            console.error('User profile not found:', profileError);
+            setErrors({ email: '', tradingId: '', password: 'User profile not found' });
+            setIsLoading(false);
+            return;
+          }
+
+          // Create a mock auth response for trading credentials
+          authResponse = {
+            success: true,
+            user: {
+              id: userProfile.user_uuid,
+              name: `${userProfile.first_name} ${userProfile.last_name}`,
+              email: userProfile.email,
+              role: 'user' as const, // Default role for trading users
+              createdAt: userProfile.created_at || new Date().toISOString(),
+              lastLogin: new Date().toISOString()
+            },
+            token: 'trading-auth-token', // You might want to generate a proper JWT here
+            message: 'Login successful'
+          };
+          
+          console.log('Trading authentication successful:', authResponse);
+        } catch (tradingError) {
+          console.error('Trading authentication error:', tradingError);
+          setErrors({ email: '', tradingId: '', password: 'Authentication failed' });
+          setIsLoading(false);
+          return;
+        }
+      }
+      
+      console.log('Final authResponse:', authResponse);
+      
+      if (authResponse && authResponse.success && authResponse.user && authResponse.token) {
         // Store user session
+        console.log('Storing user session:', authResponse.user);
         storeUserSession(authResponse.user, authResponse.token);
+        
+        // Verify session was stored
+        const storedUser = sessionStorage.getItem('user');
+        console.log('Stored user session:', storedUser);
         
         // Get redirect path based on user role
         const redirectPath = getRedirectPath(authResponse.user);
@@ -61,13 +142,26 @@ export default function SignInForm() {
         });
         
         // Redirect based on user role
-        router.push(redirectPath);
+        console.log('Redirecting to:', redirectPath);
+        
+        // Add a small delay to ensure state is updated
+        setTimeout(() => {
+          router.push(redirectPath);
+        }, 100);
       } else {
         // Authentication failed
-        setErrors({ 
-          email: '', 
-          password: authResponse.message || 'Invalid email or password. Please try again.' 
-        });
+        if (loginMethod === 'email') {
+          setErrors({ 
+            email: '', 
+            password: authResponse?.message || 'Invalid email or password. Please try again.' 
+          });
+        } else {
+          setErrors({ 
+            email: '', 
+            tradingId: '', 
+            password: authResponse?.message || 'Invalid trading credentials. Please try again.' 
+          });
+        }
       }
     } catch (error) {
       console.error('Login error:', error);
@@ -90,33 +184,85 @@ export default function SignInForm() {
         <p className="text-gray-600">Sign in to access your protected account safely</p>
       </div>
 
+      {/* Login Method Toggle */}
+      <div className="mb-6">
+        <div className="flex bg-gray-100 rounded-lg p-1">
+          <button
+            type="button"
+            onClick={() => setLoginMethod('email')}
+            className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+              loginMethod === 'email'
+                ? 'bg-white text-gray-900 shadow-sm'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            Email Login
+          </button>
+          <button
+            type="button"
+            onClick={() => setLoginMethod('trading')}
+            className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+              loginMethod === 'trading'
+                ? 'bg-white text-gray-900 shadow-sm'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            Trading Credentials
+          </button>
+        </div>
+      </div>
+
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Email Field */}
+        {/* Email/Trading ID Field */}
         <div>
-          <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
-            Email Address
+          <label htmlFor={loginMethod === 'email' ? 'email' : 'tradingId'} className="block text-sm font-medium text-gray-700 mb-2">
+            {loginMethod === 'email' ? 'Email Address' : 'Trading ID'}
           </label>
-          <input
-            type="email"
-            id="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 transition-colors duration-200 text-gray-900 bg-white placeholder-gray-500 !text-gray-900"
-            style={{ 
-              color: '#111827', 
-              backgroundColor: '#ffffff'
-            }}
-            onFocus={(e) => {
-              e.target.style.borderColor = '#A0C8A9';
-              e.target.style.boxShadow = '0 0 0 2px rgba(160, 200, 169, 0.3)';
-            }}
-            onBlur={(e) => {
-              e.target.style.borderColor = '#d1d5db';
-              e.target.style.boxShadow = 'none';
-            }}
-            placeholder="Enter your email address"
-            required
-          />
+          {loginMethod === 'email' ? (
+            <input
+              type="email"
+              id="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 transition-colors duration-200 text-gray-900 bg-white placeholder-gray-500 !text-gray-900"
+              style={{ 
+                color: '#111827', 
+                backgroundColor: '#ffffff'
+              }}
+              onFocus={(e) => {
+                e.target.style.borderColor = '#A0C8A9';
+                e.target.style.boxShadow = '0 0 0 2px rgba(160, 200, 169, 0.3)';
+              }}
+              onBlur={(e) => {
+                e.target.style.borderColor = '#d1d5db';
+                e.target.style.boxShadow = 'none';
+              }}
+              placeholder="Enter your email address"
+              required
+            />
+          ) : (
+            <input
+              type="text"
+              id="tradingId"
+              value={tradingId}
+              onChange={(e) => setTradingId(e.target.value)}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 transition-colors duration-200 text-gray-900 bg-white placeholder-gray-500 !text-gray-900"
+              style={{ 
+                color: '#111827', 
+                backgroundColor: '#ffffff'
+              }}
+              onFocus={(e) => {
+                e.target.style.borderColor = '#A0C8A9';
+                e.target.style.boxShadow = '0 0 0 2px rgba(160, 200, 169, 0.3)';
+              }}
+              onBlur={(e) => {
+                e.target.style.borderColor = '#d1d5db';
+                e.target.style.boxShadow = 'none';
+              }}
+              placeholder="Enter your Trading ID"
+              required
+            />
+          )}
         </div>
 
         {/* Password Field */}
@@ -175,13 +321,21 @@ export default function SignInForm() {
           )}
         </div>
 
-        {/* Error message for email */}
-        {errors.email && (
+        {/* Error messages */}
+        {loginMethod === 'email' && errors.email && (
           <div className="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium" style={{ backgroundColor: '#FEF3C7', color: '#92400E' }}>
             <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
               <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
             </svg>
             {errors.email}
+          </div>
+        )}
+        {loginMethod === 'trading' && errors.tradingId && (
+          <div className="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium" style={{ backgroundColor: '#FEF3C7', color: '#92400E' }}>
+            <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+            </svg>
+            {errors.tradingId}
           </div>
         )}
 

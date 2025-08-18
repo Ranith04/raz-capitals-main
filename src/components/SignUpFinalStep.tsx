@@ -46,8 +46,8 @@ export default function SignUpFinalStep() {
 
       if (result.success) {
         alert(result.message);
-        // Redirect to dashboard or login
-        router.push('/dashboard');
+        // Redirect to success page
+        router.push('/signup/step-7');
       } else {
         alert(result.message);
       }

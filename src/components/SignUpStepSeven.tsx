@@ -32,8 +32,8 @@ export default function SignUpStepSeven() {
       });
 
       if (result.success) {
-        // Navigate to final step
-        router.push('/signup/final-step');
+        // Navigate to success page
+        router.push('/signup/step-7');
       } else {
         alert(result.message);
       }
