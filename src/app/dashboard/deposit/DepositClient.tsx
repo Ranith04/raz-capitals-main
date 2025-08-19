@@ -5,6 +5,79 @@ import { useState } from 'react';
 export default function DepositClient() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
+  const depositMethods = [
+    {
+      id: 'cash',
+      title: 'Cash Payments',
+      icon: (
+        <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+          <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+          </svg>
+        </div>
+      ),
+      processingTime: 'Instant On Payment',
+      fee: '0',
+      limits: '10 - 5000000 AED'
+    },
+    {
+      id: 'perfect-money',
+      title: 'Perfect Money',
+      icon: (
+        <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
+          <div className="w-8 h-8 bg-red-500 rounded flex items-center justify-center">
+            <span className="text-white text-xs font-bold">PM</span>
+          </div>
+        </div>
+      ),
+      processingTime: '15 Minutes To 24 Hours',
+      fee: '0',
+      limits: '10 - 200000 USD'
+    },
+    {
+      id: 'skrill',
+      title: 'Skrill',
+      icon: (
+        <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
+          <div className="w-8 h-8 bg-purple-500 rounded flex items-center justify-center">
+            <span className="text-white text-xs font-bold">S</span>
+          </div>
+        </div>
+      ),
+      processingTime: '15 Minutes To 24 Hours',
+      fee: '0',
+      limits: '10 - 200000 USD'
+    },
+    {
+      id: 'crypto',
+      title: 'CRYPTO USDT - TRC 20',
+      icon: (
+        <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+          <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
+            <span className="text-white text-xs font-bold">T</span>
+          </div>
+        </div>
+      ),
+      processingTime: '15 Minutes To 24 Hours',
+      fee: '0',
+      limits: '10 - 1000000 USD'
+    },
+    {
+      id: 'inr-bank',
+      title: 'INR BANK',
+      icon: (
+        <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+          <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+          </svg>
+        </div>
+      ),
+      processingTime: '15 Minutes To 24 Hours',
+      fee: '0',
+      limits: '30 - 1000000 INR'
+    }
+  ];
+
   return (
     <div className="flex h-screen bg-[#0A2E1D] overflow-hidden">
       {/* Mobile Sidebar Overlay */}
@@ -107,11 +180,12 @@ export default function DepositClient() {
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="bg-[#0A2E1D] border-b border-[#A0C8A9]/20 px-4 sm:px-6 py-4 flex-shrink-0">
+        {/* Top Header */}
+        <div className="bg-black px-6 py-4 flex-shrink-0">
           <div className="flex justify-between items-center">
             {/* Mobile Menu Button */}
             <button
-              className="lg:hidden p-2 text-[#A0C8A9] hover:text-white transition-colors"
+              className="lg:hidden p-2 text-white hover:text-gray-300 transition-colors"
               onClick={() => setSidebarOpen(true)}
             >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -119,169 +193,93 @@ export default function DepositClient() {
               </svg>
             </button>
             
-            <h1 className="text-white text-lg sm:text-xl font-medium">Syed Anwar</h1>
-            <div className="flex items-center space-x-2 sm:space-x-4">
-              <button className="text-[#A0C8A9] hover:text-white p-2 transition-colors">
+            <h1 className="text-lg sm:text-xl font-medium text-white">Syed Anwar</h1>
+            <div className="flex items-center space-x-4">
+              {/* Dark/Light Mode Toggle */}
+              <button className="text-white hover:text-gray-300 p-2 transition-colors">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
                 </svg>
               </button>
-              <button className="text-[#A0C8A9] hover:text-white p-2 transition-colors">
+
+              {/* Language Selector */}
+              <button className="text-white hover:text-gray-300 p-2 transition-colors">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5h12M9 3v2m0 4v2m0 4v2M9 3a2 2 0 00-2 2v2a2 2 0 002 2h6a2 2 0 002-2V5a2 2 0 00-2-2M9 3a2 2 0 012 2v2a2 2 0 01-2 2H7a2 2 0 01-2-2V5a2 2 0 012-2z" />
                 </svg>
               </button>
-              <button className="text-[#A0C8A9] hover:text-white p-2 transition-colors">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-5 5v-5zM4.828 7l4.95 4.95A7 7 0 1015.95 6L21 1M12 8a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-              </button>
-              <button className="text-[#A0C8A9] hover:text-white p-2 transition-colors">
+
+              {/* Full Screen Toggle */}
+              <button className="text-white hover:text-gray-300 p-2 transition-colors">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
                 </svg>
               </button>
-              <div className="w-8 h-8 bg-[#A0C8A9] rounded-full flex items-center justify-center">
-                <span className="text-[#1E2E23] font-medium text-sm">S</span>
-              </div>
-              <button className="text-[#A0C8A9] hover:text-white p-2 transition-colors">
+
+              {/* Notification Bell */}
+              <button className="text-white hover:text-gray-300 p-2 transition-colors relative">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-5 5v-5z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" />
                 </svg>
+                <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-xs flex items-center justify-center text-white font-semibold">1</span>
               </button>
+
+              {/* Profile Avatar */}
+              <div className="w-8 h-8 bg-yellow-400 rounded-full flex items-center justify-center">
+                <span className="text-black font-bold text-sm">S</span>
+              </div>
             </div>
           </div>
         </div>
 
         {/* Deposit Content */}
-        <div className="flex-1 p-4 sm:p-6 space-y-4 sm:space-y-6 overflow-y-auto" style={{ backgroundColor: '#B8D4C1' }}>
-          <div>
-            <h2 className="text-xl sm:text-2xl font-bold text-[#1E2E23] mb-2">Deposit Funds</h2>
-            <p className="text-[#2D4A35] text-sm sm:text-base">Add funds to your trading account securely and instantly.</p>
+        <div className="flex-1 p-6 space-y-6 overflow-y-auto bg-[#B8D4C1]">
+          {/* Header Section */}
+          <div className="text-center">
+            <h1 className="text-3xl font-bold text-[#1E2E23] mb-2">Deposit Methods</h1>
+            <p className="text-[#2D4A35]">Choose your preferred deposit method</p>
           </div>
 
-          {/* Account Selection */}
-          <div className="bg-[#2D4A35] rounded-lg p-4 sm:p-6">
-            <h3 className="text-white text-base sm:text-lg font-medium mb-4">Select Account</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="bg-[#B8D4C1] rounded-lg p-4 cursor-pointer hover:bg-[#A0C8A9] transition-colors">
-                <h4 className="text-[#1E2E23] font-medium text-sm sm:text-base">Standard Trading Account</h4>
-                <p className="text-[#2D4A35] text-xs sm:text-sm">Account #: 1234567890</p>
-                <p className="text-[#1E2E23] font-bold mt-2 text-sm sm:text-base">Balance: $25,000.00</p>
-              </div>
-              <div className="bg-[#B8D4C1] rounded-lg p-4 cursor-pointer hover:bg-[#A0C8A9] transition-colors">
-                <h4 className="text-[#1E2E23] font-medium text-sm sm:text-base">Pro Trading Account</h4>
-                <p className="text-[#2D4A35] text-xs sm:text-sm">Account #: 1234567891</p>
-                <p className="text-[#1E2E23] font-bold mt-2 text-sm sm:text-base">Balance: $50,000.00</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Payment Methods */}
-          <div className="bg-[#2D4A35] rounded-lg p-4 sm:p-6">
-            <h3 className="text-white text-base sm:text-lg font-medium mb-4">Payment Method</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="bg-[#B8D4C1] rounded-lg p-4 text-center cursor-pointer hover:bg-[#A0C8A9] transition-colors">
-                <svg className="w-8 h-8 mx-auto mb-2 text-[#1E2E23]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-                </svg>
-                <p className="text-[#1E2E23] font-medium text-sm">Credit Card</p>
-                <p className="text-[#2D4A35] text-xs">Instant</p>
-              </div>
-              <div className="bg-[#B8D4C1] rounded-lg p-4 text-center cursor-pointer hover:bg-[#A0C8A9] transition-colors">
-                <svg className="w-8 h-8 mx-auto mb-2 text-[#1E2E23]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-                </svg>
-                <p className="text-[#1E2E23] font-medium text-sm">Bank Transfer</p>
-                <p className="text-[#2D4A35] text-xs">1-3 days</p>
-              </div>
-              <div className="bg-[#B8D4C1] rounded-lg p-4 text-center cursor-pointer hover:bg-[#A0C8A9] transition-colors">
-                <svg className="w-8 h-8 mx-auto mb-2 text-[#1E2E23]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
-                </svg>
-                <p className="text-[#1E2E23] font-medium text-sm">PayPal</p>
-                <p className="text-[#2D4A35] text-xs">Instant</p>
-              </div>
-              <div className="bg-[#B8D4C1] rounded-lg p-4 text-center cursor-pointer hover:bg-[#A0C8A9] transition-colors sm:col-span-2 lg:col-span-1">
-                <svg className="w-8 h-8 mx-auto mb-2 text-[#1E2E23]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
-                </svg>
-                <p className="text-[#1E2E23] font-medium text-sm">Cryptocurrency</p>
-                <p className="text-[#2D4A35] text-xs">10-30 min</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Deposit Form */}
-          <div className="bg-[#2D4A35] rounded-lg p-4 sm:p-6">
-            <h3 className="text-white text-base sm:text-lg font-medium mb-4 sm:mb-6">Deposit Details</h3>
-            <form className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[#A0C8A9] text-sm font-medium mb-2">Amount (USD)</label>
-                  <input 
-                    type="number" 
-                    placeholder="Enter amount"
-                    className="w-full px-3 py-2 bg-[#B8D4C1] text-[#1E2E23] rounded-lg border border-[#A0C8A9]/30 focus:border-[#A0C8A9] focus:outline-none placeholder-[#2D4A35]"
-                  />
-                  <p className="text-[#A0C8A9]/70 text-xs mt-1">Minimum: $100, Maximum: $50,000</p>
-                </div>
-                <div>
-                  <label className="block text-[#A0C8A9] text-sm font-medium mb-2">Currency</label>
-                  <select className="w-full px-3 py-2 bg-[#B8D4C1] text-[#1E2E23] rounded-lg border border-[#A0C8A9]/30 focus:border-[#A0C8A9] focus:outline-none">
-                    <option>USD</option>
-                    <option>EUR</option>
-                    <option>GBP</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Credit Card Details */}
-              <div className="space-y-4 border-t border-[#A0C8A9]/20 pt-4">
-                <h4 className="text-[#A0C8A9] font-medium">Card Details</h4>
-                <div>
-                  <label className="block text-[#A0C8A9] text-sm font-medium mb-2">Card Number</label>
-                  <input 
-                    type="text" 
-                    placeholder="1234 5678 9012 3456"
-                    className="w-full px-3 py-2 bg-[#B8D4C1] text-[#1E2E23] rounded-lg border border-[#A0C8A9]/30 focus:border-[#A0C8A9] focus:outline-none placeholder-[#2D4A35]"
-                  />
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-[#A0C8A9] text-sm font-medium mb-2">Expiry Date</label>
-                    <input 
-                      type="text" 
-                      placeholder="MM/YY"
-                      className="w-full px-3 py-2 bg-[#B8D4C1] text-[#1E2E23] rounded-lg border border-[#A0C8A9]/30 focus:border-[#A0C8A9] focus:outline-none placeholder-[#2D4A35]"
-                    />
+          {/* Deposit Methods Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
+            {depositMethods.map((method) => (
+              <div key={method.id} className="bg-[#2D4A35] border border-[#A0C8A9]/20 rounded-lg p-6 shadow-sm hover:shadow-md transition-shadow">
+                {/* Method Header */}
+                <div className="flex justify-between items-start mb-4">
+                  <div className="flex items-center space-x-3">
+                    {method.icon}
+                    <h2 className="text-xl font-bold text-white">{method.title}</h2>
                   </div>
+                  <span className="px-3 py-1 text-xs font-medium bg-[#A0C8A9]/20 text-[#A0C8A9] rounded-full">
+                    Verification required
+                  </span>
+                </div>
+
+                {/* Method Details */}
+                <div className="space-y-3">
                   <div>
-                    <label className="block text-[#A0C8A9] text-sm font-medium mb-2">CVV</label>
-                    <input 
-                      type="text" 
-                      placeholder="123"
-                      className="w-full px-3 py-2 bg-[#B8D4C1] text-[#1E2E23] rounded-lg border border-[#A0C8A9]/30 focus:border-[#A0C8A9] focus:outline-none placeholder-[#2D4A35]"
-                    />
+                    <p className="text-sm text-[#A0C8A9]/70 mb-1">Processing Time</p>
+                    <p className="text-sm font-medium text-[#A0C8A9]">{method.processingTime}</p>
+                  </div>
+                  
+                  <div>
+                    <p className="text-sm text-[#A0C8A9]/70 mb-1">Fee</p>
+                    <p className="text-sm font-medium text-[#A0C8A9]">${method.fee}</p>
+                  </div>
+                  
+                  <div>
+                    <p className="text-sm text-[#A0C8A9]/70 mb-1">Limits</p>
+                    <p className="text-sm font-medium text-[#A0C8A9]">{method.limits}</p>
                   </div>
                 </div>
-              </div>
 
-              <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-4 pt-4">
-                <button 
-                  type="submit"
-                  className="flex-1 bg-[#A0C8A9] text-[#1E2E23] py-3 px-6 rounded-lg font-medium hover:bg-[#8FB89A] transition-colors"
-                >
-                  Deposit Funds
-                </button>
-                <button 
-                  type="button"
-                  className="px-6 py-3 border border-[#A0C8A9] text-[#A0C8A9] rounded-lg hover:bg-[#A0C8A9]/10 transition-colors"
-                >
-                  Cancel
+                {/* Action Button */}
+                <button className="w-full mt-6 bg-[#0A2E1D] text-white py-3 px-4 rounded-lg font-medium hover:bg-[#0F1B14] transition-colors">
+                  Deposit Now
                 </button>
               </div>
-            </form>
+            ))}
           </div>
         </div>
       </div>
