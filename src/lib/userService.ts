@@ -2,6 +2,7 @@ import { supabase } from './supabaseClient';
 
 export interface ClientUser {
   id: number;
+  user_uuid: string;
   first_name: string;
   last_name: string;
   email: string;
@@ -26,13 +27,12 @@ export class UserService {
    */
   static async getAllUsers(): Promise<ClientUser[]> {
     try {
-      console.log('🔍 Fetching users from database...');
-      
-      // First get all users
+      // First get all users with user_uuid
       const { data: users, error: usersError } = await supabase
         .from('users')
         .select(`
           id,
+          user_uuid,
           first_name,
           last_name,
           email,
@@ -45,34 +45,28 @@ export class UserService {
         throw usersError;
       }
 
-      console.log('✅ Users fetched:', users?.length || 0, 'users found');
-      console.log('📋 Sample user data:', users?.[0]);
-
       if (!users || users.length === 0) {
         return [];
       }
 
       // Get KYC documents for all users
-      console.log('🔍 Fetching KYC documents...');
       const { data: kycDocs, error: kycError } = await supabase
         .from('kyc_documents')
         .select(`
+          id,
           user_id,
           status
         `);
 
       if (kycError) {
         console.error('Error fetching KYC documents:', kycError);
-      } else {
-        console.log('✅ KYC documents fetched:', kycDocs?.length || 0, 'documents found');
-        console.log('📋 Sample KYC data:', kycDocs?.[0]);
       }
 
       // Get trading accounts for all users
-      console.log('🔍 Fetching trading accounts...');
       const { data: tradingAccounts, error: tradingError } = await supabase
         .from('tradingAccounts')
         .select(`
+          id,
           user_id,
           status,
           account_type
@@ -80,39 +74,22 @@ export class UserService {
 
       if (tradingError) {
         console.error('Error fetching trading accounts:', tradingError);
-      } else {
-        console.log('✅ Trading accounts fetched:', tradingAccounts?.length || 0, 'accounts found');
-        console.log('📋 Sample trading account data:', tradingAccounts?.[0]);
       }
 
       // Combine the data
       const usersWithDetails = users.map(user => {
-        console.log(`🔗 Processing user ${user.id}:`, { 
-          userId: user.id, 
-          kycDocs: kycDocs?.length || 0, 
-          tradingAccounts: tradingAccounts?.length || 0 
-        });
+        // Find KYC status for this user - using user_uuid to match with user_id in kyc_documents
+        const kycDoc = kycDocs?.find(doc => doc.user_id === user.user_uuid);
         
-        // Find KYC status for this user - using user.id as the foreign key
-        const kycDoc = kycDocs?.find(doc => doc.user_id === user.id.toString());
-        
-        // Find trading account for this user - using user.id as the foreign key
-        const tradingAccount = tradingAccounts?.find(acc => acc.user_id === user.id.toString());
+        // Find trading account for this user - using user_uuid to match with user_id in tradingAccounts
+        const tradingAccount = tradingAccounts?.find(acc => acc.user_id === user.user_uuid);
 
-        const result = {
+        return {
           ...user,
           kyc_status: kycDoc?.status || 'Pending',
           account_status: tradingAccount?.status || 'Active',
           account_type: tradingAccount?.account_type || 'Demo'
         };
-        
-        console.log(`✅ User ${user.id} processed:`, {
-          kyc_status: result.kyc_status,
-          account_status: result.account_status,
-          account_type: result.account_type
-        });
-        
-        return result;
       });
 
       return usersWithDetails;
@@ -127,13 +104,12 @@ export class UserService {
    */
   static async getUsersWithKYC(): Promise<ClientUser[]> {
     try {
-      console.log('🔍 Fetching users with KYC...');
-      
-      // First get all users
+      // First get all users with user_uuid
       const { data: users, error: usersError } = await supabase
         .from('users')
         .select(`
           id,
+          user_uuid,
           first_name,
           last_name,
           email,
@@ -154,6 +130,7 @@ export class UserService {
       const { data: kycDocs, error: kycError } = await supabase
         .from('kyc_documents')
         .select(`
+          id,
           user_id,
           status
         `);
@@ -164,8 +141,8 @@ export class UserService {
 
       // Combine the data
       const usersWithKYC = users.map(user => {
-        // Find KYC status for this user - using user.id as the foreign key
-        const kycDoc = kycDocs?.find(doc => doc.user_id === user.id.toString());
+        // Find KYC status for this user - using user_uuid to match with user_id in kyc_documents
+        const kycDoc = kycDocs?.find(doc => doc.user_id === user.user_uuid);
         
         return {
           ...user,
@@ -185,8 +162,6 @@ export class UserService {
    */
   static async getClientMetrics(): Promise<ClientMetrics> {
     try {
-      console.log('🔍 Fetching client metrics...');
-      
       // Get total users count
       const { count: totalUsers, error: usersError } = await supabase
         .from('users')
@@ -222,7 +197,7 @@ export class UserService {
       const demoAccounts = tradingAccounts?.filter(acc => acc.account_type === 'Demo').length || 0;
       const activeAccounts = tradingAccounts?.filter(acc => acc.status === 'Active').length || 0;
 
-      const metrics = {
+      return {
         totalClients: totalUsers || 0,
         activeClients: activeAccounts,
         kycApproved,
@@ -230,9 +205,6 @@ export class UserService {
         liveAccounts,
         demoAccounts,
       };
-
-      console.log('✅ Client metrics calculated:', metrics);
-      return metrics;
     } catch (error) {
       console.error('Failed to fetch client metrics:', error);
       return {
