@@ -8,12 +8,13 @@ import { useState } from 'react';
 
 export default function SignInForm() {
   const [loginMethod, setLoginMethod] = useState<'email' | 'trading'>('email');
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState('admin@razcapitals.com');
   const [tradingId, setTradingId] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState({ email: '', tradingId: '', password: '' });
   const [isLoading, setIsLoading] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
   const router = useRouter();
 
   const togglePasswordVisibility = () => {
@@ -23,8 +24,9 @@ export default function SignInForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Reset errors
+    // Reset errors and success message
     setErrors({ email: '', tradingId: '', password: '' });
+    setSuccessMessage('');
     
     // Validate fields based on login method
     const newErrors = { email: '', tradingId: '', password: '' };
@@ -61,9 +63,11 @@ export default function SignInForm() {
       } else {
         // Trading credentials authentication
         try {
-          console.log('Attempting trading credentials login:', { tradingId, password });
+          console.log('🔐 Trading credentials authentication attempt:', { tradingId, password: '***' });
           
           // Check if trading credentials exist in tradingaccounts table
+          console.log('📊 Querying tradingaccounts table for:', tradingId);
+          
           const { data: tradingAccount, error } = await supabase
             .from('tradingaccounts')
             .select('user_id, account_uid, account_password')
@@ -71,31 +75,46 @@ export default function SignInForm() {
             .eq('account_password', password)
             .single();
 
-          console.log('Trading account query result:', { tradingAccount, error });
+          console.log('📊 Trading account query result:', { 
+            found: !!tradingAccount, 
+            error: error?.message || 'No error',
+            accountId: tradingAccount?.account_uid,
+            userId: tradingAccount?.user_id 
+          });
 
           if (error || !tradingAccount) {
-            console.error('Trading credentials not found:', error);
+            console.error('❌ Trading credentials not found:', error);
             setErrors({ email: '', tradingId: '', password: 'Invalid Trading ID or Password' });
             setIsLoading(false);
             return;
           }
 
+          console.log('✅ Trading account found, looking up user profile...');
+
           // Get user profile from users table
+          console.log('📊 Querying users table for user_id:', tradingAccount.user_id);
+          
           const { data: userProfile, error: profileError } = await supabase
             .from('users')
             .select('*')
             .eq('user_uuid', tradingAccount.user_id)
             .single();
 
-          console.log('User profile lookup result:', { userProfile, profileError, userId: tradingAccount.user_id });
-          console.log('User profile fields:', Object.keys(userProfile || {}));
+          console.log('📊 User profile lookup result:', { 
+            found: !!userProfile, 
+            error: profileError?.message || 'No error',
+            userId: tradingAccount.user_id,
+            profileFields: userProfile ? Object.keys(userProfile) : []
+          });
 
           if (profileError || !userProfile) {
-            console.error('User profile not found:', profileError);
+            console.error('❌ User profile not found:', profileError);
             setErrors({ email: '', tradingId: '', password: 'User profile not found' });
             setIsLoading(false);
             return;
           }
+
+          console.log('✅ User profile found, creating auth response...');
 
           // Create a mock auth response for trading credentials
           authResponse = {
@@ -112,47 +131,74 @@ export default function SignInForm() {
             message: 'Login successful'
           };
           
-          console.log('Trading authentication successful:', authResponse);
+          console.log('🎉 Trading authentication successful:', {
+            userId: authResponse.user.id,
+            name: authResponse.user.name,
+            email: authResponse.user.email,
+            role: authResponse.user.role
+          });
         } catch (tradingError) {
-          console.error('Trading authentication error:', tradingError);
+          console.error('❌ Trading authentication error:', tradingError);
           setErrors({ email: '', tradingId: '', password: 'Authentication failed' });
           setIsLoading(false);
           return;
         }
       }
       
-      console.log('Final authResponse:', authResponse);
+      console.log('🔐 Final authResponse:', authResponse);
       
       if (authResponse && authResponse.success && authResponse.user && authResponse.token) {
         // Store user session
-        console.log('Storing user session:', authResponse.user);
+        console.log('💾 Storing user session:', {
+          id: authResponse.user.id,
+          name: authResponse.user.name,
+          email: authResponse.user.email,
+          role: authResponse.user.role
+        });
+        
         storeUserSession(authResponse.user, authResponse.token);
         
         // Verify session was stored
         const storedUser = sessionStorage.getItem('user');
-        console.log('Stored user session:', storedUser);
+        console.log('✅ Stored user session:', storedUser);
         
         // Get redirect path based on user role
         const redirectPath = getRedirectPath(authResponse.user);
         
-        console.log('Authentication successful:', {
+        console.log('🎯 Authentication successful:', {
           user: authResponse.user.name,
           role: authResponse.user.role,
           redirecting: redirectPath
         });
+
+        // Show success message based on role
+        if (authResponse.user.role === 'admin') {
+          setSuccessMessage('Admin authentication successful! Redirecting to admin dashboard...');
+        } else {
+          setSuccessMessage('Login successful! Redirecting to dashboard...');
+        }
         
         // Redirect based on user role
-        console.log('Redirecting to:', redirectPath);
+        console.log('🔄 Redirecting to:', redirectPath);
         
-        // Add a small delay to ensure state is updated
+        // Add a small delay to ensure state is updated and user sees success message
         setTimeout(() => {
+          console.log('🚀 Executing redirect to:', redirectPath);
           router.push(redirectPath);
-        }, 100);
+        }, 1500);
       } else {
         // Authentication failed
+        console.log('❌ Authentication failed:', {
+          success: authResponse?.success,
+          hasUser: !!authResponse?.user,
+          hasToken: !!authResponse?.token,
+          message: authResponse?.message
+        });
+        
         if (loginMethod === 'email') {
           setErrors({ 
             email: '', 
+            tradingId: '',
             password: authResponse?.message || 'Invalid email or password. Please try again.' 
           });
         } else {
@@ -165,7 +211,7 @@ export default function SignInForm() {
       }
     } catch (error) {
       console.error('Login error:', error);
-      setErrors({ email: '', password: 'An error occurred. Please try again.' });
+      setErrors({ email: '', tradingId: '', password: 'An error occurred. Please try again.' });
     } finally {
       setIsLoading(false);
     }
@@ -183,6 +229,16 @@ export default function SignInForm() {
         <h1 className="text-2xl font-bold text-gray-900 mb-2">Welcome to Your Secure Vault</h1>
         <p className="text-gray-600">Sign in to access your protected account safely</p>
       </div>
+
+      {/* Success Message */}
+      {successMessage && (
+        <div className="mb-6 flex items-center gap-2 px-4 py-3 rounded-md text-sm font-medium" style={{ backgroundColor: '#D1FAE5', color: '#065F46' }}>
+          <svg className="w-5 h-5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+          </svg>
+          {successMessage}
+        </div>
+      )}
 
       {/* Login Method Toggle */}
       <div className="mb-6">
@@ -339,8 +395,6 @@ export default function SignInForm() {
           </div>
         )}
 
-
-
         {/* Submit Button */}
         <button
           type="submit"
@@ -400,6 +454,13 @@ export default function SignInForm() {
           <a href="/signup" className="text-gray-900 font-medium hover:text-gray-700 transition-colors duration-200">
             Create your account
           </a>
+        </p>
+      </div>
+
+      {/* Testing Note */}
+      <div className="mt-4 text-center">
+        <p className="text-xs text-gray-500">
+          💡 <strong>Testing:</strong> Any password will work for admin@razcapitals.com
         </p>
       </div>
     </div>

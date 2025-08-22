@@ -1,3 +1,4 @@
+import { authenticateAdmin } from '@/lib/adminAuth';
 import { AuthResponse, LoginCredentials, User } from '@/types';
 
 // Mock user database - In a real app, this would be your backend API
@@ -38,13 +39,72 @@ const mockUsers: User[] = [
 
 // Authentication function
 export async function authenticateUser(credentials: LoginCredentials): Promise<AuthResponse> {
-  // Simulate API delay
-  await new Promise(resolve => setTimeout(resolve, 1000));
-
   const { email, password } = credentials;
 
-  // Accept any email and password combination
+  console.log('🔐 Starting user authentication for:', email);
+
+  // First, check if this is an admin login attempt
+  if (isAdminEmail(email)) {
+    console.log('👑 Admin email detected, attempting admin authentication...');
+    
+    try {
+      const adminAuth = await authenticateAdmin(email, password);
+      
+      console.log('👑 Admin authentication result:', {
+        success: adminAuth.success,
+        message: adminAuth.message,
+        hasUser: !!adminAuth.user
+      });
+      
+      if (adminAuth.success && adminAuth.user) {
+        // Convert admin user to User type
+        const adminUser: User = {
+          id: adminAuth.user.id.toString(),
+          email: adminAuth.user.email,
+          name: adminAuth.user.fullname,
+          role: 'admin',
+          createdAt: adminAuth.user.created_at,
+          lastLogin: new Date().toISOString()
+        };
+
+        console.log('✅ Admin user converted successfully:', {
+          id: adminUser.id,
+          name: adminUser.name,
+          role: adminUser.role
+        });
+
+        return {
+          success: true,
+          user: adminUser,
+          token: `admin-token-${adminUser.id}-${Date.now()}`,
+          message: 'Admin authentication successful'
+        };
+      } else {
+        console.log('❌ Admin authentication failed:', adminAuth.message);
+        return {
+          success: false,
+          message: adminAuth.message
+        };
+      }
+    } catch (error) {
+      console.error('❌ Admin authentication error:', error);
+      return {
+        success: false,
+        message: 'Admin authentication failed. Please try again.'
+      };
+    }
+  }
+
+  console.log('👤 Regular user email detected, using mock authentication...');
+
+  // For non-admin users, use the existing mock authentication logic
+  // Simulate API delay
+  console.log('⏳ Simulating API delay...');
+  await new Promise(resolve => setTimeout(resolve, 1000));
+
+  // Accept any email and password combination for testing
   if (!email.trim()) {
+    console.log('❌ Email validation failed: empty email');
     return {
       success: false,
       message: 'Email is required.'
@@ -52,14 +112,20 @@ export async function authenticateUser(credentials: LoginCredentials): Promise<A
   }
 
   if (!password.trim()) {
+    console.log('❌ Password validation failed: empty password');
     return {
       success: false,
       message: 'Password is required.'
     };
   }
 
+  console.log('✅ Email and password validation passed');
+
+  // For testing purposes, accept ANY email and password combination
   // Determine role based on email pattern
   const role = isAdminEmail(email) ? 'admin' : 'user';
+  
+  console.log('🎭 User role determined:', role);
   
   // Create user object for any email
   const updatedUser: User = {
@@ -70,6 +136,13 @@ export async function authenticateUser(credentials: LoginCredentials): Promise<A
     createdAt: new Date().toISOString(),
     lastLogin: new Date().toISOString()
   };
+
+  console.log('👤 Mock user created:', {
+    id: updatedUser.id,
+    name: updatedUser.name,
+    email: updatedUser.email,
+    role: updatedUser.role
+  });
 
   return {
     success: true,
@@ -96,6 +169,7 @@ export function isAdminEmail(email: string): boolean {
   const adminPatterns = [
     '@admin',
     'admin@',
+    '@razcapital.com',
     '@razcapitals.com'
   ];
   
@@ -109,6 +183,7 @@ export function storeUserSession(user: User, token: string): void {
   if (typeof window !== 'undefined') {
     sessionStorage.setItem('user', JSON.stringify(user));
     sessionStorage.setItem('token', token);
+    sessionStorage.setItem('userRole', user.role);
   }
 }
 
@@ -121,10 +196,19 @@ export function getCurrentUser(): User | null {
   return null;
 }
 
+// Get current user role from session
+export function getCurrentUserRole(): string | null {
+  if (typeof window !== 'undefined') {
+    return sessionStorage.getItem('userRole');
+  }
+  return null;
+}
+
 // Clear user session
 export function clearUserSession(): void {
   if (typeof window !== 'undefined') {
     sessionStorage.removeItem('user');
     sessionStorage.removeItem('token');
+    sessionStorage.removeItem('userRole');
   }
 }

@@ -1,5 +1,7 @@
 'use client';
 
+
+import { useDashboardMetrics } from '@/hooks/useDashboardMetrics';
 import { useEffect, useState } from 'react';
 
 export default function DashboardClient() {
@@ -9,6 +11,7 @@ export default function DashboardClient() {
   const [languageDropdownOpen, setLanguageDropdownOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
+  const { metrics } = useDashboardMetrics();
 
   // Check if fullscreen is supported
   useEffect(() => {
@@ -322,6 +325,8 @@ export default function DashboardClient() {
             </div>
           </div>
 
+
+
           {/* Action Buttons */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
             <button className={`${darkMode ? 'bg-[#2D4A35] hover:bg-[#3A5642] text-white' : 'bg-white hover:bg-gray-50 text-gray-900 border border-gray-200'} rounded-lg p-4 sm:p-6 transition-colors duration-200 flex flex-col items-center`}>
@@ -360,13 +365,18 @@ export default function DashboardClient() {
               <span className="text-xs sm:text-sm font-medium">Accounts</span>
             </button>
             
-            <button className={`${darkMode ? 'bg-[#2D4A35] hover:bg-[#3A5642] text-white' : 'bg-white hover:bg-gray-50 text-gray-900 border border-gray-200'} rounded-lg p-4 sm:p-6 transition-colors duration-200 flex flex-col items-center sm:col-span-3 lg:col-span-1`}>
+            <button className={`${darkMode ? 'bg-[#2D4A35] hover:bg-[#3A5642] text-white' : 'bg-white hover:bg-gray-50 text-gray-900 border border-gray-200'} rounded-lg p-4 sm:p-6 transition-colors duration-200 flex flex-col items-center sm:col-span-3 lg:col-span-1 relative`}>
               <div className="w-10 h-10 sm:w-12 sm:h-12 bg-[#A0C8A9] rounded-full flex items-center justify-center mb-2 sm:mb-3">
-                <svg className="w-5 h-5 sm:w-6 sm-h-6 text-[#1E2E23]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-5 h-5 sm:w-6 sm:h-6 text-[#1E2E23]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </div>
               <span className="text-xs sm:text-sm font-medium">Verification</span>
+              {metrics.kycPending > 0 && (
+                <div className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 rounded-full text-xs flex items-center justify-center text-white font-semibold">
+                  {metrics.kycPending}
+                </div>
+              )}
             </button>
           </div>
 
@@ -386,27 +396,27 @@ export default function DashboardClient() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div className={`${darkMode ? 'bg-[#B8D4C1]' : 'bg-gray-50'} rounded-lg p-3 sm:p-4`}>
                   <div className="flex justify-between items-center mb-2">
-                    <h3 className={`text-xs sm:text-sm font-medium ${darkMode ? 'text-[#1E2E23]' : 'text-gray-700'}`}>Trading Accounts:</h3>
-                    <a href="#" className={`text-xs hover:underline ${darkMode ? 'text-[#1E2E23]' : 'text-gray-600'}`}>See All</a>
+                    <h3 className={`text-xs sm:text-sm font-medium ${darkMode ? 'text-[#1E2E23]' : 'text-gray-700'}`}>Live Accounts:</h3>
+                    <a href="/dashboard/my-accounts" className={`text-xs hover:underline ${darkMode ? 'text-[#1E2E23]' : 'text-gray-600'}`}>See All</a>
                   </div>
                   <div className="flex justify-between items-center">
-                    <span className={`text-xl sm:text-2xl font-bold ${darkMode ? 'text-[#1E2E23]' : 'text-gray-900'}`}>0</span>
-                    <button className={`${darkMode ? 'bg-[#2D4A35] text-white hover:bg-[#3A5642]' : 'bg-blue-600 text-white hover:bg-blue-700'} px-2 sm:px-3 py-1 rounded text-xs font-medium transition-colors`}>
+                    <span className={`text-xl sm:text-2xl font-bold ${darkMode ? 'text-[#1E2E23]' : 'text-gray-900'}`}>{metrics.totalLiveAccounts}</span>
+                    <a href="/dashboard/new-account" className={`${darkMode ? 'bg-[#2D4A35] text-white hover:bg-[#3A5642]' : 'bg-blue-600 text-white hover:bg-blue-700'} px-2 sm:px-3 py-1 rounded text-xs font-medium transition-colors`}>
                       Create Account
-                    </button>
+                    </a>
                   </div>
                 </div>
                 
                 <div className={`${darkMode ? 'bg-[#B8D4C1]' : 'bg-gray-50'} rounded-lg p-3 sm:p-4`}>
                   <div className="flex justify-between items-center mb-2">
                     <h3 className={`text-xs sm:text-sm font-medium ${darkMode ? 'text-[#1E2E23]' : 'text-gray-700'}`}>Demo Accounts:</h3>
-                    <a href="#" className={`text-xs hover:underline ${darkMode ? 'text-[#1E2E23]' : 'text-gray-600'}`}>See All</a>
+                    <a href="/dashboard/my-accounts" className={`text-xs hover:underline ${darkMode ? 'text-[#1E2E23]' : 'text-gray-600'}`}>See All</a>
                   </div>
                   <div className="flex justify-between items-center">
-                    <span className={`text-xl sm:text-2xl font-bold ${darkMode ? 'text-[#1E2E23]' : 'text-gray-900'}`}>0</span>
-                    <button className={`${darkMode ? 'bg-[#2D4A35] text-white hover:bg-[#3A5642]' : 'bg-blue-600 text-white hover:bg-blue-700'} px-2 sm:px-3 py-1 rounded text-xs font-medium transition-colors`}>
+                    <span className={`text-xl sm:text-2xl font-bold ${darkMode ? 'text-[#1E2E23]' : 'text-gray-900'}`}>{metrics.totalDemoAccounts}</span>
+                    <a href="/dashboard/new-account" className={`${darkMode ? 'bg-[#2D4A35] text-white hover:bg-[#3A5642]' : 'bg-blue-600 text-white hover:bg-blue-700'} px-2 sm:px-3 py-1 rounded text-xs font-medium transition-colors`}>
                       Create Account
-                    </button>
+                    </a>
                   </div>
                 </div>
               </div>

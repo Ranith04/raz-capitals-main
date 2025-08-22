@@ -2,6 +2,7 @@
 
 import AdminSidebar from '@/components/AdminSidebar';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import { useDashboardMetrics } from '@/hooks/useDashboardMetrics';
 import { AuthService } from '@/lib/authService';
 import { clearUserSession } from '@/utils/auth';
 import { useRouter } from 'next/navigation';
@@ -10,6 +11,15 @@ import { useEffect, useState } from 'react';
 function AdminDashboardContent() {
   const router = useRouter();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  
+  // Get dashboard metrics from the hook
+  const { 
+    metrics, 
+    loading, 
+    error, 
+    fetchDashboardMetrics,
+    refreshMetric 
+  } = useDashboardMetrics();
   
   useEffect(() => {
     document.title = 'Admin Dashboard - RAZ CAPITALS';
@@ -41,11 +51,6 @@ function AdminDashboardContent() {
     };
   }, [isDropdownOpen]);
 
-  const handleCardClick = (cardType: string) => {
-    // Navigate to user profile page - using a sample user ID
-    router.push('/admin/users/1/profile');
-  };
-
   const handleLogout = async () => {
     try {
       // Sign out from Supabase
@@ -70,6 +75,44 @@ function AdminDashboardContent() {
   const toggleDropdown = () => {
     setIsDropdownOpen(!isDropdownOpen);
   };
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className="flex h-screen bg-[#9BC5A2] overflow-hidden">
+        <AdminSidebar currentPage="dashboard" />
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-[#0A2E1D] mx-auto mb-4"></div>
+            <p className="text-[#0A2E1D] text-lg font-medium">Loading Dashboard Metrics...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="flex h-screen bg-[#9BC5A2] overflow-hidden">
+        <AdminSidebar currentPage="dashboard" />
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+              <p className="font-bold">Error Loading Dashboard</p>
+              <p>{error}</p>
+            </div>
+            <button 
+              onClick={fetchDashboardMetrics}
+              className="bg-[#0A2E1D] text-white px-4 py-2 rounded hover:bg-[#1a3a28] transition-colors"
+            >
+              Retry
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen bg-[#9BC5A2] overflow-hidden">
@@ -133,106 +176,89 @@ function AdminDashboardContent() {
           </div>
         </div>
 
+        {/* Refresh Button */}
+        <div className="bg-[#0A2E1D] px-4 pb-2">
+          <button 
+            onClick={fetchDashboardMetrics}
+            className="bg-[#2D4A32] text-white px-4 py-2 rounded-lg hover:bg-[#3A5A3F] transition-colors flex items-center space-x-2"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            <span>Refresh Metrics</span>
+          </button>
+        </div>
+
         {/* Statistics Grid */}
         <div className="flex-1 p-6 grid grid-cols-2 gap-x-6 gap-y-0 overflow-y-auto">
           {/* Today Registration */}
-          <div 
-            className="bg-[#2D4A32] rounded-2xl px-4 py-3 flex items-center justify-between h-16 -mb-2 cursor-pointer hover:bg-[#3A5A3F] transition-colors duration-200 hover:scale-105 transform"
-            onClick={() => handleCardClick('registration')}
-          >
+          <div className="bg-[#2D4A32] rounded-2xl px-4 py-3 grid grid-cols-3 items-center h-16 -mb-2">
             <span className="text-white font-medium text-base">Today Registration</span>
-            <span className="text-white text-lg">:</span>
-            <span className="text-white font-bold text-xl">0</span>
+            <span className="text-white text-lg text-center">:</span>
+            <span className="text-white font-bold text-xl text-right">{metrics.todayRegistration}</span>
           </div>
 
           {/* Total Registration */}
-          <div 
-            className="bg-[#2D4A32] rounded-2xl px-4 py-3 flex items-center justify-between h-16 -mb-2 cursor-pointer hover:bg-[#3A5A3F] transition-colors duration-200 hover:scale-105 transform"
-            onClick={() => handleCardClick('registration')}
-          >
+          <div className="bg-[#2D4A32] rounded-2xl px-4 py-3 grid grid-cols-3 items-center h-16 -mb-2">
             <span className="text-white font-medium text-base">Total Registration</span>
-            <span className="text-white text-lg">:</span>
-            <span className="text-white font-bold text-xl">5</span>
+            <span className="text-white text-lg text-center">:</span>
+            <span className="text-white font-bold text-xl text-right">{metrics.totalRegistration}</span>
           </div>
 
           {/* KYC Pending */}
-          <div 
-            className="bg-[#2D4A32] rounded-2xl px-4 py-3 flex items-center justify-between h-16 -mb-2 cursor-pointer hover:bg-[#3A5A3F] transition-colors duration-200 hover:scale-105 transform"
-            onClick={() => handleCardClick('registration')}
-          >
+          <div className="bg-[#2D4A32] rounded-2xl px-4 py-3 grid grid-cols-3 items-center h-16 -mb-2">
             <span className="text-white font-medium text-base">KYC Pending</span>
-            <span className="text-white text-lg">:</span>
-            <span className="text-white font-bold text-xl">1</span>
+            <span className="text-white text-lg text-center">:</span>
+            <span className="text-white font-bold text-xl text-right">{metrics.kycPending}</span>
           </div>
 
           {/* Total Live Accounts */}
-          <div 
-            className="bg-[#2D4A32] rounded-2xl px-4 py-3 flex items-center justify-between h-16 -mb-2 cursor-pointer hover:bg-[#3A5A3F] transition-colors duration-200 hover:scale-105 transform"
-            onClick={() => handleCardClick('registration')}
-          >
+          <div className="bg-[#2D4A32] rounded-2xl px-4 py-3 grid grid-cols-3 items-center h-16 -mb-2">
             <span className="text-white font-medium text-base">Total Live Accounts</span>
-            <span className="text-white text-lg">:</span>
-            <span className="text-white font-bold text-xl">5</span>
+            <span className="text-white text-lg text-center">:</span>
+            <span className="text-white font-bold text-xl text-right">{metrics.totalLiveAccounts}</span>
           </div>
 
           {/* Total Demo Accounts */}
-          <div 
-            className="bg-[#2D4A32] rounded-2xl px-4 py-3 flex items-center justify-between h-16 -mb-2 cursor-pointer hover:bg-[#3A5A3F] transition-colors duration-200 hover:scale-105 transform"
-            onClick={() => handleCardClick('registration')}
-          >
+          <div className="bg-[#2D4A32] rounded-2xl px-4 py-3 grid grid-cols-3 items-center h-16 -mb-2">
             <span className="text-white font-medium text-base">Total Demo Accounts</span>
-            <span className="text-white text-lg">:</span>
-            <span className="text-white font-bold text-xl">1</span>
+            <span className="text-white text-lg text-center">:</span>
+            <span className="text-white font-bold text-xl text-right">{metrics.totalDemoAccounts}</span>
           </div>
 
           {/* Total Today Deposits */}
-          <div 
-            className="bg-[#2D4A32] rounded-2xl px-4 py-3 flex items-center justify-between h-16 -mb-2 cursor-pointer hover:bg-[#3A5A3F] transition-colors duration-200 hover:scale-105 transform"
-            onClick={() => handleCardClick('registration')}
-          >
+          <div className="bg-[#2D4A32] rounded-2xl px-4 py-3 grid grid-cols-3 items-center h-16 -mb-2">
             <span className="text-white font-medium text-base">Total Today Deposits</span>
-            <span className="text-white text-lg">:</span>
-            <span className="text-white font-bold text-xl">0</span>
+            <span className="text-white text-lg text-center">:</span>
+            <span className="text-white font-bold text-xl text-right">{metrics.totalTodayDeposits}</span>
           </div>
 
           {/* Total Today Withdrawal */}
-          <div 
-            className="bg-[#2D4A32] rounded-2xl px-4 py-3 flex items-center justify-between h-16 -mb-2 cursor-pointer hover:bg-[#3A5A3F] transition-colors duration-200 hover:scale-105 transform"
-            onClick={() => handleCardClick('registration')}
-          >
+          <div className="bg-[#2D4A32] rounded-2xl px-4 py-3 grid grid-cols-3 items-center h-16 -mb-2">
             <span className="text-white font-medium text-base">Total Today Withdrawal</span>
-            <span className="text-white text-lg">:</span>
-            <span className="text-white font-bold text-xl">0</span>
+            <span className="text-white text-lg text-center">:</span>
+            <span className="text-white font-bold text-xl text-right">{metrics.totalTodayWithdrawals}</span>
           </div>
 
           {/* This Month Deposit */}
-          <div 
-            className="bg-[#2D4A32] rounded-2xl px-4 py-3 flex items-center justify-between h-16 -mb-2 cursor-pointer hover:bg-[#3A5A3F] transition-colors duration-200 hover:scale-105 transform"
-            onClick={() => handleCardClick('registration')}
-          >
+          <div className="bg-[#2D4A32] rounded-2xl px-4 py-3 grid grid-cols-3 items-center h-16 -mb-2">
             <span className="text-white font-medium text-base">This Month Deposit</span>
-            <span className="text-white text-lg">:</span>
-            <span className="text-white font-bold text-xl">50862.00</span>
+            <span className="text-white text-lg text-center">:</span>
+            <span className="text-white font-bold text-xl text-right">{metrics.thisMonthDeposits}</span>
           </div>
 
           {/* This Month Withdrawal */}
-          <div 
-            className="bg-[#2D4A32] rounded-2xl px-4 py-3 flex items-center justify-between h-16 -mb-2 cursor-pointer hover:bg-[#3A5A3F] transition-colors duration-200 hover:scale-105 transform"
-            onClick={() => handleCardClick('registration')}
-          >
+          <div className="bg-[#2D4A32] rounded-2xl px-4 py-3 grid grid-cols-3 items-center h-16 -mb-2">
             <span className="text-white font-medium text-base">This Month Withdrawal</span>
-            <span className="text-white text-lg">:</span>
-            <span className="text-white font-bold text-xl">0</span>
+            <span className="text-white text-lg text-center">:</span>
+            <span className="text-white font-bold text-xl text-right">{metrics.thisMonthWithdrawals}</span>
           </div>
 
           {/* Total IB Clients */}
-          <div 
-            className="bg-[#2D4A32] rounded-2xl px-4 py-3 flex items-center justify-between h-16 -mb-2 cursor-pointer hover:bg-[#3A5A3F] transition-colors duration-200 hover:scale-105 transform"
-            onClick={() => handleCardClick('registration')}
-          >
+          <div className="bg-[#2D4A32] rounded-2xl px-4 py-3 grid grid-cols-3 items-center h-16 -mb-2">
             <span className="text-white font-medium text-base">Total IB Clients</span>
-            <span className="text-white text-lg">:</span>
-            <span className="text-white font-bold text-xl"></span>
+            <span className="text-white text-lg text-center">:</span>
+            <span className="text-white font-bold text-xl text-right">{metrics.totalIBClients}</span>
           </div>
         </div>
 

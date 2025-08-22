@@ -3,10 +3,32 @@
 import AdminSidebar from '@/components/AdminSidebar';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 function WithdrawFundContent() {
   const router = useRouter();
+  const [isViewOpen, setIsViewOpen] = useState(false);
+  const [selectedRow, setSelectedRow] = useState<null | {
+    id: number;
+    trId: string;
+    date: string;
+    name: string;
+    email: string;
+    amount: string;
+    withdrawType: string;
+    status: 'Approved' | 'Pending' | 'Rejected' | 'High Risk' | 'Processing';
+    withdrawMethod: string;
+  }>(null);
+
+  const openView = (row: any) => {
+    setSelectedRow(row);
+    setIsViewOpen(true);
+  };
+
+  const closeView = () => {
+    setIsViewOpen(false);
+    setSelectedRow(null);
+  };
   
   useEffect(() => {
     document.title = 'Withdraw Fund - RAZ CAPITALS';
@@ -41,301 +63,105 @@ function WithdrawFundContent() {
           </div>
         </div>
 
-        {/* Withdraw Fund Content */}
+        {/* Withdraw Finance Content (card + table) */}
         <div className="flex-1 p-8 overflow-y-auto">
-          <div className="flex justify-between items-center mb-8">
-            <h1 className="text-[#0A2E1D] text-3xl font-bold">Withdrawal Management</h1>
-            <button className="px-6 py-2 bg-[#2D4A32] text-white rounded-lg hover:bg-[#3A5A3F] transition-colors">
-              Process Withdrawal
-            </button>
-          </div>
+          <div className="bg-[#E5E7EB] rounded-xl p-6 shadow-sm border border-black/10">
+            <h2 className="text-[#0A2E1D] text-2xl font-semibold mb-6">Withdraw Finance</h2>
 
-          {/* Statistics Cards */}
-          <div className="grid grid-cols-4 gap-6 mb-8">
-            <div className="bg-[#2D4A32] rounded-2xl p-6 text-center">
-              <h3 className="text-[#9BC5A2] text-sm font-medium mb-2">Today's Withdrawals</h3>
-              <p className="text-red-400 text-2xl font-bold">$28,500</p>
-            </div>
-            <div className="bg-[#2D4A32] rounded-2xl p-6 text-center">
-              <h3 className="text-[#9BC5A2] text-sm font-medium mb-2">This Month</h3>
-              <p className="text-white text-2xl font-bold">$650K</p>
-            </div>
-            <div className="bg-[#2D4A32] rounded-2xl p-6 text-center">
-              <h3 className="text-[#9BC5A2] text-sm font-medium mb-2">Pending Withdrawals</h3>
-              <p className="text-yellow-400 text-2xl font-bold">8</p>
-            </div>
-            <div className="bg-[#2D4A32] rounded-2xl p-6 text-center">
-              <h3 className="text-[#9BC5A2] text-sm font-medium mb-2">Rejected Withdrawals</h3>
-              <p className="text-red-400 text-2xl font-bold">2</p>
-            </div>
-          </div>
-
-          {/* Quick Actions */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-            {/* Manual Withdrawal Form */}
-            <div className="bg-[#2D4A32] rounded-2xl p-6">
-              <h2 className="text-white text-xl font-bold mb-6">Process Manual Withdrawal</h2>
-              
-              <div className="space-y-4">
-                <div>
-                  <label className="text-[#9BC5A2] text-sm font-medium mb-2 block">User Account</label>
-                  <select className="w-full bg-[#4A6741] text-white px-4 py-2 rounded-lg border border-[#9BC5A2]/30 focus:border-[#9BC5A2] focus:outline-none">
-                    <option>Select User Account</option>
-                    <option>#LIVE001 - Abdul Khadar Ishak ($25,450)</option>
-                    <option>#LIVE002 - Sarah Johnson ($8,920)</option>
-                    <option>#LIVE003 - Michael Chen ($156,750)</option>
-                  </select>
-                </div>
-                
-                <div>
-                  <label className="text-[#9BC5A2] text-sm font-medium mb-2 block">Withdrawal Amount</label>
-                  <input 
-                    type="number" 
-                    placeholder="Enter amount"
-                    className="w-full bg-[#4A6741] text-white px-4 py-2 rounded-lg border border-[#9BC5A2]/30 focus:border-[#9BC5A2] focus:outline-none placeholder-gray-400"
-                  />
-                </div>
-                
-                <div>
-                  <label className="text-[#9BC5A2] text-sm font-medium mb-2 block">Withdrawal Method</label>
-                  <select className="w-full bg-[#4A6741] text-white px-4 py-2 rounded-lg border border-[#9BC5A2]/30 focus:border-[#9BC5A2] focus:outline-none">
-                    <option>Bank Transfer</option>
-                    <option>Wire Transfer</option>
-                    <option>Crypto</option>
-                    <option>PayPal</option>
-                    <option>Check</option>
-                  </select>
-                </div>
-                
-                <div>
-                  <label className="text-[#9BC5A2] text-sm font-medium mb-2 block">Bank Account / Details</label>
-                  <textarea 
-                    placeholder="Bank details or crypto address..."
-                    rows={3}
-                    className="w-full bg-[#4A6741] text-white px-4 py-2 rounded-lg border border-[#9BC5A2]/30 focus:border-[#9BC5A2] focus:outline-none placeholder-gray-400"
-                  />
-                </div>
-                
-                <div>
-                  <label className="text-[#9BC5A2] text-sm font-medium mb-2 block">Admin Notes</label>
-                  <textarea 
-                    placeholder="Internal notes..."
-                    rows={2}
-                    className="w-full bg-[#4A6741] text-white px-4 py-2 rounded-lg border border-[#9BC5A2]/30 focus:border-[#9BC5A2] focus:outline-none placeholder-gray-400"
-                  />
-                </div>
-                
-                <button className="w-full px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors">
-                  Process Withdrawal
-                </button>
-              </div>
-            </div>
-
-            {/* Withdrawal Status Summary */}
-            <div className="bg-[#2D4A32] rounded-2xl p-6">
-              <h2 className="text-white text-xl font-bold mb-6">Withdrawal Status Summary</h2>
-              
-              <div className="space-y-4">
-                <div className="flex justify-between items-center p-3 bg-[#4A6741] rounded-lg">
-                  <div>
-                    <h3 className="text-white font-medium">Completed Withdrawals</h3>
-                    <p className="text-[#9BC5A2] text-sm">Successfully processed</p>
-                  </div>
-                  <span className="text-green-400 text-2xl font-bold">324</span>
-                </div>
-                
-                <div className="flex justify-between items-center p-3 bg-[#4A6741] rounded-lg">
-                  <div>
-                    <h3 className="text-white font-medium">Pending Review</h3>
-                    <p className="text-[#9BC5A2] text-sm">Awaiting admin approval</p>
-                  </div>
-                  <span className="text-yellow-400 text-2xl font-bold">8</span>
-                </div>
-                
-                <div className="flex justify-between items-center p-3 bg-[#4A6741] rounded-lg">
-                  <div>
-                    <h3 className="text-white font-medium">Rejected Withdrawals</h3>
-                    <p className="text-[#9BC5A2] text-sm">Insufficient funds or issues</p>
-                  </div>
-                  <span className="text-red-400 text-2xl font-bold">2</span>
-                </div>
-                
-                <div className="flex justify-between items-center p-3 bg-[#4A6741] rounded-lg">
-                  <div>
-                    <h3 className="text-white font-medium">Processing</h3>
-                    <p className="text-[#9BC5A2] text-sm">Currently being processed</p>
-                  </div>
-                  <span className="text-blue-400 text-2xl font-bold">5</span>
-                </div>
-                
-                <div className="mt-6 p-3 bg-red-900/20 border border-red-500/20 rounded-lg">
-                  <h4 className="text-red-400 font-medium mb-2">High Risk Withdrawals</h4>
-                  <p className="text-red-300 text-sm">2 withdrawals require additional verification</p>
-                  <button className="mt-2 px-3 py-1 bg-red-600 text-white rounded text-sm hover:bg-red-700 transition-colors">
-                    Review Now
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Search and Filter Section */}
-          <div className="bg-[#2D4A32] rounded-2xl p-6 mb-8">
-            <div className="grid grid-cols-5 gap-4">
-              <div>
-                <label className="text-white text-sm font-medium mb-2 block">Search</label>
-                <input 
-                  type="text" 
-                  placeholder="Transaction ID, User..."
-                  className="w-full bg-[#4A6741] text-white px-4 py-2 rounded-lg border border-[#9BC5A2]/30 focus:border-[#9BC5A2] focus:outline-none placeholder-gray-400"
-                />
-              </div>
-              <div>
-                <label className="text-white text-sm font-medium mb-2 block">Status</label>
-                <select className="w-full bg-[#4A6741] text-white px-4 py-2 rounded-lg border border-[#9BC5A2]/30 focus:border-[#9BC5A2] focus:outline-none">
-                  <option>All Status</option>
-                  <option>Completed</option>
-                  <option>Pending</option>
-                  <option>Rejected</option>
-                  <option>Processing</option>
-                  <option>High Risk</option>
-                </select>
-              </div>
-              <div>
-                <label className="text-white text-sm font-medium mb-2 block">Withdrawal Method</label>
-                <select className="w-full bg-[#4A6741] text-white px-4 py-2 rounded-lg border border-[#9BC5A2]/30 focus:border-[#9BC5A2] focus:outline-none">
-                  <option>All Methods</option>
-                  <option>Bank Transfer</option>
-                  <option>Wire Transfer</option>
-                  <option>Crypto</option>
-                  <option>PayPal</option>
-                  <option>Check</option>
-                </select>
-              </div>
-              <div>
-                <label className="text-white text-sm font-medium mb-2 block">Date From</label>
-                <input 
-                  type="date" 
-                  className="w-full bg-[#4A6741] text-white px-4 py-2 rounded-lg border border-[#9BC5A2]/30 focus:border-[#9BC5A2] focus:outline-none"
-                />
-              </div>
-              <div>
-                <label className="text-white text-sm font-medium mb-2 block">Date To</label>
-                <input 
-                  type="date" 
-                  className="w-full bg-[#4A6741] text-white px-4 py-2 rounded-lg border border-[#9BC5A2]/30 focus:border-[#9BC5A2] focus:outline-none"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Withdrawals Table */}
-          <div className="bg-[#2D4A32] rounded-2xl p-6">
-            <h2 className="text-white text-xl font-bold mb-6">Recent Withdrawals</h2>
-            
             <div className="overflow-x-auto">
-              <table className="w-full">
+              <table className="w-full text-center">
                 <thead>
-                  <tr className="border-b border-[#4A6741]">
-                    <th className="text-left text-[#9BC5A2] font-medium py-3">Transaction ID</th>
-                    <th className="text-left text-[#9BC5A2] font-medium py-3">User</th>
-                    <th className="text-left text-[#9BC5A2] font-medium py-3">Amount</th>
-                    <th className="text-left text-[#9BC5A2] font-medium py-3">Method</th>
-                    <th className="text-left text-[#9BC5A2] font-medium py-3">Date</th>
-                    <th className="text-left text-[#9BC5A2] font-medium py-3">Status</th>
-                    <th className="text-left text-[#9BC5A2] font-medium py-3">Actions</th>
+                  <tr className="border-b border-black/10">
+                    <th className="py-3 pr-4 text-[#0A2E1D] font-bold text-center">ID</th>
+                    <th className="py-3 pr-4 text-[#0A2E1D] font-bold text-center">Tr.ID</th>
+                    <th className="py-3 pr-4 text-[#0A2E1D] font-bold text-center">Date</th>
+                    <th className="py-3 pr-4 text-[#0A2E1D] font-bold text-center">User Name</th>
+                    <th className="py-3 pr-4 text-[#0A2E1D] font-bold text-center">Email</th>
+                    <th className="py-3 pr-4 text-[#0A2E1D] font-bold text-center">Amount</th>
+                    <th className="py-3 pr-4 text-[#0A2E1D] font-bold text-center">Withdraw Type</th>
+                    <th className="py-3 pr-4 text-[#0A2E1D] font-bold text-center">Status</th>
+                    <th className="py-3 pr-4 text-[#0A2E1D] font-bold text-center">Withdraw Method</th>
+                    <th className="py-3 pr-4 text-[#0A2E1D] font-bold text-center">Action</th>
                   </tr>
                 </thead>
-                <tbody>
-                  <tr className="border-b border-[#4A6741]/50">
-                    <td className="text-white py-4">#WDR001045</td>
-                    <td className="text-white py-4">Abdul Khadar Ishak</td>
-                    <td className="text-white py-4">$2,500.00</td>
-                    <td className="text-white py-4">Bank Transfer</td>
-                    <td className="text-white py-4">Jan 6, 2025 15:30</td>
-                    <td className="py-4">
-                      <span className="bg-yellow-500/20 text-yellow-400 px-2 py-1 rounded-full text-sm">
-                        Pending
-                      </span>
-                    </td>
-                    <td className="py-4">
-                      <div className="flex space-x-2">
-                        <button className="text-green-400 hover:text-green-300 transition-colors px-3 py-1 bg-green-900/20 rounded hover:bg-green-900/30 text-sm">
-                          Approve
+                <tbody className="text-[#0A2E1D]">
+                  {[
+                    { id: 1, trId: 'TR-5JJEBPZ8G', date: '3/5/2025', name: 'Als6561', email: 'jhbeuc@gmail.com', amount: '1.00', withdrawType: 'usd', status: 'Approved', withdrawMethod: 'Bank Transfer' },
+                  ].map((row) => (
+                    <tr key={row.id} className="border-b border-black/10 last:border-b-0">
+                      <td className="py-4 pr-4 text-center">{row.id}</td>
+                      <td className="py-4 pr-4 text-center">{row.trId}</td>
+                      <td className="py-4 pr-4 text-center">{row.date}</td>
+                      <td className="py-4 pr-4 text-center">{row.name}</td>
+                      <td className="py-4 pr-4 text-center text-[#0A2E1D] underline"><a href={`mailto:${row.email}`}>{row.email}</a></td>
+                      <td className="py-4 pr-4 text-center">{row.amount}</td>
+                      <td className="py-4 pr-4 text-center">{row.withdrawType}</td>
+                      <td className="py-4 pr-4 text-center">
+                        <span className="inline-block bg-[#16a34a]/10 text-[#16a34a] text-xs px-3 py-1 rounded font-semibold">Approved</span>
+                      </td>
+                      <td className="py-4 pr-4 text-center">
+                        <button className="px-3 py-1 text-xs bg-[#0A2E1D] text-white rounded hover:opacity-90 font-semibold" onClick={() => openView(row)}>View</button>
+                      </td>
+                      <td className="py-4 pr-4 text-center">
+                        <button
+                          aria-label="Settings"
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[#0A2E1D] text-[#0A2E1D] hover:bg-[#0A2E1D] hover:text-white transition-colors"
+                        >
+                          <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M12 8.5a3.5 3.5 0 100 7 3.5 3.5 0 000-7z" />
+                            <path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12" />
+                          </svg>
                         </button>
-                        <button className="text-red-400 hover:text-red-300 transition-colors px-3 py-1 bg-red-900/20 rounded hover:bg-red-900/30 text-sm">
-                          Reject
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                  <tr className="border-b border-[#4A6741]/50">
-                    <td className="text-white py-4">#WDR001046</td>
-                    <td className="text-white py-4">Sarah Johnson</td>
-                    <td className="text-white py-4">$1,200.00</td>
-                    <td className="text-white py-4">PayPal</td>
-                    <td className="text-white py-4">Jan 6, 2025 11:45</td>
-                    <td className="py-4">
-                      <span className="bg-green-500/20 text-green-400 px-2 py-1 rounded-full text-sm">
-                        Completed
-                      </span>
-                    </td>
-                    <td className="py-4">
-                      <div className="flex space-x-2">
-                        <button className="text-[#9BC5A2] hover:text-white transition-colors px-3 py-1 bg-[#4A6741] rounded hover:bg-[#3A5A3F] text-sm">
-                          View
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                  <tr className="border-b border-[#4A6741]/50">
-                    <td className="text-white py-4">#WDR001047</td>
-                    <td className="text-white py-4">Michael Chen</td>
-                    <td className="text-white py-4">$15,000.00</td>
-                    <td className="text-white py-4">Wire Transfer</td>
-                    <td className="text-white py-4">Jan 6, 2025 08:20</td>
-                    <td className="py-4">
-                      <span className="bg-red-500/20 text-red-400 px-2 py-1 rounded-full text-sm">
-                        High Risk
-                      </span>
-                    </td>
-                    <td className="py-4">
-                      <div className="flex space-x-2">
-                        <button className="text-orange-400 hover:text-orange-300 transition-colors px-3 py-1 bg-orange-900/20 rounded hover:bg-orange-900/30 text-sm">
-                          Review
-                        </button>
-                        <button className="text-[#9BC5A2] hover:text-white transition-colors px-3 py-1 bg-[#4A6741] rounded hover:bg-[#3A5A3F] text-sm">
-                          Details
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td className="text-white py-4">#WDR001048</td>
-                    <td className="text-white py-4">Emma Davis</td>
-                    <td className="text-white py-4">$800.00</td>
-                    <td className="text-white py-4">Bank Transfer</td>
-                    <td className="text-white py-4">Jan 5, 2025 16:10</td>
-                    <td className="py-4">
-                      <span className="bg-red-500/20 text-red-400 px-2 py-1 rounded-full text-sm">
-                        Rejected
-                      </span>
-                    </td>
-                    <td className="py-4">
-                      <div className="flex space-x-2">
-                        <button className="text-blue-400 hover:text-blue-300 transition-colors px-3 py-1 bg-blue-900/20 rounded hover:bg-blue-900/30 text-sm">
-                          Reconsider
-                        </button>
-                        <button className="text-[#9BC5A2] hover:text-white transition-colors px-3 py-1 bg-[#4A6741] rounded hover:bg-[#3A5A3F] text-sm">
-                          View
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
           </div>
+
+          {/* View modal */}
+          {isViewOpen && selectedRow && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+              <div className="bg-white rounded-lg shadow-xl w-[560px] max-w-[92%]">
+                <div className="flex items-center justify-between px-6 py-4 border-b border-black/10">
+                  <h3 className="text-lg font-semibold text-[#0A2E1D]">Withdrawal Details</h3>
+                  <button onClick={closeView} className="px-3 py-1 rounded bg-[#0A2E1D] text-white text-sm">Close</button>
+                </div>
+                <div className="px-6 py-6 text-[#0A2E1D]">
+                  <div className="grid grid-cols-2 gap-y-3">
+                    <div className="font-semibold">Tr.ID</div>
+                    <div>{selectedRow.trId}</div>
+                    <div className="font-semibold">Date</div>
+                    <div>{selectedRow.date}</div>
+                    <div className="font-semibold">User</div>
+                    <div>{selectedRow.name}</div>
+                    <div className="font-semibold">Email</div>
+                    <div><a className="underline" href={`mailto:${selectedRow.email}`}>{selectedRow.email}</a></div>
+                    <div className="font-semibold">Amount</div>
+                    <div>{selectedRow.amount}</div>
+                    <div className="font-semibold">Withdraw Type</div>
+                    <div>{selectedRow.withdrawType}</div>
+                    <div className="font-semibold">Status</div>
+                    <div>{selectedRow.status}</div>
+                    <div className="font-semibold">Withdraw Method</div>
+                    <div>{selectedRow.withdrawMethod}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Scroll to top button */}
+          <button
+            aria-label="Scroll to top"
+            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+            className="fixed bottom-6 right-6 h-14 w-14 rounded-full bg-[#0A2E1D] text-white flex items-center justify-center shadow-md"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+            </svg>
+          </button>
         </div>
       </div>
     </div>
