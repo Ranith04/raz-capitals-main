@@ -2,15 +2,90 @@
 
 import AdminSidebar from '@/components/AdminSidebar';
 import ProtectedRoute from '@/components/ProtectedRoute';
-import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
+import { UserService } from '@/lib/userService';
+import { EnhancedClientUser } from '@/types';
+import { useParams, useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
 
 function ProfileContent() {
   const router = useRouter();
+  const params = useParams();
+  const userId = params.id as string;
+  
+  // State for user data
+  const [user, setUser] = useState<EnhancedClientUser | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   
   useEffect(() => {
     document.title = 'User Profile - RAZ CAPITALS';
-  }, []);
+    if (userId) {
+      fetchUserData();
+    }
+  }, [userId]);
+
+  // Fetch user data from database
+  const fetchUserData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // Get enhanced user data including KYC documents
+      const userData = await UserService.getEnhancedUserData(parseInt(userId));
+      
+      if (userData) {
+        setUser(userData);
+      } else {
+        setError('User not found');
+      }
+    } catch (error) {
+      console.error('Failed to fetch user data:', error);
+      setError('Failed to fetch user data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex h-screen bg-[#9BC5A2] overflow-hidden">
+        <AdminSidebar currentPage="user-profile" />
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-[#0A2E1D] text-xl">Loading user data...</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !user) {
+    return (
+      <div className="flex h-screen bg-[#9BC5A2] overflow-hidden">
+        <AdminSidebar currentPage="user-profile" />
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <div className="text-[#0A2E1D] text-xl mb-4">{error || 'User not found'}</div>
+            <button 
+              onClick={() => router.push('/admin/client-operations/new-client-list')}
+              className="px-4 py-2 bg-[#2D4A32] text-white rounded-lg hover:bg-[#3A5A3F] transition-colors"
+            >
+              Back to Client List
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Format date for display
+  const formatDate = (dateString: string) => {
+    if (!dateString || dateString === 'N/A') return 'N/A';
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+    } catch {
+      return 'N/A';
+    }
+  };
 
   return (
     <div className="flex h-screen bg-[#9BC5A2] overflow-hidden">
@@ -26,7 +101,7 @@ function ProfileContent() {
             onClick={() => router.push('/admin/dashboard')}
           >
             <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </div>
           
@@ -43,6 +118,30 @@ function ProfileContent() {
 
         {/* Profile Content */}
         <div className="flex-1 p-8 overflow-y-auto">
+          {/* Navigation Tabs */}
+          <div className="mb-8">
+            <div className="flex space-x-1 bg-[#2D4A32] rounded-lg p-1">
+              <button 
+                className="px-6 py-3 bg-[#4A6741] text-white rounded-md font-medium transition-colors"
+                onClick={() => router.push(`/admin/users/${userId}/profile`)}
+              >
+                Profile
+              </button>
+              <button 
+                className="px-6 py-3 text-[#9BC5A2] hover:text-white rounded-md font-medium transition-colors"
+                onClick={() => router.push(`/admin/users/${userId}/document-kyc`)}
+              >
+                Document KYC
+              </button>
+              <button 
+                className="px-6 py-3 text-[#9BC5A2] hover:text-white rounded-md font-medium transition-colors"
+                onClick={() => router.push(`/admin/users/${userId}/credit-bonus`)}
+              >
+                Credit Bonus
+              </button>
+            </div>
+          </div>
+
           <div className="flex justify-between items-center mb-8">
             <h1 className="text-[#0A2E1D] text-3xl font-bold">User Profile</h1>
             <div className="flex space-x-3">
@@ -63,27 +162,27 @@ function ProfileContent() {
               <div className="grid grid-cols-2 gap-6">
                 <div>
                   <label className="text-[#9BC5A2] text-sm font-medium mb-2 block">Full Name</label>
-                  <p className="text-white text-lg">Abdul Khadar Ishak</p>
+                  <p className="text-white text-lg">{`${user.first_name || ''} ${user.last_name || ''}`.trim() || 'N/A'}</p>
                 </div>
                 <div>
                   <label className="text-[#9BC5A2] text-sm font-medium mb-2 block">Email</label>
-                  <p className="text-white text-lg">ishak@gmail.com</p>
+                  <p className="text-white text-lg">{user.email}</p>
                 </div>
                 <div>
                   <label className="text-[#9BC5A2] text-sm font-medium mb-2 block">Phone</label>
-                  <p className="text-white text-lg">+1 234 567 8900</p>
+                  <p className="text-white text-lg">{user.phone || 'N/A'}</p>
                 </div>
                 <div>
                   <label className="text-[#9BC5A2] text-sm font-medium mb-2 block">Country</label>
-                  <p className="text-white text-lg">United States</p>
+                  <p className="text-white text-lg">{user.country || 'N/A'}</p>
                 </div>
                 <div>
                   <label className="text-[#9BC5A2] text-sm font-medium mb-2 block">Date of Birth</label>
-                  <p className="text-white text-lg">January 15, 1990</p>
+                  <p className="text-white text-lg">{user.date_of_birth || 'N/A'}</p>
                 </div>
                 <div>
                   <label className="text-[#9BC5A2] text-sm font-medium mb-2 block">Registration Date</label>
-                  <p className="text-white text-lg">May 6, 2025</p>
+                  <p className="text-white text-lg">{formatDate(user.created_at)}</p>
                 </div>
               </div>
 
@@ -93,8 +192,14 @@ function ProfileContent() {
                 <div className="grid grid-cols-3 gap-4">
                   <div>
                     <label className="text-[#9BC5A2] text-sm font-medium mb-2 block">KYC Status</label>
-                    <span className="bg-[#9BC5A2]/20 text-[#9BC5A2] px-3 py-1 rounded-full text-sm">
-                      Approved
+                    <span className={`px-3 py-1 rounded-full text-sm ${
+                      user.kyc_status === 'Approved' 
+                        ? 'bg-[#9BC5A2]/20 text-[#9BC5A2]'
+                        : user.kyc_status === 'Pending'
+                        ? 'bg-yellow-500/20 text-yellow-400'
+                        : 'bg-red-500/20 text-red-400'
+                    }`}>
+                      {user.kyc_status || 'Pending'}
                     </span>
                   </div>
                   <div>
@@ -118,10 +223,12 @@ function ProfileContent() {
               {/* Profile Picture */}
               <div className="bg-[#2D4A32] rounded-2xl p-6 text-center">
                 <div className="w-24 h-24 bg-white rounded-full flex items-center justify-center mx-auto mb-4">
-                  <span className="text-[#0A2E1D] font-bold text-2xl">AI</span>
+                  <span className="text-[#0A2E1D] font-bold text-2xl">
+                    {`${user.first_name?.[0] || ''}${user.last_name?.[0] || ''}`.toUpperCase() || 'U'}
+                  </span>
                 </div>
-                <h3 className="text-white font-bold text-lg">Abdul Khadar Ishak</h3>
-                <p className="text-[#9BC5A2] text-sm">#USER001</p>
+                <h3 className="text-white font-bold text-lg">{`${user.first_name || ''} ${user.last_name || ''}`.trim() || 'N/A'}</h3>
+                <p className="text-[#9BC5A2] text-sm">#{user.id}</p>
                 <button className="mt-4 px-4 py-2 bg-[#4A6741] text-white rounded-lg hover:bg-[#3A5A3F] transition-colors text-sm">
                   Change Photo
                 </button>
@@ -156,13 +263,13 @@ function ProfileContent() {
                 <div className="space-y-3">
                   <button 
                     className="w-full px-4 py-2 bg-[#4A6741] text-white rounded-lg hover:bg-[#3A5A3F] transition-colors text-sm"
-                    onClick={() => router.push('/admin/users/1/document-kyc')}
+                    onClick={() => router.push(`/admin/users/${userId}/document-kyc`)}
                   >
                     View KYC Documents
                   </button>
                   <button 
                     className="w-full px-4 py-2 bg-[#4A6741] text-white rounded-lg hover:bg-[#3A5A3F] transition-colors text-sm"
-                    onClick={() => router.push('/admin/users/1/credit-bonus')}
+                    onClick={() => router.push(`/admin/users/${userId}/credit-bonus`)}
                   >
                     Manage Credit & Bonus
                   </button>

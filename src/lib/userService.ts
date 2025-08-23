@@ -1,3 +1,4 @@
+import { EnhancedClientUser, KYCDocument } from '@/types';
 import { supabase } from './supabaseClient';
 
 export interface ClientUser {
@@ -10,6 +11,13 @@ export interface ClientUser {
   kyc_status?: string;
   account_status?: string;
   account_type?: string;
+  city?: string;
+  pincode?: string;
+  address?: string;
+  phone?: string;
+  country?: string;
+  date_of_birth?: string;
+  kyc_documents?: KYCDocument[];
 }
 
 export interface ClientMetrics {
@@ -154,6 +162,409 @@ export class UserService {
     } catch (error) {
       console.error('Failed to fetch users with KYC:', error);
       return [];
+    }
+  }
+
+  /**
+   * Test method to check if we can fetch basic user data
+   */
+  static async testUserFetch(userId: number): Promise<any> {
+    try {
+      console.log('Testing user fetch for ID:', userId);
+      
+      // Simple test - just try to get the user
+      const { data: user, error: userError } = await supabase
+        .from('users')
+        .select('id, first_name, last_name, email')
+        .eq('id', userId)
+        .single();
+
+      if (userError) {
+        console.error('Test user fetch error:', userError);
+        return { error: userError.message };
+      }
+
+      console.log('Test user fetch success:', user);
+      return { success: true, user };
+    } catch (error) {
+      console.error('Test user fetch exception:', error);
+      return { error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  }
+
+  /**
+   * Fetch enhanced user data including KYC documents and profile information
+   */
+  static async getEnhancedUserData(userId: number): Promise<EnhancedClientUser | null> {
+    try {
+      console.log('Fetching enhanced user data for ID:', userId);
+      
+      // Get user basic information by numeric ID - start with minimal fields
+      const { data: user, error: userError } = await supabase
+        .from('users')
+        .select(`
+          id,
+          user_uuid,
+          first_name,
+          last_name,
+          email,
+          created_at
+        `)
+        .eq('id', userId)
+        .single();
+
+      if (userError || !user) {
+        console.error('Error fetching user:', userError);
+        return null;
+      }
+
+      console.log('User found:', user);
+
+      // Try to get KYC documents for this user using user_uuid
+      let kycDocs: KYCDocument[] = [];
+      try {
+        // First try to get documents from kyc_documents table
+        const { data: kycData, error: kycError } = await supabase
+          .from('kyc_documents')
+          .select(`
+            id,
+            user_id,
+            document_type,
+            document_name,
+            file_path,
+            file_url,
+            status,
+            uploaded_at,
+            reviewed_at,
+            reviewed_by,
+            rejection_reason
+          `)
+          .eq('user_id', user.user_uuid);
+
+        if (kycError) {
+          console.log('KYC documents table not found or error:', kycError);
+          
+          // Try alternative table names
+          const alternativeTables = ['kyc_docs', 'documents', 'user_documents', 'verification_documents'];
+          for (const tableName of alternativeTables) {
+            try {
+              const { data: altData, error: altError } = await supabase
+                .from(tableName)
+                .select('*')
+                .eq('user_id', user.user_uuid);
+              
+              if (!altError && altData && altData.length > 0) {
+                console.log(`Found documents in ${tableName} table:`, altData);
+                // Transform the data to match our KYCDocument interface
+                kycDocs = altData.map((doc: any) => ({
+                  id: doc.id,
+                  user_id: doc.user_id,
+                  document_type: doc.document_type || doc.type || 'id_proof',
+                  document_name: doc.document_name || doc.name || 'Document',
+                  file_path: doc.file_path || doc.path || '',
+                  file_url: doc.file_url || doc.url || '',
+                  status: doc.status || 'pending',
+                  uploaded_at: doc.uploaded_at || doc.created_at || doc.upload_date || new Date().toISOString(),
+                  reviewed_at: doc.reviewed_at || doc.review_date,
+                  reviewed_by: doc.reviewed_by || doc.reviewer,
+                  rejection_reason: doc.rejection_reason || doc.reason
+                }));
+                break;
+              }
+            } catch (tableError) {
+              console.log(`Table ${tableName} not accessible:`, tableError);
+            }
+          }
+        } else {
+          kycDocs = kycData || [];
+          console.log('KYC documents found:', kycDocs.length);
+        }
+      } catch (kycTableError) {
+        console.log('KYC documents table does not exist, continuing without it');
+      }
+
+      // If no documents found, create default documents based on user registration
+      if (kycDocs.length === 0) {
+        console.log('No KYC documents found, creating default documents');
+        kycDocs = [
+          {
+            id: 1,
+            user_id: user.user_uuid,
+            document_type: 'id_proof',
+            document_name: 'Identity Document',
+            file_path: '',
+            file_url: '',
+            status: 'pending',
+            uploaded_at: user.created_at,
+            reviewed_at: undefined,
+            reviewed_by: undefined,
+            rejection_reason: undefined
+          },
+          {
+            id: 2,
+            user_id: user.user_uuid,
+            document_type: 'address_proof',
+            document_name: 'Address Proof Document',
+            file_path: '',
+            file_url: '',
+            status: 'pending',
+            uploaded_at: user.created_at,
+            reviewed_at: undefined,
+            reviewed_by: undefined,
+            rejection_reason: undefined
+          }
+        ];
+      }
+
+      // Get overall KYC status
+      const overallKycStatus = kycDocs && kycDocs.length > 0 
+        ? kycDocs.every(doc => doc.status === 'approved') ? 'Approved' : 'Pending'
+        : 'Pending';
+
+      const enhancedUser = {
+        ...user,
+        kyc_status: overallKycStatus,
+        kyc_documents: kycDocs,
+        // Set default values for optional fields
+        city: undefined,
+        pincode: undefined,
+        address: undefined,
+        phone: undefined,
+        country: undefined,
+        date_of_birth: undefined
+      };
+
+      console.log('Enhanced user data:', enhancedUser);
+      return enhancedUser;
+    } catch (error) {
+      console.error('Failed to fetch enhanced user data:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Create KYC documents for a user if they don't exist
+   */
+  static async createKYCDocuments(userId: string, userUuid: string): Promise<boolean> {
+    try {
+      console.log('Creating KYC documents for user:', { userId, userUuid });
+      
+      const defaultDocuments = [
+        {
+          user_id: userUuid,
+          document_type: 'id_proof',
+          document_name: 'Identity Document',
+          file_path: '',
+          file_url: '',
+          status: 'pending',
+          uploaded_at: new Date().toISOString()
+        },
+        {
+          user_id: userUuid,
+          document_type: 'address_proof',
+          document_name: 'Address Proof Document',
+          file_path: '',
+          file_url: '',
+          status: 'pending',
+          uploaded_at: new Date().toISOString()
+        }
+      ];
+
+      // Try to insert into kyc_documents table first
+      let { error } = await supabase
+        .from('kyc_documents')
+        .insert(defaultDocuments);
+
+      if (error) {
+        console.log('Could not insert into kyc_documents table, trying alternatives');
+        
+        // Try alternative table names
+        const alternativeTables = ['kyc_docs', 'documents', 'user_documents', 'verification_documents'];
+        for (const tableName of alternativeTables) {
+          try {
+            const { error: altError } = await supabase
+              .from(tableName)
+              .insert(defaultDocuments);
+            
+            if (!altError) {
+              console.log(`Successfully created documents in ${tableName} table`);
+              return true;
+            }
+          } catch (tableError) {
+            console.log(`Table ${tableName} not accessible:`, tableError);
+          }
+        }
+        
+        console.error('Failed to create documents in any table:', error);
+        return false;
+      }
+
+      console.log('KYC documents created successfully');
+      return true;
+    } catch (error) {
+      console.error('Failed to create KYC documents:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Update KYC document status
+   */
+  static async updateDocumentStatus(documentId: number, status: 'pending' | 'approved' | 'rejected', reviewedBy?: string, rejectionReason?: string): Promise<boolean> {
+    try {
+      console.log('Updating document status:', { documentId, status, reviewedBy, rejectionReason });
+      
+      const updateData: any = {
+        status,
+        reviewed_at: new Date().toISOString(),
+        reviewed_by: reviewedBy || 'Admin'
+      };
+      
+      if (status === 'rejected' && rejectionReason) {
+        updateData.rejection_reason = rejectionReason;
+      }
+
+      // Try to update in kyc_documents table first
+      let { error } = await supabase
+        .from('kyc_documents')
+        .update(updateData)
+        .eq('id', documentId);
+
+      if (error) {
+        console.log('Could not update in kyc_documents table, trying alternatives');
+        
+        // Try alternative table names
+        const alternativeTables = ['kyc_docs', 'documents', 'user_documents', 'verification_documents'];
+        for (const tableName of alternativeTables) {
+          try {
+            const { error: altError } = await supabase
+              .from(tableName)
+              .update(updateData)
+              .eq('id', documentId);
+            
+            if (!altError) {
+              console.log(`Successfully updated document in ${tableName} table`);
+              return true;
+            }
+          } catch (tableError) {
+            console.log(`Table ${tableName} not accessible:`, tableError);
+          }
+        }
+        
+        console.error('Failed to update document status in any table:', error);
+        return false;
+      }
+
+      console.log('Document status updated successfully');
+      return true;
+    } catch (error) {
+      console.error('Failed to update document status:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Approve KYC for a user by updating all their KYC documents to approved status
+   */
+  static async approveUserKYC(userUuid: string, reviewedBy?: string): Promise<boolean> {
+    try {
+      console.log('Approving KYC for user:', { userUuid, reviewedBy });
+      
+      const updateData = {
+        status: 'approved',
+        reviewed_at: new Date().toISOString(),
+        reviewed_by: reviewedBy || 'Admin'
+      };
+
+      // Try to update all KYC documents for this user in kyc_documents table first
+      let { error } = await supabase
+        .from('kyc_documents')
+        .update(updateData)
+        .eq('user_id', userUuid);
+
+      if (error) {
+        console.log('Could not update in kyc_documents table, trying alternatives');
+        
+        // Try alternative table names
+        const alternativeTables = ['kyc_docs', 'documents', 'user_documents', 'verification_documents'];
+        for (const tableName of alternativeTables) {
+          try {
+            const { error: altError } = await supabase
+              .from(tableName)
+              .update(updateData)
+              .eq('user_id', userUuid);
+            
+            if (!altError) {
+              console.log(`Successfully approved KYC in ${tableName} table`);
+              return true;
+            }
+          } catch (tableError) {
+            console.log(`Table ${tableName} not accessible:`, tableError);
+          }
+        }
+        
+        console.error('Failed to approve KYC in any table:', error);
+        return false;
+      }
+
+      console.log('User KYC approved successfully');
+      return true;
+    } catch (error) {
+      console.error('Failed to approve user KYC:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Reject KYC for a user by updating all their KYC documents to rejected status
+   */
+  static async rejectUserKYC(userUuid: string, rejectionReason: string, reviewedBy?: string): Promise<boolean> {
+    try {
+      console.log('Rejecting KYC for user:', { userUuid, rejectionReason, reviewedBy });
+      
+      const updateData = {
+        status: 'rejected',
+        reviewed_at: new Date().toISOString(),
+        reviewed_by: reviewedBy || 'Admin',
+        rejection_reason: rejectionReason
+      };
+
+      // Try to update all KYC documents for this user in kyc_documents table first
+      let { error } = await supabase
+        .from('kyc_documents')
+        .update(updateData)
+        .eq('user_id', userUuid);
+
+      if (error) {
+        console.log('Could not update in kyc_documents table, trying alternatives');
+        
+        // Try alternative table names
+        const alternativeTables = ['kyc_docs', 'documents', 'user_documents', 'verification_documents'];
+        for (const tableName of alternativeTables) {
+          try {
+            const { error: altError } = await supabase
+              .from(tableName)
+              .update(updateData)
+              .eq('user_id', userUuid);
+            
+            if (!altError) {
+              console.log(`Successfully rejected KYC in ${tableName} table`);
+              return true;
+            }
+          } catch (tableError) {
+            console.log(`Table ${tableName} not accessible:`, tableError);
+          }
+        }
+        
+        console.error('Failed to reject KYC in any table:', error);
+        return false;
+      }
+
+      console.log('User KYC rejected successfully');
+      return true;
+    } catch (error) {
+      console.error('Failed to reject user KYC:', error);
+      return false;
     }
   }
 

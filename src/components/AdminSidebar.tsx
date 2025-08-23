@@ -57,7 +57,7 @@ export default function AdminSidebar({ currentPage = '' }: AdminSidebarProps) {
             }`}
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2H5a2 2 0 00-2-2z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
             </svg>
             <span className="font-medium">Dashboard</span>
           </a>
@@ -111,7 +111,7 @@ export default function AdminSidebar({ currentPage = '' }: AdminSidebarProps) {
               </a>
             </div>
           </div>
-          
+
           <div className="space-y-1">
             <div 
               className="flex items-center space-x-3 px-4 py-3 text-[#9BC5A2]/70 hover:text-white hover:bg-[#9BC5A2]/10 rounded-lg transition-colors cursor-pointer"

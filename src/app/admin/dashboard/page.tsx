@@ -123,17 +123,28 @@ function AdminDashboardContent() {
       <div className="flex-1 flex flex-col">
         {/* Header */}
         <div className="bg-[#0A2E1D] p-4 flex justify-between items-center">
-          {/* Blue Icon Box in Header */}
-          <div 
-            className="w-12 h-12 bg-[#2D4A32] rounded-lg flex items-center justify-center cursor-pointer hover:bg-[#3A5A3F] transition-all duration-300 hover:scale-110 hover:shadow-lg transform"
-            onClick={() => router.push('/admin/users/1/profile')}
-          >
-            <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
+          {/* Left Side - Hamburger Menu and Refresh Button */}
+          <div className="flex items-center space-x-4">
+            {/* Hamburger Menu Icon */}
+            <button className="text-white hover:text-[#9BC5A2] transition-colors duration-200 p-2">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+            
+            {/* Refresh Metrics Button */}
+            <button 
+              onClick={fetchDashboardMetrics}
+              className="bg-[#2D4A32] text-white px-4 py-2 rounded-lg hover:bg-[#3A5A3F] transition-colors flex items-center space-x-2"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              <span>Refresh Metrics</span>
+            </button>
           </div>
-          
-          {/* Admin Dropdown */}
+
+          {/* Right Side - Admin Dropdown */}
           <div className="relative admin-dropdown">
             <div 
               className="flex items-center space-x-2 cursor-pointer hover:bg-[#1a3a28] px-3 py-2 rounded-lg transition-all duration-200 hover:scale-105"
@@ -174,19 +185,6 @@ function AdminDashboardContent() {
               </div>
             )}
           </div>
-        </div>
-
-        {/* Refresh Button */}
-        <div className="bg-[#0A2E1D] px-4 pb-2">
-          <button 
-            onClick={fetchDashboardMetrics}
-            className="bg-[#2D4A32] text-white px-4 py-2 rounded-lg hover:bg-[#3A5A3F] transition-colors flex items-center space-x-2"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-            <span>Refresh Metrics</span>
-          </button>
         </div>
 
         {/* Statistics Grid */}
