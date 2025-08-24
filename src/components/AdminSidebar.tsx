@@ -39,8 +39,7 @@ export default function AdminSidebar({ currentPage = '' }: AdminSidebarProps) {
             <span className="text-[#0A2E1D] font-bold text-lg">A</span>
           </div>
           <div>
-            <p className="text-[#9BC5A2] text-sm">Wel Come</p>
-            <p className="text-white font-bold text-lg">Admin</p>
+            <p className="text-white font-bold text-lg">Admin Console</p>
           </div>
         </div>
       </div>

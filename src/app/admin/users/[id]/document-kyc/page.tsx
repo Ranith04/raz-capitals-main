@@ -2,8 +2,9 @@
 
 import AdminSidebar from '@/components/AdminSidebar';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import { supabase } from '@/lib/supabaseClient';
 import { UserService } from '@/lib/userService';
-import { EnhancedClientUser, KYCDocument } from '@/types';
+import { EnhancedClientUser } from '@/types';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
@@ -17,6 +18,12 @@ function DocumentKYCContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedDocument, setSelectedDocument] = useState<string | null>(null);
+  
+  // State for KYC status dialog
+  const [showKycDialog, setShowKycDialog] = useState(false);
+  const [kycStatus, setKycStatus] = useState<'pending' | 'verified' | 'rejected' | ''>('');
+  const [approvalComments, setApprovalComments] = useState<string>('');
+  const [updatingKyc, setUpdatingKyc] = useState(false);
   
   useEffect(() => {
     document.title = 'Document KYC - RAZ CAPITALS';
@@ -71,7 +78,7 @@ function DocumentKYCContent() {
   };
 
   // Handle document status update
-  const handleStatusUpdate = async (documentId: number, newStatus: 'approved' | 'rejected') => {
+  const handleStatusUpdate = async (documentId: number, newStatus: 'verified' | 'rejected') => {
     try {
       let rejectionReason = '';
       if (newStatus === 'rejected') {
@@ -121,6 +128,82 @@ function DocumentKYCContent() {
     }
   };
 
+  // Handle KYC status update
+  const handleKycStatusUpdate = async () => {
+    if (!user || !kycStatus.trim()) return;
+    
+    try {
+      setUpdatingKyc(true);
+      console.log('🔄 [KYC UPDATE] Updating KYC status for user:', user.user_uuid);
+      console.log('🔄 [KYC UPDATE] New status:', kycStatus);
+      console.log('🔄 [KYC UPDATE] Comments:', approvalComments);
+      
+      // Update KYC status in kyc_documents table
+      const success = await UserService.updateKycStatus(user.user_uuid, kycStatus as 'pending' | 'verified' | 'rejected', approvalComments);
+      
+      if (success) {
+        console.log('✅ [KYC UPDATE] Status updated successfully');
+        // Refresh user data
+        await fetchUserData();
+        // Close dialog and reset form
+        setShowKycDialog(false);
+        setKycStatus('');
+        setApprovalComments('');
+        alert('KYC status updated successfully!');
+      } else {
+        console.log('❌ [KYC UPDATE] Failed to update status');
+        alert('Failed to update KYC status');
+      }
+    } catch (error) {
+      console.error('💥 [KYC UPDATE] Error updating KYC status:', error);
+      alert('Error updating KYC status');
+    } finally {
+      setUpdatingKyc(false);
+    }
+  };
+
+  // Load previous KYC data when opening dialog
+  const handleOpenKycDialog = () => {
+    if (user) {
+      console.log('📋 [KYC DIALOG] Loading previous data for user:', user.user_uuid);
+      console.log('📋 [KYC DIALOG] Current status:', user.status);
+      
+      // Load current KYC status
+      setKycStatus((user.status as 'pending' | 'verified' | 'rejected') || 'pending');
+      
+      // Load existing approval comments (if available)
+      // Note: We'll need to fetch this from the database
+      loadExistingApprovalComments(user.user_uuid);
+      
+      setShowKycDialog(true);
+    }
+  };
+
+  // Load existing approval comments from database
+  const loadExistingApprovalComments = async (userUuid: string) => {
+    try {
+      console.log('📋 [KYC DIALOG] Fetching existing approval comments for user:', userUuid);
+      
+      // Fetch existing approval comments from kyc_documents table
+      const { data: kycRecord, error } = await supabase
+        .from('kyc_documents')
+        .select('approval_comments')
+        .eq('user_id', userUuid)
+        .single();
+
+      if (!error && kycRecord && kycRecord.approval_comments) {
+        console.log('📋 [KYC DIALOG] Found existing comments:', kycRecord.approval_comments);
+        setApprovalComments(kycRecord.approval_comments);
+      } else {
+        console.log('📋 [KYC DIALOG] No existing comments found, using empty string');
+        setApprovalComments('');
+      }
+    } catch (error) {
+      console.error('💥 [KYC DIALOG] Error loading existing comments:', error);
+      setApprovalComments('');
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex h-screen bg-[#9BC5A2] overflow-hidden">
@@ -165,35 +248,11 @@ function DocumentKYCContent() {
                     last_name: 'User',
                     email: 'sample@example.com',
                     created_at: new Date().toISOString(),
-                    kyc_status: 'Pending',
-                    city: 'Sample City',
-                    pincode: '12345',
-                    address: 'Sample Address',
-                    phone: '+1234567890',
-                    country: 'Sample Country',
-                    date_of_birth: '1990-01-01',
-                    kyc_documents: [
-                      {
-                        id: 1,
-                        user_id: 'sample-uuid',
-                        document_type: 'id_proof',
-                        document_name: 'Sample ID Document',
-                        file_path: '/sample/path',
-                        file_url: '#',
-                        status: 'pending',
-                        uploaded_at: new Date().toISOString(),
-                      },
-                      {
-                        id: 2,
-                        user_id: 'sample-uuid',
-                        document_type: 'address_proof',
-                        document_name: 'Sample Address Document',
-                        file_path: '/sample/path',
-                        file_url: '#',
-                        status: 'pending',
-                        uploaded_at: new Date().toISOString(),
-                      }
-                    ]
+                    status: 'pending',
+                    phone_number: '+1234567890',
+                    country_of_birth: 'Sample Country',
+                    dob: '28/08/1990',
+                    residential_address: 'Sample Address'
                   };
                   setUser(sampleUser);
                   setError(null);
@@ -279,13 +338,13 @@ function DocumentKYCContent() {
                     {`${user.first_name || ''} ${user.last_name || ''}`.trim() || 'N/A'}
                   </h3>
                   <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                    user.kyc_status === 'Approved' 
+                    user.status === 'verified' 
                       ? 'bg-green-500 text-white'
-                      : user.kyc_status === 'Pending'
+                      : user.status === 'pending'
                       ? 'bg-yellow-500 text-white'
                       : 'bg-red-500 text-white'
                   }`}>
-                    {user.kyc_status || 'Pending'}
+                    {user.status || 'pending'}
                   </span>
                 </div>
               </div>
@@ -296,16 +355,12 @@ function DocumentKYCContent() {
               <h3 className="text-white text-lg font-medium mb-4">Address</h3>
               <div className="space-y-3">
                 <div className="flex justify-between">
-                  <span className="text-[#9BC5A2]">CITY:</span>
-                  <span className="text-white">{user.city || 'N/A'}</span>
+                  <span className="text-[#9BC5A2]">Country:</span>
+                  <span className="text-white">{user.country_of_birth || 'N/A'}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-[#9BC5A2]">PINCODE:</span>
-                  <span className="text-white">{user.pincode || 'N/A'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-[#9BC5A2]">Address:</span>
-                  <span className="text-white">{user.address || 'N/A'}</span>
+                  <span className="text-[#9BC5A2]">Residential Address:</span>
+                  <span className="text-white">{user.residential_address || 'N/A'}</span>
                 </div>
               </div>
             </div>
@@ -316,7 +371,7 @@ function DocumentKYCContent() {
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-white text-xl font-bold">Address Proof Verification</h2>
               <div className="flex space-x-2">
-                {(!user.kyc_documents || user.kyc_documents.length === 0) && (
+                {(!user.status || user.status === 'pending') && (
                   <button 
                     onClick={async () => {
                       try {
@@ -365,56 +420,34 @@ function DocumentKYCContent() {
                   </tr>
                 </thead>
                 <tbody>
-                  {user.kyc_documents && user.kyc_documents.length > 0 ? (
-                    user.kyc_documents.map((doc: KYCDocument) => (
-                      <tr key={doc.id} className="border-b border-[#4A6741]/50">
-                        <td className="text-white py-3">
-                          {doc.document_type === 'id_proof' ? 'Id proof' : 'Id proof'}
-                        </td>
-                        <td className="text-white py-3">
-                          {formatDocumentType(doc.document_type)}
-                        </td>
-                        <td className="py-3">
-                          <div 
-                            className="w-16 h-12 bg-[#2D4A32] rounded border border-[#9BC5A2] flex items-center justify-center cursor-pointer hover:bg-[#3A5A3F] transition-colors"
-                            onClick={() => handleDocumentClick(doc.file_url || doc.file_path, doc.document_name)}
-                            title={`Click to view ${doc.document_name}`}
-                          >
-                            <svg className="w-6 h-6 text-[#9BC5A2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                            </svg>
-                          </div>
-                        </td>
-                        <td className="text-white py-3">{formatDate(doc.uploaded_at)}</td>
-                        <td className="py-3">
-                          <span className={`px-2 py-1 rounded-full text-sm ${
-                            doc.status === 'approved' 
-                              ? 'bg-green-500/20 text-green-400'
-                              : doc.status === 'pending'
-                              ? 'bg-yellow-500/20 text-yellow-400'
-                              : 'bg-red-500/20 text-red-400'
-                          }`}>
-                            {doc.status === 'approved' ? 'Approved' : doc.status === 'pending' ? 'Pending' : 'Rejected'}
-                          </span>
-                        </td>
-                        <td className="text-white py-3">
-                          <button 
-                            onClick={() => handleStatusUpdate(doc.id, 'approved')}
-                            className="px-3 py-1 bg-green-600 text-white rounded-md text-sm hover:bg-green-700 transition-colors mr-2"
-                            title="Approve Document"
-                          >
-                            Approve
-                          </button>
-                          <button 
-                            onClick={() => handleStatusUpdate(doc.id, 'rejected')}
-                            className="px-3 py-1 bg-red-600 text-white rounded-md text-sm hover:bg-red-700 transition-colors"
-                            title="Reject Document"
-                          >
-                            Reject
-                          </button>
-                        </td>
-                      </tr>
-                    ))
+                  {user.status && user.status !== 'pending' ? (
+                    // Show verified/rejected status
+                    <tr className="border-b border-[#4A6741]/50">
+                      <td className="text-white py-3">KYC Status</td>
+                      <td className="text-white py-3">Overall Status</td>
+                      <td className="py-3">
+                        <div className="w-16 h-12 bg-[#2D4A32] rounded border border-[#9BC5A2] flex items-center justify-center">
+                          <svg className="w-6 h-6 text-[#9BC5A2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                        </div>
+                      </td>
+                      <td className="text-white py-3">{formatDate(user.created_at)}</td>
+                      <td className="py-3">
+                        <span className={`px-2 py-1 rounded-full text-sm ${
+                          user.status === 'verified' 
+                            ? 'bg-green-500/20 text-green-400'
+                            : user.status === 'rejected'
+                            ? 'bg-red-500/20 text-red-400'
+                            : 'bg-yellow-500/20 text-yellow-400'
+                        }`}>
+                          {user.status === 'verified' ? 'Verified' : user.status === 'rejected' ? 'Rejected' : 'Pending'}
+                        </span>
+                      </td>
+                      <td className="text-white py-3">
+                        <span className="text-[#9BC5A2] text-sm">Status Updated</span>
+                      </td>
+                    </tr>
                   ) : (
                     // Fallback to default documents if no KYC documents found
                     <>
@@ -431,13 +464,13 @@ function DocumentKYCContent() {
                         <td className="text-white py-3">{formatDate(user.created_at)}</td>
                         <td className="py-3">
                           <span className={`px-2 py-1 rounded-full text-sm ${
-                            user.kyc_status === 'Approved' 
+                            user.status === 'verified' 
                               ? 'bg-green-500/20 text-green-400'
-                              : user.kyc_status === 'Pending'
+                              : user.status === 'pending'
                               ? 'bg-yellow-500/20 text-yellow-400'
                               : 'bg-red-500/20 text-red-400'
                           }`}>
-                            {user.kyc_status || 'Pending'}
+                            {user.status || 'pending'}
                           </span>
                         </td>
                         <td className="text-white py-3">
@@ -458,13 +491,13 @@ function DocumentKYCContent() {
                         <td className="text-white py-3">{formatDate(user.created_at)}</td>
                         <td className="py-3">
                           <span className={`px-2 py-1 rounded-full text-sm ${
-                            user.kyc_status === 'Approved' 
+                            user.status === 'verified' 
                               ? 'bg-green-500/20 text-green-400'
-                              : user.kyc_status === 'Pending'
+                              : user.status === 'pending'
                               ? 'bg-yellow-500/20 text-yellow-400'
                               : 'bg-red-500/20 text-red-400'
                           }`}>
-                            {user.kyc_status || 'Pending'}
+                            {user.status || 'pending'}
                           </span>
                         </td>
                         <td className="text-white py-3">
@@ -475,10 +508,81 @@ function DocumentKYCContent() {
                   )}
                 </tbody>
               </table>
+              
+              {/* Change KYC Status Button */}
+              <div className="mt-6 flex justify-center">
+                <button 
+                  onClick={handleOpenKycDialog}
+                  className="px-6 py-3 bg-[#4A6741] text-white rounded-lg hover:bg-[#3A5A3F] transition-colors flex items-center space-x-2"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span>Change KYC Status</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
       </div>
+
+      {/* KYC Status Update Dialog */}
+      {showKycDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-[#2D4A32] rounded-2xl p-8 max-w-md w-full mx-4">
+            <h3 className="text-white text-xl font-bold mb-6">Update KYC Status</h3>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="text-[#9BC5A2] text-sm font-medium mb-2 block">KYC Status</label>
+                <select
+                  value={kycStatus}
+                  onChange={(e) => setKycStatus(e.target.value as 'pending' | 'verified' | 'rejected' | '')}
+                  className="w-full px-4 py-2 bg-[#4A6741] text-white rounded-lg border border-[#9BC5A2] focus:outline-none focus:ring-2 focus:ring-[#9BC5A2]"
+                >
+                  <option value="">Select Status</option>
+                  <option value="pending">Pending</option>
+                  <option value="verified">Verified</option>
+                  <option value="rejected">Rejected</option>
+                </select>
+              </div>
+              
+              <div>
+                <label className="text-[#9BC5A2] text-sm font-medium mb-2 block">Approval Comments</label>
+                <textarea
+                  value={approvalComments}
+                  onChange={(e) => setApprovalComments(e.target.value)}
+                  placeholder="Enter approval comments..."
+                  rows={3}
+                  className="w-full px-4 py-2 bg-[#4A6741] text-white rounded-lg border border-[#9BC5A2] focus:outline-none focus:ring-2 focus:ring-[#9BC5A2] resize-none"
+                />
+              </div>
+            </div>
+            
+            <div className="flex space-x-3 mt-6">
+              <button
+                onClick={() => {
+                  setShowKycDialog(false);
+                  // Reset form to current values instead of clearing
+                  setKycStatus((user?.status as 'pending' | 'verified' | 'rejected') || 'pending');
+                  setApprovalComments('');
+                }}
+                className="flex-1 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+                disabled={updatingKyc}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleKycStatusUpdate}
+                disabled={!kycStatus.trim() || updatingKyc}
+                className="flex-1 px-4 py-2 bg-[#4A6741] text-white rounded-lg hover:bg-[#3A5A3F] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {updatingKyc ? 'Updating...' : 'Update Status'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

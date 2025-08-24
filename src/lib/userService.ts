@@ -1,4 +1,4 @@
-import { EnhancedClientUser, KYCDocument } from '@/types';
+import { EnhancedClientUser } from '@/types';
 import { supabase } from './supabaseClient';
 
 export interface ClientUser {
@@ -11,19 +11,17 @@ export interface ClientUser {
   kyc_status?: string;
   account_status?: string;
   account_type?: string;
-  city?: string;
-  pincode?: string;
-  address?: string;
-  phone?: string;
-  country?: string;
-  date_of_birth?: string;
-  kyc_documents?: KYCDocument[];
+  phone_number?: string;
+  country_of_birth?: string;
+  dob?: string;
+  middle_name?: string;
+  residential_address?: string;
 }
 
 export interface ClientMetrics {
   totalClients: number;
   activeClients: number;
-  kycApproved: number;
+  kycVerified: number;
   kycPending: number;
   liveAccounts: number;
   demoAccounts: number;
@@ -44,7 +42,94 @@ export class UserService {
           first_name,
           last_name,
           email,
-          created_at
+          created_at,
+          phone_number,
+          country_of_birth,
+          dob,
+          middle_name,
+          residential_address
+        `)
+        .order('created_at', { ascending: false });
+
+      if (usersError) {
+        console.error('Error fetching users:', usersError);
+        throw usersError;
+      }
+
+      if (!users || users.length === 0) {
+        return [];
+      }
+
+      // Get KYC documents for all users
+      const { data: kycDocs, error: kycError } = await supabase
+        .from('kyc_documents')
+        .select(`
+          id,
+          user_id,
+          status
+        `);
+
+      if (kycError) {
+        console.error('Error fetching KYC documents:', kycError);
+      }
+
+      // Get trading accounts for all users
+      const { data: tradingAccounts, error: tradingError } = await supabase
+        .from('tradingAccounts')
+        .select(`
+          id,
+          user_id,
+          status,
+          account_type
+        `);
+
+      if (tradingError) {
+        console.error('Error fetching trading accounts:', tradingError);
+      }
+
+            // Combine the data
+      const usersWithDetails = users.map(user => {
+        // Find KYC status for this user - using user_uuid to match with user_id in kyc_documents
+        const kycDoc = kycDocs?.find(doc => doc.user_id === user.user_uuid);
+        
+        // Find trading account for this user - using user_uuid to match with user_id in tradingAccounts
+        const tradingAccount = tradingAccounts?.find(acc => acc.user_id === user.user_uuid);
+        
+        return {
+          ...user,
+          kyc_status: kycDoc?.status || 'pending',
+          account_status: tradingAccount?.status || 'Active',
+          account_type: tradingAccount?.account_type || 'Demo'
+        };
+      });
+
+      return usersWithDetails;
+    } catch (error) {
+      console.error('Failed to fetch users:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Fetch users with KYC status from kyc_documents table
+   */
+  static async getUsersWithKYC(): Promise<ClientUser[]> {
+    try {
+      // First get all users with user_uuid
+      const { data: users, error: usersError } = await supabase
+        .from('users')
+        .select(`
+          id,
+          user_uuid,
+          first_name,
+          last_name,
+          email,
+          created_at,
+          phone_number,
+          country_of_birth,
+          dob,
+          middle_name,
+          residential_address
         `)
         .order('created_at', { ascending: false });
 
@@ -85,76 +170,18 @@ export class UserService {
       }
 
       // Combine the data
-      const usersWithDetails = users.map(user => {
+      const usersWithKYC = users.map(user => {
         // Find KYC status for this user - using user_uuid to match with user_id in kyc_documents
         const kycDoc = kycDocs?.find(doc => doc.user_id === user.user_uuid);
         
         // Find trading account for this user - using user_uuid to match with user_id in tradingAccounts
         const tradingAccount = tradingAccounts?.find(acc => acc.user_id === user.user_uuid);
-
-        return {
-          ...user,
-          kyc_status: kycDoc?.status || 'Pending',
-          account_status: tradingAccount?.status || 'Active',
-          account_type: tradingAccount?.account_type || 'Demo'
-        };
-      });
-
-      return usersWithDetails;
-    } catch (error) {
-      console.error('Failed to fetch users:', error);
-      return [];
-    }
-  }
-
-  /**
-   * Fetch users with KYC status from kyc_documents table
-   */
-  static async getUsersWithKYC(): Promise<ClientUser[]> {
-    try {
-      // First get all users with user_uuid
-      const { data: users, error: usersError } = await supabase
-        .from('users')
-        .select(`
-          id,
-          user_uuid,
-          first_name,
-          last_name,
-          email,
-          created_at
-        `)
-        .order('created_at', { ascending: false });
-
-      if (usersError) {
-        console.error('Error fetching users:', usersError);
-        throw usersError;
-      }
-
-      if (!users || users.length === 0) {
-        return [];
-      }
-
-      // Get KYC documents for all users
-      const { data: kycDocs, error: kycError } = await supabase
-        .from('kyc_documents')
-        .select(`
-          id,
-          user_id,
-          status
-        `);
-
-      if (kycError) {
-        console.error('Error fetching KYC documents:', kycError);
-      }
-
-      // Combine the data
-      const usersWithKYC = users.map(user => {
-        // Find KYC status for this user - using user_uuid to match with user_id in kyc_documents
-        const kycDoc = kycDocs?.find(doc => doc.user_id === user.user_uuid);
         
         return {
           ...user,
-          kyc_status: kycDoc?.status || 'Pending'
+          kyc_status: kycDoc?.status || 'pending',
+          account_status: tradingAccount?.status || 'Active',
+          account_type: tradingAccount?.account_type || 'Demo'
         };
       });
 
@@ -199,7 +226,10 @@ export class UserService {
     try {
       console.log('Fetching enhanced user data for ID:', userId);
       
-      // Get user basic information by numeric ID - start with minimal fields
+      // Get user basic information by numeric ID - including all profile fields
+      console.log('🔍 [USER FETCH] Fetching user with ID:', userId);
+      console.log('🔍 [USER FETCH] Querying users table for fields: id, user_uuid, first_name, last_name, email, created_at, phone_number, country_of_birth, dob, middle_name, residential_address');
+      
       const { data: user, error: userError } = await supabase
         .from('users')
         .select(`
@@ -208,133 +238,106 @@ export class UserService {
           first_name,
           last_name,
           email,
-          created_at
+          created_at,
+          phone_number,
+          country_of_birth,
+          dob,
+          middle_name,
+          residential_address
         `)
         .eq('id', userId)
         .single();
 
       if (userError || !user) {
-        console.error('Error fetching user:', userError);
+        console.error('❌ [USER FETCH] Error fetching user:', userError);
         return null;
       }
 
-      console.log('User found:', user);
+      console.log('✅ [USER FETCH] User found successfully');
+      console.log('✅ [USER FETCH] Raw user data from database:', user);
 
-      // Try to get KYC documents for this user using user_uuid
-      let kycDocs: KYCDocument[] = [];
+      // Get KYC status from kyc_documents table for this user
+      console.log('🔍 [KYC STATUS] Looking for KYC record with user_id:', user.user_uuid);
+      
+      let kycStatus = 'pending'; // Default value
+      
       try {
-        // First try to get documents from kyc_documents table
-        const { data: kycData, error: kycError } = await supabase
+        // Get the single KYC record for this user
+        const { data: kycRecord, error: kycError } = await supabase
           .from('kyc_documents')
-          .select(`
-            id,
-            user_id,
-            document_type,
-            document_name,
-            file_path,
-            file_url,
-            status,
-            uploaded_at,
-            reviewed_at,
-            reviewed_by,
-            rejection_reason
-          `)
-          .eq('user_id', user.user_uuid);
+          .select('status')
+          .eq('user_id', user.user_uuid)
+          .single();
 
-        if (kycError) {
-          console.log('KYC documents table not found or error:', kycError);
-          
-          // Try alternative table names
-          const alternativeTables = ['kyc_docs', 'documents', 'user_documents', 'verification_documents'];
-          for (const tableName of alternativeTables) {
-            try {
-              const { data: altData, error: altError } = await supabase
-                .from(tableName)
-                .select('*')
-                .eq('user_id', user.user_uuid);
-              
-              if (!altError && altData && altData.length > 0) {
-                console.log(`Found documents in ${tableName} table:`, altData);
-                // Transform the data to match our KYCDocument interface
-                kycDocs = altData.map((doc: any) => ({
-                  id: doc.id,
-                  user_id: doc.user_id,
-                  document_type: doc.document_type || doc.type || 'id_proof',
-                  document_name: doc.document_name || doc.name || 'Document',
-                  file_path: doc.file_path || doc.path || '',
-                  file_url: doc.file_url || doc.url || '',
-                  status: doc.status || 'pending',
-                  uploaded_at: doc.uploaded_at || doc.created_at || doc.upload_date || new Date().toISOString(),
-                  reviewed_at: doc.reviewed_at || doc.review_date,
-                  reviewed_by: doc.reviewed_by || doc.reviewer,
-                  rejection_reason: doc.rejection_reason || doc.reason
-                }));
-                break;
-              }
-            } catch (tableError) {
-              console.log(`Table ${tableName} not accessible:`, tableError);
-            }
-          }
+        if (!kycError && kycRecord) {
+          kycStatus = kycRecord.status || 'pending';
+          console.log('✅ [KYC STATUS] Record found:', kycRecord);
+          console.log('✅ [KYC STATUS] Status value:', kycStatus);
         } else {
-          kycDocs = kycData || [];
-          console.log('KYC documents found:', kycDocs.length);
+          console.log('❌ [KYC STATUS] No record found or error:', kycError);
+          console.log('⚠️ [KYC STATUS] Using default status:', kycStatus);
         }
       } catch (kycTableError) {
-        console.log('KYC documents table does not exist, continuing without it');
+        console.log('💥 [KYC STATUS] Table error:', kycTableError);
+        console.log('⚠️ [KYC STATUS] Using default status:', kycStatus);
       }
 
-      // If no documents found, create default documents based on user registration
-      if (kycDocs.length === 0) {
-        console.log('No KYC documents found, creating default documents');
-        kycDocs = [
-          {
-            id: 1,
-            user_id: user.user_uuid,
-            document_type: 'id_proof',
-            document_name: 'Identity Document',
-            file_path: '',
-            file_url: '',
-            status: 'pending',
-            uploaded_at: user.created_at,
-            reviewed_at: undefined,
-            reviewed_by: undefined,
-            rejection_reason: undefined
-          },
-          {
-            id: 2,
-            user_id: user.user_uuid,
-            document_type: 'address_proof',
-            document_name: 'Address Proof Document',
-            file_path: '',
-            file_url: '',
-            status: 'pending',
-            uploaded_at: user.created_at,
-            reviewed_at: undefined,
-            reviewed_by: undefined,
-            rejection_reason: undefined
-          }
-        ];
-      }
+      // Get account status from tradingAccounts table
+      console.log('🔍 [ACCOUNT STATUS] Looking for trading account with user_id:', user.user_uuid);
+      
+      let accountStatus = 'Active'; // Default value
+      let accountType = 'Demo'; // Default value
+      
+      try {
+        const { data: tradingAccount, error: tradingError } = await supabase
+          .from('tradingAccounts')
+          .select('status, account_type')
+          .eq('user_id', user.user_uuid)
+          .single();
 
-      // Get overall KYC status
-      const overallKycStatus = kycDocs && kycDocs.length > 0 
-        ? kycDocs.every(doc => doc.status === 'approved') ? 'Approved' : 'Pending'
-        : 'Pending';
+        if (!tradingError && tradingAccount) {
+          accountStatus = tradingAccount.status || 'Active';
+          accountType = tradingAccount.account_type || 'Demo';
+          console.log('✅ [ACCOUNT STATUS] Trading account found:', { 
+            status: accountStatus, 
+            type: accountType,
+            fullData: tradingAccount 
+          });
+        } else {
+          console.log('❌ [ACCOUNT STATUS] No trading account found or error:', tradingError);
+        }
+      } catch (tradingTableError) {
+        console.log('💥 [ACCOUNT STATUS] Table error:', tradingTableError);
+      }
+      
+      console.log('✅ [ACCOUNT STATUS] Final status:', accountStatus);
+      console.log('✅ [ACCOUNT STATUS] Final type:', accountType);
 
       const enhancedUser = {
         ...user,
-        kyc_status: overallKycStatus,
-        kyc_documents: kycDocs,
-        // Set default values for optional fields
-        city: undefined,
-        pincode: undefined,
-        address: undefined,
-        phone: undefined,
-        country: undefined,
-        date_of_birth: undefined
+        status: kycStatus,
+        account_status: accountStatus,
+        account_type: accountType
       };
 
-      console.log('Enhanced user data:', enhancedUser);
+      console.log('📊 [FINAL USER DATA] ==========================================');
+      console.log('👤 [USER BASIC INFO] ID:', user.id);
+      console.log('👤 [USER BASIC INFO] UUID:', user.user_uuid);
+      console.log('👤 [USER BASIC INFO] First Name:', user.first_name);
+      console.log('👤 [USER BASIC INFO] Last Name:', user.last_name);
+      console.log('👤 [USER BASIC INFO] Email:', user.email);
+      console.log('👤 [USER BASIC INFO] Phone:', user.phone_number);
+      console.log('👤 [USER BASIC INFO] Country:', user.country_of_birth);
+      console.log('👤 [USER BASIC INFO] Residential Address:', user.residential_address);
+      console.log('👤 [USER BASIC INFO] Date of Birth:', user.dob);
+      console.log('👤 [USER BASIC INFO] Middle Name:', user.middle_name);
+      console.log('👤 [USER BASIC INFO] Created At:', user.created_at);
+      console.log('🔐 [KYC STATUS] Final Status:', kycStatus);
+      console.log('💳 [ACCOUNT STATUS] Final Status:', accountStatus);
+      console.log('💳 [ACCOUNT STATUS] Final Type:', accountType);
+      console.log('📋 [COMPLETE USER OBJECT]:', enhancedUser);
+      console.log('📊 [FINAL USER DATA] ==========================================');
+      
       return enhancedUser;
     } catch (error) {
       console.error('Failed to fetch enhanced user data:', error);
@@ -410,17 +413,20 @@ export class UserService {
   /**
    * Update KYC document status
    */
-  static async updateDocumentStatus(documentId: number, status: 'pending' | 'approved' | 'rejected', reviewedBy?: string, rejectionReason?: string): Promise<boolean> {
+  static async updateDocumentStatus(documentId: number, status: 'pending' | 'verified' | 'rejected', reviewedBy?: string, rejectionReason?: string): Promise<boolean> {
     try {
-      console.log('Updating document status:', { documentId, status, reviewedBy, rejectionReason });
+      // Ensure status is always lowercase to match enum values
+      const normalizedStatus = status.toLowerCase() as 'pending' | 'verified' | 'rejected';
+      
+      console.log('Updating document status:', { documentId, status, normalizedStatus, reviewedBy, rejectionReason });
       
       const updateData: any = {
-        status,
+        status: normalizedStatus,
         reviewed_at: new Date().toISOString(),
         reviewed_by: reviewedBy || 'Admin'
       };
       
-      if (status === 'rejected' && rejectionReason) {
+      if (normalizedStatus === 'rejected' && rejectionReason) {
         updateData.rejection_reason = rejectionReason;
       }
 
@@ -464,14 +470,14 @@ export class UserService {
   }
 
   /**
-   * Approve KYC for a user by updating all their KYC documents to approved status
+   * Approve KYC for a user by updating all their KYC documents to verified status
    */
   static async approveUserKYC(userUuid: string, reviewedBy?: string): Promise<boolean> {
     try {
       console.log('Approving KYC for user:', { userUuid, reviewedBy });
       
       const updateData = {
-        status: 'approved',
+        status: 'verified', // Already lowercase
         reviewed_at: new Date().toISOString(),
         reviewed_by: reviewedBy || 'Admin'
       };
@@ -495,7 +501,7 @@ export class UserService {
               .eq('user_id', userUuid);
             
             if (!altError) {
-              console.log(`Successfully approved KYC in ${tableName} table`);
+              console.log(`Successfully verified KYC in ${tableName} table`);
               return true;
             }
           } catch (tableError) {
@@ -507,7 +513,7 @@ export class UserService {
         return false;
       }
 
-      console.log('User KYC approved successfully');
+      console.log('User KYC verified successfully');
       return true;
     } catch (error) {
       console.error('Failed to approve user KYC:', error);
@@ -602,8 +608,8 @@ export class UserService {
       }
 
       // Calculate metrics
-      const kycApproved = kycDocs?.filter(doc => doc.status === 'Approved').length || 0;
-      const kycPending = kycDocs?.filter(doc => doc.status === 'Pending').length || 0;
+      const kycVerified = kycDocs?.filter(doc => doc.status === 'verified').length || 0;
+      const kycPending = kycDocs?.filter(doc => doc.status === 'pending').length || 0;
       const liveAccounts = tradingAccounts?.filter(acc => acc.account_type === 'Live').length || 0;
       const demoAccounts = tradingAccounts?.filter(acc => acc.account_type === 'Demo').length || 0;
       const activeAccounts = tradingAccounts?.filter(acc => acc.status === 'Active').length || 0;
@@ -611,7 +617,7 @@ export class UserService {
       return {
         totalClients: totalUsers || 0,
         activeClients: activeAccounts,
-        kycApproved,
+        kycVerified,
         kycPending,
         liveAccounts,
         demoAccounts,
@@ -621,11 +627,130 @@ export class UserService {
       return {
         totalClients: 0,
         activeClients: 0,
-        kycApproved: 0,
+        kycVerified: 0,
         kycPending: 0,
         liveAccounts: 0,
         demoAccounts: 0,
       };
+    }
+  }
+
+  /**
+   * Fetch user data by user_uuid
+   */
+  static async getUserByUuid(userUuid: string): Promise<EnhancedClientUser | null> {
+    try {
+      console.log('Fetching user data by UUID:', userUuid);
+      
+      const { data: user, error: userError } = await supabase
+        .from('users')
+        .select(`
+          id,
+          user_uuid,
+          first_name,
+          last_name,
+          email,
+          created_at,
+          phone_number,
+          country_of_birth,
+          dob,
+          middle_name,
+          residential_address
+        `)
+        .eq('user_uuid', userUuid)
+        .single();
+
+      if (userError || !user) {
+        console.error('Error fetching user by UUID:', userError);
+        return null;
+      }
+
+      console.log('User found by UUID:', user);
+      return user;
+    } catch (error) {
+      console.error('Failed to fetch user by UUID:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Update KYC status for a user
+   */
+  static async updateKycStatus(userUuid: string, newStatus: 'pending' | 'verified' | 'rejected', approvalComments: string): Promise<boolean> {
+    try {
+      // Ensure status is always lowercase to match enum values
+      const normalizedStatus = newStatus.toLowerCase() as 'pending' | 'verified' | 'rejected';
+      
+      console.log('🔄 [KYC UPDATE] Updating KYC status for user:', userUuid);
+      console.log('🔄 [KYC UPDATE] Original status:', newStatus);
+      console.log('🔄 [KYC UPDATE] Normalized status:', normalizedStatus);
+      console.log('🔄 [KYC UPDATE] Comments:', approvalComments);
+      
+      const updateData = {
+        status: normalizedStatus,
+        approval_comments: approvalComments,
+        verified_at: normalizedStatus === 'verified' ? new Date().toISOString() : null
+      };
+
+      const { error } = await supabase
+        .from('kyc_documents')
+        .update(updateData)
+        .eq('user_id', userUuid);
+
+      if (error) {
+        console.log('❌ [KYC UPDATE] Database error:', error);
+        return false;
+      }
+
+      console.log('✅ [KYC UPDATE] KYC status updated successfully');
+      return true;
+    } catch (error) {
+      console.error('💥 [KYC UPDATE] Exception:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Format date for display - handles DD/MM/YYYY format from database
+   */
+  static formatDate(dateString: string): string {
+    if (!dateString || dateString === 'N/A') return 'N/A';
+    
+    try {
+      // Check if the date is in DD/MM/YYYY format (like "28/08/2004")
+      if (dateString.includes('/')) {
+        const parts = dateString.split('/');
+        if (parts.length === 3) {
+          const day = parseInt(parts[0]);
+          const month = parseInt(parts[1]) - 1; // Month is 0-indexed in JavaScript
+          const year = parseInt(parts[2]);
+          
+          const date = new Date(year, month, day);
+          
+          // Validate the date
+          if (date.getFullYear() === year && date.getMonth() === month && date.getDate() === day) {
+            return date.toLocaleDateString('en-US', { 
+              month: 'long', 
+              day: 'numeric', 
+              year: 'numeric' 
+            });
+          }
+        }
+      }
+      
+      // Fallback to standard date parsing
+      const date = new Date(dateString);
+      if (!isNaN(date.getTime())) {
+        return date.toLocaleDateString('en-US', { 
+          month: 'long', 
+          day: 'numeric', 
+          year: 'numeric' 
+        });
+      }
+      
+      return 'N/A';
+    } catch {
+      return 'N/A';
     }
   }
 
@@ -638,7 +763,7 @@ export class UserService {
       name: `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'N/A',
       email: user.email || 'N/A',
       registrationDate: user.created_at || 'N/A',
-      kycStatus: user.kyc_status || 'Pending',
+              kycStatus: user.kyc_status || 'pending',
       accountStatus: user.account_status || 'Active',
       accountType: user.account_type || 'Demo'
     };

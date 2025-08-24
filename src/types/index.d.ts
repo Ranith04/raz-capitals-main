@@ -80,7 +80,7 @@ export interface KYCDocument {
   document_name: string;
   file_path: string;
   file_url?: string;
-  status: 'pending' | 'approved' | 'rejected';
+  status: 'pending' | 'verified' | 'rejected';
   uploaded_at: string;
   reviewed_at?: string;
   reviewed_by?: string;
@@ -94,14 +94,12 @@ export interface EnhancedClientUser {
   last_name: string;
   email: string;
   created_at: string;
-  kyc_status?: string;
+  status?: string;
   account_status?: string;
   account_type?: string;
-  city?: string;
-  pincode?: string;
-  address?: string;
-  phone?: string;
-  country?: string;
-  date_of_birth?: string;
-  kyc_documents?: KYCDocument[];
+  phone_number?: string;
+  country_of_birth?: string;
+  dob?: string;
+  middle_name?: string;
+  residential_address?: string;
 } 

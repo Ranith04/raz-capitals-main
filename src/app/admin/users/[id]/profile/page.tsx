@@ -17,6 +17,8 @@ function ProfileContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
+
+  
   useEffect(() => {
     document.title = 'User Profile - RAZ CAPITALS';
     if (userId) {
@@ -30,8 +32,23 @@ function ProfileContent() {
       setLoading(true);
       setError(null);
       
+      console.log('🏠 [PROFILE PAGE] ==========================================');
+      console.log('🏠 [PROFILE PAGE] Fetching user data for ID:', userId);
+      
       // Get enhanced user data including KYC documents
       const userData = await UserService.getEnhancedUserData(parseInt(userId));
+      
+      console.log('🏠 [PROFILE PAGE] User data received from UserService');
+      console.log('🏠 [PROFILE PAGE] KYC Status:', userData?.status);
+      console.log('🏠 [PROFILE PAGE] Account Status:', userData?.account_status);
+      console.log('🏠 [PROFILE PAGE] Account Type:', userData?.account_type);
+      console.log('🏠 [PROFILE PAGE] Phone Number:', userData?.phone_number);
+      console.log('🏠 [PROFILE PAGE] Country:', userData?.country_of_birth);
+      console.log('🏠 [PROFILE PAGE] Residential Address:', userData?.residential_address);
+      console.log('🏠 [PROFILE PAGE] Date of Birth:', userData?.dob);
+      console.log('🏠 [PROFILE PAGE] Middle Name:', userData?.middle_name);
+      console.log('🏠 [PROFILE PAGE] Complete user data:', userData);
+      console.log('🏠 [PROFILE PAGE] ==========================================');
       
       if (userData) {
         setUser(userData);
@@ -76,16 +93,12 @@ function ProfileContent() {
     );
   }
 
-  // Format date for display
+  // Use UserService formatDate method for consistent date formatting
   const formatDate = (dateString: string) => {
-    if (!dateString || dateString === 'N/A') return 'N/A';
-    try {
-      const date = new Date(dateString);
-      return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
-    } catch {
-      return 'N/A';
-    }
+    return UserService.formatDate(dateString);
   };
+
+
 
   return (
     <div className="flex h-screen bg-[#9BC5A2] overflow-hidden">
@@ -170,15 +183,19 @@ function ProfileContent() {
                 </div>
                 <div>
                   <label className="text-[#9BC5A2] text-sm font-medium mb-2 block">Phone</label>
-                  <p className="text-white text-lg">{user.phone || 'N/A'}</p>
+                  <p className="text-white text-lg">{user.phone_number || 'N/A'}</p>
                 </div>
                 <div>
                   <label className="text-[#9BC5A2] text-sm font-medium mb-2 block">Country</label>
-                  <p className="text-white text-lg">{user.country || 'N/A'}</p>
+                  <p className="text-white text-lg">{user.country_of_birth || 'N/A'}</p>
+                </div>
+                <div>
+                  <label className="text-[#9BC5A2] text-sm font-medium mb-2 block">Residential Address</label>
+                  <p className="text-white text-lg">{user.residential_address || 'N/A'}</p>
                 </div>
                 <div>
                   <label className="text-[#9BC5A2] text-sm font-medium mb-2 block">Date of Birth</label>
-                  <p className="text-white text-lg">{user.date_of_birth || 'N/A'}</p>
+                  <p className="text-white text-lg">{formatDate(user.dob || '')}</p>
                 </div>
                 <div>
                   <label className="text-[#9BC5A2] text-sm font-medium mb-2 block">Registration Date</label>
@@ -189,23 +206,43 @@ function ProfileContent() {
               {/* Account Status */}
               <div className="mt-8 pt-6 border-t border-[#4A6741]">
                 <h3 className="text-white text-lg font-bold mb-4">Account Status</h3>
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                   <div>
                     <label className="text-[#9BC5A2] text-sm font-medium mb-2 block">KYC Status</label>
                     <span className={`px-3 py-1 rounded-full text-sm ${
-                      user.kyc_status === 'Approved' 
+                      user.status === 'verified' 
                         ? 'bg-[#9BC5A2]/20 text-[#9BC5A2]'
-                        : user.kyc_status === 'Pending'
+                        : user.status === 'pending'
                         ? 'bg-yellow-500/20 text-yellow-400'
-                        : 'bg-red-500/20 text-red-400'
+                        : user.status === 'rejected'
+                        ? 'bg-red-500/20 text-red-400'
+                        : 'bg-gray-500/20 text-gray-400'
                     }`}>
-                      {user.kyc_status || 'Pending'}
+                      {user.status || 'pending'}
                     </span>
                   </div>
                   <div>
                     <label className="text-[#9BC5A2] text-sm font-medium mb-2 block">Account Status</label>
-                    <span className="bg-green-500/20 text-green-400 px-3 py-1 rounded-full text-sm">
-                      Active
+                    <span className={`px-3 py-1 rounded-full text-sm ${
+                      user.account_status === 'Active' 
+                        ? 'bg-green-500/20 text-green-400'
+                        : user.account_status === 'Suspended'
+                        ? 'bg-red-500/20 text-red-400'
+                        : 'bg-yellow-500/20 text-yellow-400'
+                    }`}>
+                      {user.account_status || 'Active'}
+                    </span>
+                  </div>
+                  <div>
+                    <label className="text-[#9BC5A2] text-sm font-medium mb-2 block">Account Type</label>
+                    <span className={`px-3 py-1 rounded-full text-sm ${
+                      user.account_type === 'Live' 
+                        ? 'bg-blue-500/20 text-blue-400'
+                        : user.account_type === 'Demo'
+                        ? 'bg-purple-500/20 text-purple-400'
+                        : 'bg-gray-500/20 text-gray-400'
+                    }`}>
+                      {user.account_type || 'Demo'}
                     </span>
                   </div>
                   <div>
@@ -215,6 +252,8 @@ function ProfileContent() {
                     </span>
                   </div>
                 </div>
+                
+
               </div>
             </div>
 
@@ -335,6 +374,8 @@ function ProfileContent() {
           </div>
         </div>
       </div>
+
+
     </div>
   );
 }
