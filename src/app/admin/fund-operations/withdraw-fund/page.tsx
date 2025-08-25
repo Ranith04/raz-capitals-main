@@ -33,6 +33,8 @@ function WithdrawFundContent() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [proofModalOpen, setProofModalOpen] = useState(false);
+  const [selectedProofUrl, setSelectedProofUrl] = useState<string>('');
   
   useEffect(() => {
     document.title = 'Withdraw Fund - RAZ CAPITALS';
@@ -71,7 +73,7 @@ function WithdrawFundContent() {
           // Extract user information from account_id or related tables
           user_name: tx.account_id || 'Unknown User',
           user_email: tx.account_id ? `${tx.account_id}@example.com` : 'No email',
-          payment_method: tx.mode_of_payment || 'Unknown Method',
+          payment_method: (tx.mode_of_payment || 'Unknown Method').replace(/_/g, ' ').trim(),
           transaction_document: tx.proof_of_transaction_url || '-'
         }));
         
@@ -97,6 +99,16 @@ function WithdrawFundContent() {
     setSelectedTransaction(null);
     setNewStatus('null');
     setTransactionComments('');
+  };
+
+  const handleProofClick = (proofUrl: string) => {
+    setSelectedProofUrl(proofUrl);
+    setProofModalOpen(true);
+  };
+
+  const handleCloseProofModal = () => {
+    setProofModalOpen(false);
+    setSelectedProofUrl('');
   };
 
   const handleSubmit = async () => {
@@ -247,27 +259,25 @@ function WithdrawFundContent() {
                     <th className="py-3 pr-4 text-[#0A2E1D] font-bold text-center">ID</th>
                     <th className="py-3 pr-4 text-[#0A2E1D] font-bold text-center">Date</th>
                     <th className="py-3 pr-4 text-[#0A2E1D] font-bold text-center">Account ID</th>
-                    <th className="py-3 pr-4 text-[#0A2E1D] font-bold text-center">Email</th>
                     <th className="py-3 pr-4 text-[#0A2E1D] font-bold text-center">Amount</th>
                     <th className="py-3 pr-4 text-[#0A2E1D] font-bold text-center">Type</th>
                     <th className="py-3 pr-4 text-[#0A2E1D] font-bold text-center">Status</th>
                     <th className="py-3 pr-4 text-[#0A2E1D] font-bold text-center">Method</th>
-                    <th className="py-3 pr-4 text-[#0A2E1D] font-bold text-center">Proof</th>
                     <th className="py-3 pr-4 text-[#0A2E1D] font-bold text-center">Action</th>
                   </tr>
                 </thead>
                 <tbody className="text-[#0A2E1D]">
                                      {loading ? (
                      <tr>
-                       <td colSpan={9} className="py-8 text-center text-gray-500">Loading...</td>
+                       <td colSpan={7} className="py-8 text-center text-gray-500">Loading...</td>
                      </tr>
                    ) : error ? (
                      <tr>
-                       <td colSpan={9} className="py-8 text-center text-red-500">{error}</td>
+                       <td colSpan={7} className="py-8 text-center text-red-500">{error}</td>
                      </tr>
                    ) : transactions.length === 0 ? (
                      <tr>
-                       <td colSpan={9} className="py-8 text-center text-gray-500">No withdrawal transactions found.</td>
+                       <td colSpan={7} className="py-8 text-center text-gray-500">No withdrawal transactions found.</td>
                      </tr>
                   ) : (
                                          transactions.map((tx) => (
@@ -275,7 +285,6 @@ function WithdrawFundContent() {
                          <td className="py-4 pr-4 text-center font-mono text-sm">{tx.id}</td>
                          <td className="py-4 pr-4 text-center">{formatDate(tx.created_at)}</td>
                          <td className="py-4 pr-4 text-center font-mono text-sm">{tx.account_id || 'N/A'}</td>
-                         <td className="py-4 pr-4 text-center text-[#0A2E1D] underline"><a href={`mailto:${tx.user_email}`}>{tx.user_email}</a></td>
                          <td className="py-4 pr-4 text-center font-semibold">{formatAmount(tx.amount, tx.currency)}</td>
                          <td className="py-4 pr-4 text-center">
                            <span className="inline-block px-2 py-1 rounded text-xs font-semibold bg-blue-100 text-blue-800">
@@ -288,21 +297,6 @@ function WithdrawFundContent() {
                            </span>
                          </td>
                          <td className="py-4 pr-4 text-center text-sm">{tx.payment_method}</td>
-                         <td className="py-4 pr-4 text-center">
-                           {tx.transaction_document && tx.transaction_document !== '-' ? (
-                             <button
-                               aria-label="View Proof"
-                               onClick={() => window.open(tx.transaction_document, '_blank')}
-                               className="p-3 text-xs font-semibold bg-blue-100 text-blue-800 hover:bg-blue-200 transition-colors rounded"
-                             >
-                               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                               </svg>
-                             </button>
-                           ) : (
-                             <span className="text-gray-400 text-sm">No proof</span>
-                           )}
-                         </td>
                          <td className="py-4 pr-4 text-center">
                            <button
                              className="px-3 py-1 text-xs bg-[#0A2E1D] text-white rounded hover:opacity-90 font-semibold"
@@ -448,6 +442,58 @@ function WithdrawFundContent() {
                     >
                       {isSubmitting ? 'Processing...' : 'Update Transaction'}
                     </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Proof Document Modal */}
+          {proofModalOpen && selectedProofUrl && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+                {/* Modal Header */}
+                <div className="bg-[#0A2E1D] text-white p-6 rounded-t-xl">
+                  <div className="flex justify-between items-center">
+                    <h3 className="text-xl font-semibold">Proof Document</h3>
+                    <button
+                      onClick={handleCloseProofModal}
+                      className="text-white hover:text-gray-300 transition-colors"
+                    >
+                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Modal Body */}
+                <div className="p-6">
+                  <div className="w-full h-96 bg-gray-100 rounded-lg flex items-center justify-center">
+                    {selectedProofUrl.endsWith('.pdf') ? (
+                      <iframe
+                        src={selectedProofUrl}
+                        className="w-full h-full rounded-lg"
+                        title="Proof Document"
+                      />
+                    ) : (
+                      <img
+                        src={selectedProofUrl}
+                        alt="Proof Document"
+                        className="max-w-full max-h-full object-contain rounded-lg"
+                      />
+                    )}
+                  </div>
+                  
+                  <div className="mt-4 text-center">
+                    <a
+                      href={selectedProofUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:text-blue-800 underline"
+                    >
+                      Open in New Tab
+                    </a>
                   </div>
                 </div>
               </div>

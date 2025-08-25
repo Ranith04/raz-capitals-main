@@ -33,6 +33,8 @@ function DepositFundContent() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [proofModalOpen, setProofModalOpen] = useState(false);
+  const [selectedProofUrl, setSelectedProofUrl] = useState<string>('');
   
   useEffect(() => {
     document.title = 'Deposit Fund - RAZ CAPITALS';
@@ -71,7 +73,7 @@ function DepositFundContent() {
           // Extract user information from account_id or related tables
           user_name: tx.account_id || 'Unknown User',
           user_email: tx.account_id ? `${tx.account_id}@example.com` : 'No email',
-          payment_method: tx.mode_of_payment || 'Unknown Method',
+          payment_method: (tx.mode_of_payment || 'Unknown Method').replace(/_/g, ' ').trim(),
           transaction_document: tx.proof_of_transaction_url || '-'
         }));
         
@@ -97,6 +99,16 @@ function DepositFundContent() {
     setSelectedTransaction(null);
     setNewStatus('null');
     setTransactionComments('');
+  };
+
+  const handleProofClick = (proofUrl: string) => {
+    setSelectedProofUrl(proofUrl);
+    setProofModalOpen(true);
+  };
+
+  const handleCloseProofModal = () => {
+    setProofModalOpen(false);
+    setSelectedProofUrl('');
   };
 
   const handleSubmit = async () => {
@@ -292,7 +304,7 @@ function DepositFundContent() {
                            {row.transaction_document && row.transaction_document !== '-' ? (
                              <button
                                aria-label="View Proof"
-                               onClick={() => window.open(row.transaction_document, '_blank')}
+                               onClick={() => handleProofClick(row.transaction_document || '')}
                                className="p-3 rounded text-xs font-semibold bg-blue-100 text-blue-800 hover:bg-blue-200 transition-colors"
                              >
                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -465,11 +477,63 @@ function DepositFundContent() {
               </div>
             </div>
           </div>
-        </div>
-      )}
-    </div>
-  );
-}
+                  </div>
+        )}
+
+        {/* Proof Document Modal */}
+        {proofModalOpen && selectedProofUrl && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+              {/* Modal Header */}
+              <div className="bg-[#0A2E1D] text-white p-6 rounded-t-xl">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-xl font-semibold">Proof Document</h3>
+                  <button
+                    onClick={handleCloseProofModal}
+                    className="text-white hover:text-gray-300 transition-colors"
+                  >
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              {/* Modal Body */}
+              <div className="p-6">
+                <div className="w-full h-96 bg-gray-100 rounded-lg flex items-center justify-center">
+                  {selectedProofUrl.endsWith('.pdf') ? (
+                    <iframe
+                      src={selectedProofUrl}
+                      className="w-full h-full rounded-lg"
+                      title="Proof Document"
+                    />
+                  ) : (
+                    <img
+                      src={selectedProofUrl}
+                      alt="Proof Document"
+                      className="max-w-full max-h-full object-contain rounded-lg"
+                    />
+                  )}
+                </div>
+                
+                <div className="mt-4 text-center">
+                  <a
+                    href={selectedProofUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 hover:text-blue-800 underline"
+                  >
+                    Open in New Tab
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
 
 export default function DepositFundPage() {
   return (
