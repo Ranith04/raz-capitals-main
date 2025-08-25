@@ -1,10 +1,6 @@
-import ProtectedRoute from '@/components/ProtectedRoute';
-import type { Metadata } from 'next';
+'use client';
 
-export const metadata: Metadata = {
-  title: 'User Management - Admin - RAZ CAPITALS',
-  description: 'User management dashboard for RAZ CAPITALS administrators.',
-};
+import ProtectedRoute from '@/components/ProtectedRoute';
 
 // Mock user data
 const mockUsers = [

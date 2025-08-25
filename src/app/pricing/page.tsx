@@ -49,7 +49,7 @@ export default function PricingPage() {
                 Can I upgrade my account later?
               </h3>
               <p className="text-gray-600">
-                Yes, you can upgrade your account type at any time. Simply contact our support team or log into your account dashboard. We'll help you transition to a higher tier with all your trading history and settings preserved.
+                Yes, you can upgrade your account type at any time. Simply contact our support team or log into your account dashboard. We&apos;ll help you transition to a higher tier with all your trading history and settings preserved.
               </p>
             </div>
 

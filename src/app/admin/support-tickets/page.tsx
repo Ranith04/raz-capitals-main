@@ -181,7 +181,7 @@ function SupportTicketsContent() {
                 
                 <div className="flex justify-between items-center p-3 bg-[#4A6741] rounded-lg">
                   <div>
-                    <h3 className="text-white font-medium">Today's Resolved</h3>
+                    <h3 className="text-white font-medium">Today&apos;s Resolved</h3>
                     <p className="text-[#9BC5A2] text-sm">Closed today</p>
                   </div>
                   <span className="text-green-400 text-2xl font-bold">15</span>

@@ -133,7 +133,7 @@ export default function ContactPage() {
                       id="subject"
                       className="w-full min-w-0 px-3 py-3 sm:px-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-base bg-white"
                     >
-                      <option>What's this about?</option>
+                      <option>What&apos;s this about?</option>
                       <option>Account Support</option>
                       <option>Trading Questions</option>
                       <option>Technical Issues</option>

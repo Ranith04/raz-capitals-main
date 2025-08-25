@@ -14,7 +14,7 @@ function ClientListContent() {
   const [metrics, setMetrics] = useState({
     totalClients: 0,
     activeClients: 0,
-    kycApproved: 0,
+    kycVerified: 0,
     kycPending: 0,
     liveAccounts: 0,
     demoAccounts: 0
@@ -188,8 +188,8 @@ function ClientListContent() {
               <p className="text-white text-2xl font-bold">{metrics.activeClients}</p>
             </div>
             <div className="bg-[#2D4A32] rounded-2xl p-6 text-center">
-              <h3 className="text-[#9BC5A2] text-sm font-medium mb-2">KYC Approved</h3>
-              <p className="text-white text-2xl font-bold">{metrics.kycApproved}</p>
+              <h3 className="text-[#9BC5A2] text-sm font-medium mb-2">KYC Verified</h3>
+              <p className="text-white text-2xl font-bold">{metrics.kycVerified}</p>
             </div>
             <div className="bg-[#2D4A32] rounded-2xl p-6 text-center">
               <h3 className="text-[#9BC5A2] text-sm font-medium mb-2">KYC Pending</h3>

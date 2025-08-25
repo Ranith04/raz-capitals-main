@@ -143,7 +143,7 @@ export default function SignUpStepFour() {
           </svg>
         </div>
 
-        <h1 className="text-xl font-bold text-gray-900 mb-2" style={{ color: '#1E2E23' }}>Just checking you're not a bot!</h1>
+        <h1 className="text-xl font-bold text-gray-900 mb-2" style={{ color: '#1E2E23' }}>Just checking you&apos;re not a bot!</h1>
         <p className="text-sm text-gray-600">Please upload a government-issued proof of identity</p>
       </div>
 

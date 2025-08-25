@@ -7,7 +7,7 @@ export default function SecurityPage() {
         {/* Security Description */}
         <div className="bg-white rounded-lg shadow p-6 border border-[#A0C8A9]/20 mb-6">
           <h2 className="text-xl font-semibold text-[#0A2E1D] mb-2">Strengthen Your Online Security</h2>
-          <p className="text-gray-600">It's your primary defense.</p>
+          <p className="text-gray-600">It&apos;s your primary defense.</p>
         </div>
 
         {/* Password Section */}

@@ -19,7 +19,7 @@ export default function ContactForm() {
         <div className="text-green-600 text-2xl mb-2">✓</div>
         <h3 className="text-green-800 font-semibold mb-2">Message Sent Successfully!</h3>
         <p className="text-green-700 mb-4">
-          Thank you for contacting us. We'll get back to you as soon as possible.
+          Thank you for contacting us. We&apos;ll get back to you as soon as possible.
         </p>
         <button
           onClick={resetForm}

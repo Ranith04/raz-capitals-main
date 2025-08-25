@@ -105,7 +105,7 @@ export default function SignUpStepThree() {
           </svg>
         </div>
         <h1 className="text-xl font-bold text-gray-900 mb-2" style={{ color: '#1E2E23' }}>Need a few details to proceed</h1>
-        <p className="text-sm text-gray-600">Let's get to know each other!</p>
+        <p className="text-sm text-gray-600">Let&apos;s get to know each other!</p>
       </div>
 
       {/* Progress Dots */}

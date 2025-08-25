@@ -225,7 +225,7 @@ function NewClientListContent() {
             {/* Refresh Button */}
             <button 
               className="bg-[#2D4A32] text-white px-4 py-2 rounded-lg hover:bg-[#3A5A3F] transition-colors flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
-              onClick={fetchClients}
+              onClick={() => fetchClients()}
               disabled={refreshing}
             >
               <svg className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
