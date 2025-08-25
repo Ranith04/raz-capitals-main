@@ -71,8 +71,8 @@ function DepositFundContent() {
           // Extract user information from account_id or related tables
           user_name: tx.account_id || 'Unknown User',
           user_email: tx.account_id ? `${tx.account_id}@example.com` : 'No email',
-          payment_method: 'USDT Deposit', // Default value
-          transaction_document: tx.transaction_comments || '-'
+          payment_method: tx.mode_of_payment || 'Unknown Method',
+          transaction_document: tx.proof_of_transaction_url || '-'
         }));
         
         setTransactions(transformedTransactions);
@@ -252,21 +252,22 @@ function DepositFundContent() {
                     <th className="py-3 pr-4 text-[#0A2E1D] font-bold">Amount</th>
                     <th className="py-3 pr-4 text-[#0A2E1D] font-bold">Currency</th>
                     <th className="py-3 pr-4 text-[#0A2E1D] font-bold">Status</th>
+                    <th className="py-3 pr-4 text-[#0A2E1D] font-bold">Proof</th>
                     <th className="py-3 pr-4 text-[#0A2E1D] font-bold">Action</th>
                   </tr>
                 </thead>
                 <tbody className="text-[#0A2E1D]">
                                      {loading ? (
                      <tr>
-                       <td colSpan={9} className="py-8 text-center text-gray-500">Loading...</td>
+                       <td colSpan={10} className="py-8 text-center text-gray-500">Loading...</td>
                      </tr>
                    ) : error ? (
                      <tr>
-                       <td colSpan={9} className="py-8 text-center text-red-500">{error}</td>
+                       <td colSpan={10} className="py-8 text-center text-red-500">{error}</td>
                      </tr>
                    ) : transactions.length === 0 ? (
                      <tr>
-                       <td colSpan={9} className="py-8 text-center text-gray-500">No deposit transactions found.</td>
+                       <td colSpan={10} className="py-8 text-center text-gray-500">No deposit transactions found.</td>
                      </tr>
                   ) : (
                                          transactions.map((row) => (
@@ -286,6 +287,21 @@ function DepositFundContent() {
                            <span className={`inline-block px-3 py-1 rounded text-xs font-semibold ${getStatusColor(row.status)}`}>
                              {getStatusDisplayName(row.status)}
                            </span>
+                         </td>
+                         <td className="py-4 pr-4">
+                           {row.transaction_document && row.transaction_document !== '-' ? (
+                             <button
+                               aria-label="View Proof"
+                               onClick={() => window.open(row.transaction_document, '_blank')}
+                               className="p-3 rounded text-xs font-semibold bg-blue-100 text-blue-800 hover:bg-blue-200 transition-colors"
+                             >
+                               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                               </svg>
+                             </button>
+                           ) : (
+                             <span className="text-gray-400 text-sm">No proof</span>
+                           )}
                          </td>
                          <td className="py-4 pr-4">
                            <button

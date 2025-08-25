@@ -22,12 +22,11 @@ function SupportTicketsContent() {
         {/* Header */}
         <div className="bg-[#0A2E1D] p-4 flex justify-between items-start">
           {/* Left Side - Document Icon and Refresh Button */}
-          <div className="flex flex-col space-y-2">
-            {/* Document Icon Button */}
-                      <div 
-            className="w-12 h-12 bg-[#2D4A32] rounded-lg flex items-center justify-center cursor-pointer hover:bg-[#3A5A3F] transition-all duration-300 hover:scale-110 hover:shadow-lg transform"
-            onClick={() => router.push('/admin/dashboard')}
-          >
+          <div className="flex items-center space-x-3">
+                        {/* Document Icon Button */}
+            <div 
+              className="w-12 h-12 bg-[#2D4A32] rounded-lg flex items-center justify-center cursor-pointer hover:bg-[#3A5A3F] transition-all duration-300 hover:scale-110 hover:shadow-lg transform"
+            >
             <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
             </svg>
@@ -87,108 +86,7 @@ function SupportTicketsContent() {
             </div>
           </div>
 
-          {/* Quick Actions */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-            {/* Create New Ticket */}
-            <div className="bg-[#2D4A32] rounded-2xl p-6">
-              <h2 className="text-white text-xl font-bold mb-6">Create New Ticket</h2>
-              
-              <div className="space-y-4">
-                <div>
-                  <label className="text-[#9BC5A2] text-sm font-medium mb-2 block">User Account</label>
-                  <select className="w-full bg-[#4A6741] text-white px-4 py-2 rounded-lg border border-[#9BC5A2]/30 focus:border-[#9BC5A2] focus:outline-none">
-                    <option>Select User</option>
-                    <option>Abdul Khadar Ishak (#LIVE001)</option>
-                    <option>Sarah Johnson (#LIVE002)</option>
-                    <option>Michael Chen (#LIVE003)</option>
-                  </select>
-                </div>
-                
-                <div>
-                  <label className="text-[#9BC5A2] text-sm font-medium mb-2 block">Ticket Type</label>
-                  <select className="w-full bg-[#4A6741] text-white px-4 py-2 rounded-lg border border-[#9BC5A2]/30 focus:border-[#9BC5A2] focus:outline-none">
-                    <option>Technical Issue</option>
-                    <option>Account Problem</option>
-                    <option>Trading Issue</option>
-                    <option>Payment Problem</option>
-                    <option>General Inquiry</option>
-                    <option>Complaint</option>
-                  </select>
-                </div>
-                
-                <div>
-                  <label className="text-[#9BC5A2] text-sm font-medium mb-2 block">Priority</label>
-                  <select className="w-full bg-[#4A6741] text-white px-4 py-2 rounded-lg border border-[#9BC5A2]/30 focus:border-[#9BC5A2] focus:outline-none">
-                    <option>Low</option>
-                    <option>Medium</option>
-                    <option>High</option>
-                    <option>Critical</option>
-                  </select>
-                </div>
-                
-                <div>
-                  <label className="text-[#9BC5A2] text-sm font-medium mb-2 block">Subject</label>
-                  <input 
-                    type="text" 
-                    placeholder="Ticket subject..."
-                    className="w-full bg-[#4A6741] text-white px-4 py-2 rounded-lg border border-[#9BC5A2]/30 focus:border-[#9BC5A2] focus:outline-none placeholder-gray-400"
-                  />
-                </div>
-                
-                <div>
-                  <label className="text-[#9BC5A2] text-sm font-medium mb-2 block">Description</label>
-                  <textarea 
-                    placeholder="Ticket description..."
-                    rows={3}
-                    className="w-full bg-[#4A6741] text-white px-4 py-2 rounded-lg border border-[#9BC5A2]/30 focus:border-[#9BC5A2] focus:outline-none placeholder-gray-400"
-                  />
-                </div>
-                
-                <button className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-                  Create Ticket
-                </button>
-              </div>
-            </div>
 
-            {/* Ticket Status Overview */}
-            <div className="bg-[#2D4A32] rounded-2xl p-6">
-              <h2 className="text-white text-xl font-bold mb-6">Ticket Status Overview</h2>
-              
-              <div className="space-y-4">
-                <div className="flex justify-between items-center p-3 bg-[#4A6741] rounded-lg">
-                  <div>
-                    <h3 className="text-white font-medium">High Priority</h3>
-                    <p className="text-[#9BC5A2] text-sm">Needs immediate attention</p>
-                  </div>
-                  <span className="text-red-400 text-2xl font-bold">12</span>
-                </div>
-                
-                <div className="flex justify-between items-center p-3 bg-[#4A6741] rounded-lg">
-                  <div>
-                    <h3 className="text-white font-medium">Overdue Tickets</h3>
-                    <p className="text-[#9BC5A2] text-sm">Past response time</p>
-                  </div>
-                  <span className="text-orange-400 text-2xl font-bold">7</span>
-                </div>
-                
-                <div className="flex justify-between items-center p-3 bg-[#4A6741] rounded-lg">
-                  <div>
-                    <h3 className="text-white font-medium">Awaiting Response</h3>
-                    <p className="text-[#9BC5A2] text-sm">Customer reply needed</p>
-                  </div>
-                  <span className="text-yellow-400 text-2xl font-bold">19</span>
-                </div>
-                
-                <div className="flex justify-between items-center p-3 bg-[#4A6741] rounded-lg">
-                  <div>
-                    <h3 className="text-white font-medium">Today&apos;s Resolved</h3>
-                    <p className="text-[#9BC5A2] text-sm">Closed today</p>
-                  </div>
-                  <span className="text-green-400 text-2xl font-bold">15</span>
-                </div>
-              </div>
-            </div>
-          </div>
 
           {/* Search and Filter Section */}
           <div className="bg-[#2D4A32] rounded-2xl p-6 mb-8">
