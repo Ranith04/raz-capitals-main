@@ -2,103 +2,14 @@
 
 import AdminSidebar from '@/components/AdminSidebar';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import { useDemoAccounts } from '@/hooks/useDemoAccounts';
+import { TradingAccountWithUser } from '@/types';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 
 function DemoAccountsContent() {
   const router = useRouter();
-  
-  // Sample demo accounts data
-  const [accounts] = useState([
-    {
-      id: '#DEMO001',
-      owner: 'John Trader',
-      virtualBalance: 100000.00,
-      currentEquity: 112340.00,
-      virtualPnL: 12340.00,
-      expires: '2025-02-15',
-      status: 'Active',
-      demoDuration: '90 Days',
-      creationDate: '2024-11-15'
-    },
-    {
-      id: '#DEMO002',
-      owner: 'Lisa Wang',
-      virtualBalance: 50000.00,
-      currentEquity: 47650.00,
-      virtualPnL: -2350.00,
-      expires: '2025-01-28',
-      status: 'Active',
-      demoDuration: '60 Days',
-      creationDate: '2024-11-28'
-    },
-    {
-      id: '#DEMO003',
-      owner: 'Robert Smith',
-      virtualBalance: 100000.00,
-      currentEquity: 100000.00,
-      virtualPnL: 0.00,
-      expires: '2025-01-10',
-      status: 'Expired',
-      demoDuration: '30 Days',
-      creationDate: '2024-12-10'
-    },
-    {
-      id: '#DEMO004',
-      owner: 'Anna Wilson',
-      virtualBalance: 200000.00,
-      currentEquity: 187920.00,
-      virtualPnL: -12080.00,
-      expires: '2025-03-20',
-      status: 'Active',
-      demoDuration: 'Unlimited',
-      creationDate: '2024-09-20'
-    },
-    {
-      id: '#DEMO005',
-      owner: 'David Wilson',
-      virtualBalance: 75000.00,
-      currentEquity: 78900.00,
-      virtualPnL: 3900.00,
-      expires: '2025-02-01',
-      status: 'Suspended',
-      demoDuration: '90 Days',
-      creationDate: '2024-11-01'
-    },
-    {
-      id: '#DEMO006',
-      owner: 'Emma Davis',
-      virtualBalance: 150000.00,
-      currentEquity: 145600.00,
-      virtualPnL: -4400.00,
-      expires: '2025-01-15',
-      status: 'Active',
-      demoDuration: '60 Days',
-      creationDate: '2024-11-15'
-    },
-    {
-      id: '#DEMO007',
-      owner: 'Michael Chen',
-      virtualBalance: 300000.00,
-      currentEquity: 312000.00,
-      virtualPnL: 12000.00,
-      expires: '2025-04-01',
-      status: 'Active',
-      demoDuration: 'Unlimited',
-      creationDate: '2024-10-01'
-    },
-    {
-      id: '#DEMO008',
-      owner: 'Sarah Johnson',
-      virtualBalance: 25000.00,
-      currentEquity: 25200.00,
-      virtualPnL: 200.00,
-      expires: '2025-01-05',
-      status: 'Expired',
-      demoDuration: '30 Days',
-      creationDate: '2024-12-05'
-    }
-  ]);
+  const { accounts, loading, error, refreshAccounts } = useDemoAccounts();
 
   // Filter states
   const [searchTerm, setSearchTerm] = useState('');
@@ -115,17 +26,38 @@ function DemoAccountsContent() {
     return accounts.filter(account => {
       // Search filter
       const matchesSearch = searchTerm === '' || 
-        account.owner.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        account.id.toLowerCase().includes(searchTerm.toLowerCase());
+        `${account.user.first_name} ${account.user.last_name}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        account.account_uid.toLowerCase().includes(searchTerm.toLowerCase());
 
       // Status filter
-      const matchesStatus = selectedStatus === 'All Status' || account.status === selectedStatus;
+      const matchesStatus = selectedStatus === 'All Status' || account.status === selectedStatus.toLowerCase();
 
-      // Demo Duration filter
-      const matchesDemoDuration = selectedDemoDuration === 'All Durations' || account.demoDuration === selectedDemoDuration;
+      // Demo Duration filter - for demo accounts, we can use account creation date to calculate duration
+      let matchesDemoDuration = true;
+      if (selectedDemoDuration !== 'All Durations') {
+        const createdDate = new Date(account.created_at);
+        const now = new Date();
+        const daysDiff = Math.ceil((now.getTime() - createdDate.getTime()) / (1000 * 60 * 60 * 24));
+        
+        switch (selectedDemoDuration) {
+          case '30 Days':
+            matchesDemoDuration = daysDiff <= 30;
+            break;
+          case '60 Days':
+            matchesDemoDuration = daysDiff > 30 && daysDiff <= 60;
+            break;
+          case '90 Days':
+            matchesDemoDuration = daysDiff > 60 && daysDiff <= 90;
+            break;
+          case 'Unlimited':
+            matchesDemoDuration = daysDiff > 90;
+            break;
+        }
+      }
 
       // Creation Date filter
-      const matchesCreationDate = selectedCreationDate === '' || account.creationDate === selectedCreationDate;
+      const matchesCreationDate = selectedCreationDate === '' || 
+        account.created_at.startsWith(selectedCreationDate);
 
       return matchesSearch && matchesStatus && matchesDemoDuration && matchesCreationDate;
     });
@@ -140,10 +72,10 @@ function DemoAccountsContent() {
   };
 
   // Format currency
-  const formatCurrency = (amount: number) => {
+  const formatCurrency = (amount: number, currency: string = 'USD') => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
-      currency: 'USD',
+      currency: currency,
       minimumFractionDigits: 2
     }).format(amount);
   };
@@ -154,24 +86,106 @@ function DemoAccountsContent() {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   };
 
+  // Calculate expiration date (demo accounts typically expire after 30-90 days)
+  const calculateExpirationDate = (createdAt: string, accountType: string) => {
+    const createdDate = new Date(createdAt);
+    let expirationDate;
+    
+    // Demo accounts typically have different expiration periods
+    switch (accountType) {
+      case 'demo_30':
+        expirationDate = new Date(createdDate.getTime() + (30 * 24 * 60 * 60 * 1000));
+        break;
+      case 'demo_60':
+        expirationDate = new Date(createdDate.getTime() + (60 * 24 * 60 * 60 * 1000));
+        break;
+      case 'demo_90':
+        expirationDate = new Date(createdDate.getTime() + (90 * 24 * 60 * 60 * 1000));
+        break;
+      case 'demo_unlimited':
+        return 'Unlimited';
+      default:
+        expirationDate = new Date(createdDate.getTime() + (30 * 24 * 60 * 60 * 1000));
+    }
+    
+    return formatDate(expirationDate.toISOString());
+  };
+
+  // Calculate demo duration based on account type
+  const getDemoDuration = (accountType: string) => {
+    switch (accountType) {
+      case 'demo_30':
+        return '30 Days';
+      case 'demo_60':
+        return '60 Days';
+      case 'demo_90':
+        return '90 Days';
+      case 'demo_unlimited':
+        return 'Unlimited';
+      default:
+        return '30 Days';
+    }
+  };
+
   // Get status badge styling
   const getStatusBadgeStyle = (status: string) => {
     switch (status) {
-      case 'Active':
+      case 'active':
         return 'bg-green-500/20 text-green-400';
-      case 'Expired':
+      case 'expired':
         return 'bg-red-500/20 text-red-400';
-      case 'Suspended':
+      case 'suspended':
         return 'bg-yellow-500/20 text-yellow-400';
       default:
         return 'bg-gray-500/20 text-gray-400';
     }
   };
 
+  // Calculate P&L (Profit & Loss)
+  const calculatePnL = (account: TradingAccountWithUser) => {
+    return account.equity - account.balance;
+  };
+
   // Calculate statistics based on filtered accounts
-  const totalVirtualBalance = filteredAccounts.reduce((sum, account) => sum + account.virtualBalance, 0);
+  const totalVirtualBalance = filteredAccounts.reduce((sum, account) => sum + account.balance, 0);
   const averageVirtualBalance = filteredAccounts.length > 0 ? totalVirtualBalance / filteredAccounts.length : 0;
-  const activeDemos = filteredAccounts.filter(account => account.status === 'Active').length;
+  const activeDemos = filteredAccounts.filter(account => account.status === 'active').length;
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className="flex h-screen bg-[#9BC5A2] overflow-hidden">
+        <AdminSidebar currentPage="demo-accounts" />
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#0A2E1D] mx-auto mb-4"></div>
+            <p className="text-[#0A2E1D] text-lg">Loading demo accounts...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="flex h-screen bg-[#9BC5A2] overflow-hidden">
+        <AdminSidebar currentPage="demo-accounts" />
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <div className="text-red-500 text-6xl mb-4">⚠️</div>
+            <p className="text-[#0A2E1D] text-lg mb-4">{error}</p>
+            <button 
+              onClick={refreshAccounts}
+              className="px-6 py-2 bg-[#2D4A32] text-white rounded-lg hover:bg-[#3A5A3F] transition-colors"
+            >
+              Retry
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen bg-[#9BC5A2] overflow-hidden">
@@ -206,9 +220,17 @@ function DemoAccountsContent() {
         <div className="flex-1 p-8 overflow-y-auto">
           <div className="flex justify-between items-center mb-8">
             <h1 className="text-[#0A2E1D] text-3xl font-bold">Demo Trading Accounts</h1>
-            <button className="px-6 py-2 bg-[#2D4A32] text-white rounded-lg hover:bg-[#3A5A3F] transition-colors">
-              Create Demo Account
-            </button>
+            <div className="flex space-x-4">
+              <button 
+                onClick={refreshAccounts}
+                className="px-6 py-2 bg-[#4A6741] text-white rounded-lg hover:bg-[#3A5A3F] transition-colors"
+              >
+                Refresh Data
+              </button>
+              <button className="px-6 py-2 bg-[#2D4A32] text-white rounded-lg hover:bg-[#3A5A3F] transition-colors">
+                Create Demo Account
+              </button>
+            </div>
           </div>
 
           {/* Statistics Cards */}
@@ -316,57 +338,68 @@ function DemoAccountsContent() {
                 </thead>
                 <tbody>
                   {filteredAccounts.length > 0 ? (
-                    filteredAccounts.map((account) => (
-                      <tr key={account.id} className="border-b border-[#4A6741]/50">
-                        <td className="text-white py-4">{account.id}</td>
-                        <td className="text-white py-4">{account.owner}</td>
-                        <td className="text-white py-4">{formatCurrency(account.virtualBalance)}</td>
-                        <td className="text-white py-4">{formatCurrency(account.currentEquity)}</td>
-                        <td className={`py-4 ${account.virtualPnL > 0 ? 'text-green-400' : account.virtualPnL < 0 ? 'text-red-400' : 'text-white'}`}>
-                          {account.virtualPnL > 0 ? '+' : ''}{formatCurrency(account.virtualPnL)}
-                        </td>
-                        <td className="text-white py-4">{formatDate(account.expires)}</td>
-                        <td className="py-4">
-                          <span className={`px-2 py-1 rounded-full text-sm ${getStatusBadgeStyle(account.status)}`}>
-                            {account.status}
-                          </span>
-                        </td>
-                        <td className="py-4">
-                          <div className="flex space-x-2">
-                            <button 
-                              className="text-[#9BC5A2] hover:text-white transition-colors px-3 py-1 bg-[#4A6741] rounded hover:bg-[#3A5A3F] text-sm"
-                              onClick={() => router.push('/admin/trade-accounts/trade-acc-details')}
-                            >
-                              View
-                            </button>
-                            {account.status === 'Active' && (
-                              <button className="text-blue-400 hover:text-blue-300 transition-colors px-3 py-1 bg-blue-900/20 rounded hover:bg-blue-900/30 text-sm">
-                                Extend
+                    filteredAccounts.map((account) => {
+                      const pnl = calculatePnL(account);
+                      const demoDuration = getDemoDuration(account.account_type);
+                      const expirationDate = calculateExpirationDate(account.created_at, account.account_type);
+                      
+                      return (
+                        <tr key={account.id} className="border-b border-[#4A6741]/50">
+                          <td className="text-white py-4">{account.account_uid}</td>
+                          <td className="text-white py-4">
+                            <div>
+                              <div className="font-medium">{`${account.user.first_name} ${account.user.last_name}`}</div>
+                              <div className="text-sm text-[#9BC5A2]">{account.user.email}</div>
+                            </div>
+                          </td>
+                          <td className="text-white py-4">{formatCurrency(account.balance, account.currency)}</td>
+                          <td className="text-white py-4">{formatCurrency(account.equity, account.currency)}</td>
+                          <td className={`py-4 ${pnl > 0 ? 'text-green-400' : pnl < 0 ? 'text-red-400' : 'text-white'}`}>
+                            {pnl > 0 ? '+' : ''}{formatCurrency(pnl, account.currency)}
+                          </td>
+                          <td className="text-white py-4">{expirationDate}</td>
+                          <td className="py-4">
+                            <span className={`px-2 py-1 rounded-full text-sm ${getStatusBadgeStyle(account.status)}`}>
+                              {account.status.charAt(0).toUpperCase() + account.status.slice(1)}
+                            </span>
+                          </td>
+                          <td className="py-4">
+                            <div className="flex space-x-2">
+                              <button 
+                                className="text-[#9BC5A2] hover:text-white transition-colors px-3 py-1 bg-[#4A6741] rounded hover:bg-[#3A5A3F] text-sm"
+                                onClick={() => router.push(`/admin/trade-accounts/trade-acc-details?id=${account.account_uid}`)}
+                              >
+                                View
                               </button>
-                            )}
-                            {account.status === 'Active' && (
-                              <button className="text-orange-400 hover:text-orange-300 transition-colors px-3 py-1 bg-orange-900/20 rounded hover:bg-orange-900/30 text-sm">
-                                Reset
-                              </button>
-                            )}
-                            {account.status === 'Expired' && (
-                              <button className="text-green-400 hover:text-green-300 transition-colors px-3 py-1 bg-green-900/20 rounded hover:bg-green-900/30 text-sm">
-                                Renew
-                              </button>
-                            )}
-                            {account.status === 'Suspended' && (
-                              <button className="text-green-400 hover:text-green-300 transition-colors px-3 py-1 bg-green-900/20 rounded hover:bg-green-900/30 text-sm">
-                                Activate
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))
+                              {account.status === 'active' && (
+                                <button className="text-blue-400 hover:text-blue-300 transition-colors px-3 py-1 bg-blue-900/20 rounded hover:bg-blue-900/30 text-sm">
+                                  Extend
+                                </button>
+                              )}
+                              {account.status === 'active' && (
+                                <button className="text-orange-400 hover:text-orange-300 transition-colors px-3 py-1 bg-orange-900/20 rounded hover:bg-orange-900/30 text-sm">
+                                  Reset
+                                </button>
+                              )}
+                              {account.status === 'expired' && (
+                                <button className="text-green-400 hover:text-green-300 transition-colors px-3 py-1 bg-green-900/20 rounded hover:bg-green-900/30 text-sm">
+                                  Renew
+                                </button>
+                              )}
+                              {account.status === 'suspended' && (
+                                <button className="text-green-400 hover:text-green-300 transition-colors px-3 py-1 bg-green-900/20 rounded hover:bg-blue-900/30 text-sm">
+                                  Activate
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
                   ) : (
                     <tr>
                       <td colSpan={8} className="text-center text-white py-8">
-                        No demo accounts found matching the current filters.
+                        {accounts.length === 0 ? 'No demo trading accounts found in the database.' : 'No accounts found matching the current filters.'}
                       </td>
                     </tr>
                   )}

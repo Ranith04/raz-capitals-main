@@ -2,87 +2,22 @@
 
 import AdminSidebar from '@/components/AdminSidebar';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import { useTradingAccounts } from '@/hooks/useTradingAccounts';
+import {
+    calculateAverageBalance,
+    calculatePnL,
+    calculateTotalBalance,
+    countAccountsByStatus,
+    formatCurrency,
+    getAccountTypeDisplayName,
+    getStatusBadgeStyle
+} from '@/utils/tradingCalculations';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 
 function LiveAccountsContent() {
   const router = useRouter();
-  
-  // Sample live accounts data
-  const [accounts] = useState([
-    {
-      id: '#LIVE001',
-      owner: 'Abdul Khadar Ishak',
-      accountType: 'Premium',
-      balance: 25450.00,
-      equity: 24780.00,
-      pnl: 2340.00,
-      status: 'Active'
-    },
-    {
-      id: '#LIVE002',
-      owner: 'Sarah Johnson',
-      accountType: 'Standard',
-      balance: 8920.00,
-      equity: 9145.00,
-      pnl: 1225.00,
-      status: 'Active'
-    },
-    {
-      id: '#LIVE003',
-      owner: 'Michael Chen',
-      accountType: 'VIP',
-      balance: 156750.00,
-      equity: 154120.00,
-      pnl: -2630.00,
-      status: 'Active'
-    },
-    {
-      id: '#LIVE004',
-      owner: 'Emma Davis',
-      accountType: 'Standard',
-      balance: 3200.00,
-      equity: 3200.00,
-      pnl: 0.00,
-      status: 'Inactive'
-    },
-    {
-      id: '#LIVE005',
-      owner: 'David Wilson',
-      accountType: 'Premium',
-      balance: 45600.00,
-      equity: 46800.00,
-      pnl: 1200.00,
-      status: 'Suspended'
-    },
-    {
-      id: '#LIVE006',
-      owner: 'Lisa Wang',
-      accountType: 'Standard',
-      balance: 12500.00,
-      equity: 11800.00,
-      pnl: -700.00,
-      status: 'Active'
-    },
-    {
-      id: '#LIVE007',
-      owner: 'Robert Smith',
-      accountType: 'VIP',
-      balance: 89000.00,
-      equity: 89500.00,
-      pnl: 500.00,
-      status: 'Pending'
-    },
-    {
-      id: '#LIVE008',
-      owner: 'Anna Brown',
-      accountType: 'Standard',
-      balance: 6800.00,
-      equity: 6800.00,
-      pnl: 0.00,
-      status: 'Inactive'
-    }
-  ]);
+  const { accounts, loading, error, refreshAccounts } = useTradingAccounts();
 
   // Filter states
   const [searchTerm, setSearchTerm] = useState('');
@@ -94,19 +29,21 @@ function LiveAccountsContent() {
     document.title = 'Live Accounts - RAZ CAPITALS';
   }, []);
 
+
+
   // Filter accounts based on search criteria
   const filteredAccounts = useMemo(() => {
     return accounts.filter(account => {
       // Search filter
       const matchesSearch = searchTerm === '' || 
-        account.owner.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        account.id.toLowerCase().includes(searchTerm.toLowerCase());
+        `${account.user.first_name} ${account.user.last_name}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        account.account_uid.toLowerCase().includes(searchTerm.toLowerCase());
 
       // Status filter
-      const matchesStatus = selectedStatus === 'All Status' || account.status === selectedStatus;
+      const matchesStatus = selectedStatus === 'All Status' || account.status === selectedStatus.toLowerCase();
 
       // Account Type filter
-      const matchesAccountType = selectedAccountType === 'All Types' || account.accountType === selectedAccountType;
+      const matchesAccountType = selectedAccountType === 'All Types' || account.account_type === selectedAccountType.toLowerCase();
 
       // Balance Range filter
       let matchesBalanceRange = true;
@@ -139,35 +76,48 @@ function LiveAccountsContent() {
     setSelectedBalanceRange('All Ranges');
   };
 
-  // Format currency
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 2
-    }).format(amount);
-  };
 
-  // Get status badge styling
-  const getStatusBadgeStyle = (status: string) => {
-    switch (status) {
-      case 'Active':
-        return 'bg-green-500/20 text-green-400';
-      case 'Inactive':
-        return 'bg-yellow-500/20 text-yellow-400';
-      case 'Suspended':
-        return 'bg-red-500/20 text-red-400';
-      case 'Pending':
-        return 'bg-blue-500/20 text-blue-400';
-      default:
-        return 'bg-gray-500/20 text-gray-400';
-    }
-  };
 
   // Calculate statistics based on filtered accounts
-  const totalBalance = filteredAccounts.reduce((sum, account) => sum + account.balance, 0);
-  const averageBalance = filteredAccounts.length > 0 ? totalBalance / filteredAccounts.length : 0;
-  const activeAccounts = filteredAccounts.filter(account => account.status === 'Active').length;
+  const totalBalance = calculateTotalBalance(filteredAccounts);
+  const averageBalance = calculateAverageBalance(filteredAccounts);
+  const activeAccounts = countAccountsByStatus(filteredAccounts, 'active');
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className="flex h-screen bg-[#9BC5A2] overflow-hidden">
+        <AdminSidebar currentPage="live-accounts" />
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#0A2E1D] mx-auto mb-4"></div>
+            <p className="text-[#0A2E1D] text-lg">Loading trading accounts...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="flex h-screen bg-[#9BC5A2] overflow-hidden">
+        <AdminSidebar currentPage="live-accounts" />
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <div className="text-red-500 text-6xl mb-4">⚠️</div>
+            <p className="text-[#0A2E1D] text-lg mb-4">{error}</p>
+            <button 
+              onClick={refreshAccounts}
+              className="px-6 py-2 bg-[#2D4A32] text-white rounded-lg hover:bg-[#3A5A3F] transition-colors"
+            >
+              Retry
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen bg-[#9BC5A2] overflow-hidden">
@@ -202,9 +152,17 @@ function LiveAccountsContent() {
         <div className="flex-1 p-8 overflow-y-auto">
           <div className="flex justify-between items-center mb-8">
             <h1 className="text-[#0A2E1D] text-3xl font-bold">Live Trading Accounts</h1>
-            <button className="px-6 py-2 bg-[#2D4A32] text-white rounded-lg hover:bg-[#3A5A3F] transition-colors">
-              Create New Account
+            <div className="flex space-x-4">
+                          <button 
+              onClick={refreshAccounts}
+              className="px-6 py-2 bg-[#4A6741] text-white rounded-lg hover:bg-[#3A5A3F] transition-colors"
+            >
+              Refresh Data
             </button>
+              <button className="px-6 py-2 bg-[#2D4A32] text-white rounded-lg hover:bg-[#3A5A3F] transition-colors">
+                Create New Account
+              </button>
+            </div>
           </div>
 
           {/* Statistics Cards */}
@@ -311,46 +269,51 @@ function LiveAccountsContent() {
                     <th className="text-left text-[#9BC5A2] font-medium py-3">Balance</th>
                     <th className="text-left text-[#9BC5A2] font-medium py-3">Equity</th>
                     <th className="text-left text-[#9BC5A2] font-medium py-3">P&L</th>
+                    <th className="text-left text-[#9BC5A2] font-medium py-3">Leverage</th>
                     <th className="text-left text-[#9BC5A2] font-medium py-3">Status</th>
                     <th className="text-left text-[#9BC5A2] font-medium py-3">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredAccounts.length > 0 ? (
-                    filteredAccounts.map((account) => (
-                      <tr key={account.id} className="border-b border-[#4A6741]/50">
-                        <td className="text-white py-4">{account.id}</td>
-                        <td className="text-white py-4">{account.owner}</td>
-                        <td className="text-white py-4">{account.accountType}</td>
-                        <td className="text-white py-4">{formatCurrency(account.balance)}</td>
-                        <td className="text-white py-4">{formatCurrency(account.equity)}</td>
-                        <td className={`py-4 ${account.pnl > 0 ? 'text-green-400' : account.pnl < 0 ? 'text-red-400' : 'text-white'}`}>
-                          {account.pnl > 0 ? '+' : ''}{formatCurrency(account.pnl)}
-                        </td>
-                        <td className="py-4">
-                          <span className={`px-2 py-1 rounded-full text-sm ${getStatusBadgeStyle(account.status)}`}>
-                            {account.status}
-                          </span>
-                        </td>
-                        <td className="py-4">
-                          <div className="flex space-x-2">
+                    filteredAccounts.map((account) => {
+                      const pnl = calculatePnL(account);
+                      return (
+                        <tr key={account.id} className="border-b border-[#4A6741]/50">
+                          <td className="text-white py-4">{account.account_uid}</td>
+                          <td className="text-white py-4">
+                            <div>
+                              <div className="font-medium">{`${account.user.first_name} ${account.user.last_name}`}</div>
+                              <div className="text-sm text-[#9BC5A2]">{account.user.email}</div>
+                            </div>
+                          </td>
+                          <td className="text-white py-4">{getAccountTypeDisplayName(account.account_type)}</td>
+                          <td className="text-white py-4">{formatCurrency(account.balance, account.currency)}</td>
+                          <td className="text-white py-4">{formatCurrency(account.equity, account.currency)}</td>
+                          <td className={`py-4 ${pnl > 0 ? 'text-green-400' : pnl < 0 ? 'text-red-400' : 'text-white'}`}>
+                            {pnl > 0 ? '+' : ''}{formatCurrency(pnl, account.currency)}
+                          </td>
+                          <td className="text-white py-4">{account.levarage}:1</td>
+                          <td className="py-4">
+                            <span className={`px-2 py-1 rounded-full text-sm ${getStatusBadgeStyle(account.status)}`}>
+                              {account.status.charAt(0).toUpperCase() + account.status.slice(1)}
+                            </span>
+                          </td>
+                          <td className="py-4">
                             <button 
                               className="text-[#9BC5A2] hover:text-white transition-colors px-3 py-1 bg-[#4A6741] rounded hover:bg-[#3A5A3F] text-sm"
-                              onClick={() => router.push('/admin/users/1/profile')}
+                              onClick={() => router.push(`/admin/trade-accounts/trade-acc-details?id=${account.account_uid}`)}
                             >
                               View
                             </button>
-                            <button className="text-blue-400 hover:text-blue-300 transition-colors px-3 py-1 bg-blue-900/20 rounded hover:bg-blue-900/30 text-sm">
-                              Edit
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
+                          </td>
+                        </tr>
+                      );
+                    })
                   ) : (
                     <tr>
-                      <td colSpan={8} className="text-center text-white py-8">
-                        No accounts found matching the current filters.
+                      <td colSpan={9} className="text-center text-white py-8">
+                        {accounts.length === 0 ? 'No live trading accounts found in the database.' : 'No accounts found matching the current filters.'}
                       </td>
                     </tr>
                   )}

@@ -1,5 +1,6 @@
 'use client';
 
+import AdminHeader from '@/components/AdminHeader';
 import AdminSidebar from '@/components/AdminSidebar';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { UserService } from '@/lib/userService';

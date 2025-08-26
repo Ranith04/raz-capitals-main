@@ -102,4 +102,33 @@ export interface EnhancedClientUser {
   dob?: string;
   middle_name?: string;
   residential_address?: string;
+}
+
+// Trading Account interfaces
+export interface TradingAccount {
+  id: number;
+  account_uid: string;
+  account_password: string;
+  levarage: number;
+  balance: number;
+  currency: string;
+  status: 'active' | 'inactive' | 'suspended' | 'pending' | 'expired';
+  created_at: string;
+  free_margin: number;
+  equity: number;
+  user_id: string;
+  margin: number;
+  watchlist: string[];
+  account_type: 'standard' | 'premium' | 'vip' | 'demo' | 'demo_30' | 'demo_60' | 'demo_90' | 'demo_unlimited';
+}
+
+export interface TradingAccountWithUser extends TradingAccount {
+  user: {
+    id: number;
+    user_uuid: string;
+    first_name: string;
+    last_name: string;
+    email: string;
+    created_at: string;
+  };
 } 

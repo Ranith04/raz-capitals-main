@@ -167,30 +167,51 @@ export interface Database {
       tradingAccounts: {
         Row: {
           id: number;
-          user_id: string;
           account_uid: string;
-          account_type: string;
           account_password: string;
+          levarage: number;
+          balance: number;
+          currency: string;
+          status: 'active' | 'inactive' | 'suspended' | 'pending' | 'expired';
           created_at: string;
-          updated_at: string;
+          free_margin: number;
+          equity: number;
+          user_id: string;
+          margin: number;
+          watchlist: string[];
+          account_type: 'standard' | 'premium' | 'vip' | 'demo' | 'demo_30' | 'demo_60' | 'demo_90' | 'demo_unlimited';
         };
         Insert: {
           id?: number;
-          user_id: string;
           account_uid: string;
-          account_type: string;
           account_password: string;
+          levarage?: number;
+          balance?: number;
+          currency?: string;
+          status?: 'active' | 'inactive' | 'suspended' | 'pending' | 'expired';
           created_at?: string;
-          updated_at?: string;
+          free_margin?: number;
+          equity?: number;
+          user_id: string;
+          margin?: number;
+          watchlist?: string[];
+          account_type?: 'standard' | 'premium' | 'vip' | 'demo' | 'demo_30' | 'demo_60' | 'demo_90' | 'demo_unlimited';
         };
         Update: {
           id?: number;
-          user_id?: string;
           account_uid?: string;
-          account_type?: string;
           account_password?: string;
+          levarage?: number;
+          balance?: number;
+          currency?: string;
+          status?: 'active' | 'inactive' | 'suspended' | 'pending' | 'expired';
           created_at?: string;
-          updated_at?: string;
+          free_margin?: number;
+          equity?: number;
+          user_id?: string;
+          margin?: number;
+          watchlist?: string[];
+          account_type?: 'standard' | 'premium' | 'vip' | 'demo' | 'demo_30' | 'demo_60' | 'demo_90' | 'demo_unlimited';
         };
       };
       transactions: {
