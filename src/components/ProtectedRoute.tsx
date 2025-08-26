@@ -22,10 +22,13 @@ export default function ProtectedRoute({
 
   useEffect(() => {
     const checkAuth = () => {
+      console.log('🔒 ProtectedRoute: Checking authentication...');
       const currentUser = getCurrentUser();
+      console.log('🔒 ProtectedRoute: Current user:', currentUser);
       
       if (!currentUser) {
         // No user found, redirect to sign in
+        console.log('🔒 ProtectedRoute: No user found, redirecting to:', fallbackUrl);
         router.push(fallbackUrl);
         return;
       }
@@ -33,11 +36,17 @@ export default function ProtectedRoute({
       if (requiredRole && currentUser.role !== requiredRole) {
         // User doesn't have required role
         const redirectUrl = currentUser.role === 'admin' ? '/admin/dashboard' : '/dashboard';
+        console.log('🔒 ProtectedRoute: Role mismatch, redirecting to:', redirectUrl);
         router.push(redirectUrl);
         return;
       }
 
       // User is authenticated with correct role
+      console.log('🔒 ProtectedRoute: User authenticated successfully:', {
+        id: currentUser.id,
+        role: currentUser.role,
+        requiredRole: requiredRole
+      });
       setUser(currentUser);
       setIsLoading(false);
     };

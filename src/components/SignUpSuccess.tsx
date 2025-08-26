@@ -34,7 +34,7 @@ export default function SignUpSuccess() {
 
         // Check if trading ID already exists (in case of collision)
         const { data: existingAccount, error: checkError } = await supabase
-          .from('tradingaccounts')
+          .from('tradingAccounts')
           .select('account_uid')
           .eq('account_uid', tradingId)
           .maybeSingle();
@@ -55,7 +55,7 @@ export default function SignUpSuccess() {
           
           // Create trading account with new credentials
           const { error: accountError } = await supabase
-            .from('tradingaccounts')
+            .from('tradingAccounts')
             .insert({
               account_uid: newTradingId,
               account_password: newPassword,
@@ -96,10 +96,10 @@ export default function SignUpSuccess() {
           return;
         }
 
-        // Create trading account in the tradingaccounts table
+        // Create trading account in the tradingAccounts table
         try {
           const { error: accountError } = await supabase
-            .from('tradingaccounts')
+            .from('tradingAccounts')
             .insert({
               account_uid: tradingId,
               account_password: password,

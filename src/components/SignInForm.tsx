@@ -65,11 +65,11 @@ export default function SignInForm() {
         try {
           console.log('🔐 Trading credentials authentication attempt:', { tradingId, password: '***' });
           
-          // Check if trading credentials exist in tradingaccounts table
-          console.log('📊 Querying tradingaccounts table for:', tradingId);
+          // Check if trading credentials exist in tradingAccounts table
+          console.log('📊 Querying tradingAccounts table for:', tradingId);
           
           const { data: tradingAccount, error } = await supabase
-            .from('tradingaccounts')
+            .from('tradingAccounts')
             .select('user_id, account_uid, account_password')
             .eq('account_uid', tradingId)
             .eq('account_password', password)
@@ -121,8 +121,10 @@ export default function SignInForm() {
             success: true,
             user: {
               id: userProfile.user_uuid,
-              name: `${userProfile.first_name} ${userProfile.last_name}`,
-              email: userProfile.email,
+              name: userProfile.first_name && userProfile.last_name 
+                ? `${userProfile.first_name} ${userProfile.last_name}`
+                : userProfile.email || `User ${tradingId}`,
+              email: userProfile.email || 'trading@razcapitals.com',
               role: 'user' as const, // Default role for trading users
               createdAt: userProfile.created_at || new Date().toISOString(),
               lastLogin: new Date().toISOString()
@@ -184,7 +186,18 @@ export default function SignInForm() {
         // Add a small delay to ensure state is updated and user sees success message
         setTimeout(() => {
           console.log('🚀 Executing redirect to:', redirectPath);
-          router.push(redirectPath);
+          console.log('🚀 Router object:', router);
+          console.log('🚀 Current window location:', window.location.href);
+          
+          try {
+            router.push(redirectPath);
+            console.log('🚀 Router.push called successfully');
+          } catch (redirectError) {
+            console.error('❌ Router.push failed:', redirectError);
+            // Fallback: try window.location
+            console.log('🔄 Trying window.location fallback...');
+            window.location.href = redirectPath;
+          }
         }, 1500);
       } else {
         // Authentication failed

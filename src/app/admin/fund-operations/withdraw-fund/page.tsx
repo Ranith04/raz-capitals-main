@@ -3,6 +3,7 @@
 import AdminSidebar from '@/components/AdminSidebar';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { supabase } from '@/lib/supabaseClient';
+import { updateBalanceForWithdrawal } from '@/utils/tradingBalanceManager';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
@@ -131,9 +132,26 @@ function WithdrawFundContent() {
         alert('Error updating transaction. Please try again.');
         return;
       }
+
+      // If status is 'completed', update the trading account balance
+      if (newStatus === 'completed' && selectedTransaction.account_id) {
+        const balanceResult = await updateBalanceForWithdrawal(
+          selectedTransaction.account_id, 
+          selectedTransaction.amount
+        );
+
+        if (!balanceResult.success) {
+          alert(`Transaction status updated but balance update failed: ${balanceResult.message}`);
+        } else {
+          console.log(`Balance update successful: ${balanceResult.message}`);
+        }
+      }
       
       // Show success message
-      alert(`Transaction ${selectedTransaction.id} updated successfully! Status: ${newStatus}`);
+      const balanceMessage = (newStatus === 'completed' && selectedTransaction.account_id) 
+        ? ` Balance has been updated for account ${selectedTransaction.account_id}.`
+        : '';
+      alert(`Transaction ${selectedTransaction.id} updated successfully! Status: ${newStatus}.${balanceMessage}`);
       
       // Refresh the transactions list
       await fetchTransactions();

@@ -1,56 +1,18 @@
 'use client';
 
 
+import ErrorBoundary from '@/components/ErrorBoundary';
+import UserBalanceDetails from '@/components/UserBalanceDetails';
+import UserHeader from '@/components/UserHeader';
 import { useDashboardMetrics } from '@/hooks/useDashboardMetrics';
-import { useEffect, useState } from 'react';
+import { useUserTradingAccountCounts } from '@/hooks/useUserTradingAccountCounts';
+import { useState } from 'react';
 
 export default function DashboardClient() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [darkMode, setDarkMode] = useState(true);
-  const [language, setLanguage] = useState('English');
-  const [languageDropdownOpen, setLanguageDropdownOpen] = useState(false);
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
   const { metrics } = useDashboardMetrics();
-
-  // Check if fullscreen is supported
-  useEffect(() => {
-    const handleFullscreenChange = () => {
-      setIsFullscreen(!!document.fullscreenElement);
-    };
-
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
-    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
-  }, []);
-
-  // Toggle fullscreen
-  const toggleFullscreen = () => {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().catch(err => {
-        console.log(`Error attempting to enable fullscreen: ${err.message}`);
-      });
-    } else {
-      document.exitFullscreen();
-    }
-  };
-
-  // Toggle dark mode
-  const toggleDarkMode = () => {
-    setDarkMode(!darkMode);
-    // You can add logic here to actually change the theme
-  };
-
-  // Language options
-  const languages = ['English', 'Arabic', 'Spanish'];
-
-  // Profile dropdown options
-  const profileOptions = [
-    { name: 'Settings', href: '/dashboard/profile/settings' },
-    { name: 'Change Password', href: '/dashboard/profile/change-password' },
-    { name: 'Ranking Badge', href: '/dashboard/profile/ranking-badge' },
-    { name: 'Support Tickets', href: '/dashboard/profile/support-tickets' },
-    { name: 'Logout', href: '/dashboard/profile/logout' }
-  ];
+  const { liveAccounts, demoAccounts, loading: userAccLoading } = useUserTradingAccountCounts();
 
   return (
     <div className={`flex h-screen overflow-hidden ${darkMode ? 'bg-[#0A2E1D]' : 'bg-gray-100'}`}>
@@ -167,163 +129,18 @@ export default function DashboardClient() {
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Top Header */}
-        <div className="bg-black px-6 py-4 flex-shrink-0">
-          <div className="flex justify-between items-center">
-            {/* Mobile Menu Button */}
-            <button
-              className="lg:hidden p-2 text-white hover:text-gray-300 transition-colors"
-              onClick={() => setSidebarOpen(true)}
-            >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
-            </button>
-            
-            <h1 className="text-lg sm:text-xl font-medium text-white">Syed Anwar</h1>
-            <div className="flex items-center space-x-4">
-              {/* Dark/Light Mode Toggle */}
-              <button 
-                onClick={toggleDarkMode}
-                className="text-white hover:text-gray-300 p-2 transition-colors"
-                title={darkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
-                </svg>
-              </button>
-
-              {/* Language Selector */}
-              <div className="relative">
-                <button 
-                  onClick={() => setLanguageDropdownOpen(!languageDropdownOpen)}
-                  className="text-white hover:text-gray-300 p-2 transition-colors flex items-center space-x-1"
-                  title="Select Language"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9v-9m0-9v9m0 0c-2.485 0-4.5-2.015-4.5-4.5S9.515 3 12 3s4.5 2.015 4.5 4.5S14.485 12 12 12z" />
-                  </svg>
-                  <span className="text-xs font-medium text-white">{language}</span>
-                  <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
-                </button>
-                {languageDropdownOpen && (
-                  <div className="absolute right-0 mt-2 w-36 bg-white rounded-md shadow-lg py-1 z-50 border border-gray-200">
-                    {languages.map((lang) => (
-                      <button
-                        key={lang}
-                        onClick={() => {
-                          setLanguage(lang);
-                          setLanguageDropdownOpen(false);
-                        }}
-                        className={`block w-full text-left px-4 py-2 text-sm ${language === lang ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700 hover:bg-gray-50'}`}
-                      >
-                        {lang}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Full Screen Toggle */}
-              <button 
-                onClick={toggleFullscreen}
-                className="text-white hover:text-gray-300 p-2 transition-colors"
-                title={isFullscreen ? 'Exit Full Screen' : 'Enter Full Screen'}
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
-                </svg>
-              </button>
-
-              {/* Notification Bell */}
-              <button className="text-white hover:text-gray-300 p-2 transition-colors relative">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-5 5v-5z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" />
-                </svg>
-                <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-xs flex items-center justify-center text-white font-semibold">1</span>
-              </button>
-
-              {/* Profile Avatar with Dropdown */}
-              <div className="relative">
-                <button 
-                  onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
-                  className="w-8 h-8 bg-yellow-400 rounded-full flex items-center justify-center"
-                  title="Profile Menu"
-                >
-                  <span className="text-black font-bold text-sm">S</span>
-                </button>
-                
-                {/* Profile Dropdown */}
-                {profileDropdownOpen && (
-                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50">
-                    {profileOptions.map((option) => (
-                      <a
-                        key={option.name}
-                        href={option.href}
-                        className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                        onClick={() => setProfileDropdownOpen(false)}
-                      >
-                        <span className="mr-3 w-4 h-4">
-                          {option.name === 'Settings' && (
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                            </svg>
-                          )}
-                          {option.name === 'Change Password' && (
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                            </svg>
-                          )}
-                          {option.name === 'Ranking Badge' && (
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
-                            </svg>
-                          )}
-                          {option.name === 'Support Tickets' && (
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                            </svg>
-                          )}
-                          {option.name === 'Logout' && (
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                            </svg>
-                          )}
-                        </span>
-                        {option.name}
-                      </a>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-
-
-
-            </div>
-          </div>
-        </div>
+        <UserHeader 
+          sidebarOpen={sidebarOpen}
+          setSidebarOpen={setSidebarOpen}
+          darkMode={darkMode}
+          setDarkMode={setDarkMode}
+        />
 
         {/* Dashboard Content - Scrollable */}
         <div className={`flex-1 p-4 sm:p-6 space-y-4 sm:space-y-6 overflow-y-auto ${darkMode ? 'bg-[#B8D4C1]' : 'bg-gray-50'}`}>
-          {/* Balance Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-            <div className={`${darkMode ? 'bg-[#2D4A35] text-white' : 'bg-white text-gray-900 border border-gray-200'} rounded-lg p-4 sm:p-6`}>
-              <h3 className={`text-sm mb-2 ${darkMode ? 'text-[#A0C8A9]' : 'text-gray-600'}`}>Total Balance</h3>
-              <p className="text-xl sm:text-2xl font-bold">52648.00</p>
-            </div>
-            <div className={`${darkMode ? 'bg-[#2D4A35] text-white' : 'bg-white text-gray-900 border border-gray-200'} rounded-lg p-4 sm:p-6`}>
-              <h3 className={`text-sm mb-2 ${darkMode ? 'text-[#A0C8A9]' : 'text-gray-600'}`}>Current Balance</h3>
-              <p className="text-xl sm:text-2xl font-bold">30648.00</p>
-            </div>
-            <div className={`${darkMode ? 'bg-[#2D4A35] text-white' : 'bg-white text-gray-900 border border-gray-200'} rounded-lg p-4 sm:p-6 sm:col-span-2 lg:col-span-1`}>
-              <h3 className={`text-sm mb-2 ${darkMode ? 'text-[#A0C8A9]' : 'text-gray-600'}`}>Wallet Balance</h3>
-              <p className="text-xl sm:text-2xl font-bold">30648.00</p>
-            </div>
-          </div>
+          <ErrorBoundary>
+            {/* Balance Cards - Dynamic from Supabase */}
+            <UserBalanceDetails />
 
 
 
@@ -400,7 +217,7 @@ export default function DashboardClient() {
                     <a href="/dashboard/my-accounts" className={`text-xs hover:underline ${darkMode ? 'text-[#1E2E23]' : 'text-gray-600'}`}>See All</a>
                   </div>
                   <div className="flex justify-between items-center">
-                    <span className={`text-xl sm:text-2xl font-bold ${darkMode ? 'text-[#1E2E23]' : 'text-gray-900'}`}>{metrics.totalLiveAccounts}</span>
+                    <span className={`text-xl sm:text-2xl font-bold ${darkMode ? 'text-[#1E2E23]' : 'text-gray-900'}`}>{userAccLoading ? '—' : liveAccounts}</span>
                     <a href="/dashboard/new-account" className={`${darkMode ? 'bg-[#2D4A35] text-white hover:bg-[#3A5642]' : 'bg-blue-600 text-white hover:bg-blue-700'} px-2 sm:px-3 py-1 rounded text-xs font-medium transition-colors`}>
                       Create Account
                     </a>
@@ -413,7 +230,7 @@ export default function DashboardClient() {
                     <a href="/dashboard/my-accounts" className={`text-xs hover:underline ${darkMode ? 'text-[#1E2E23]' : 'text-gray-600'}`}>See All</a>
                   </div>
                   <div className="flex justify-between items-center">
-                    <span className={`text-xl sm:text-2xl font-bold ${darkMode ? 'text-[#1E2E23]' : 'text-gray-900'}`}>{metrics.totalDemoAccounts}</span>
+                    <span className={`text-xl sm:text-2xl font-bold ${darkMode ? 'text-[#1E2E23]' : 'text-gray-900'}`}>{userAccLoading ? '—' : demoAccounts}</span>
                     <a href="/dashboard/new-account" className={`${darkMode ? 'bg-[#2D4A35] text-white hover:bg-[#3A5642]' : 'bg-blue-600 text-white hover:bg-blue-700'} px-2 sm:px-3 py-1 rounded text-xs font-medium transition-colors`}>
                       Create Account
                     </a>
@@ -437,19 +254,11 @@ export default function DashboardClient() {
               </div>
             </div>
           </div>
+          </ErrorBoundary>
         </div>
       </div>
 
-      {/* Click outside to close dropdowns */}
-      {(profileDropdownOpen || languageDropdownOpen) && (
-        <div 
-          className="fixed inset-0 z-40" 
-          onClick={() => {
-            setProfileDropdownOpen(false);
-            setLanguageDropdownOpen(false);
-          }}
-        />
-      )}
+
     </div>
   );
 }
