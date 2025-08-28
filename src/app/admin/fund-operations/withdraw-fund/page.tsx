@@ -1,5 +1,6 @@
 'use client';
 
+import AdminHeader from '@/components/AdminHeader';
 import AdminSidebar from '@/components/AdminSidebar';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { supabase } from '@/lib/supabaseClient';
@@ -36,11 +37,20 @@ function WithdrawFundContent() {
   const [error, setError] = useState<string | null>(null);
   const [proofModalOpen, setProofModalOpen] = useState(false);
   const [selectedProofUrl, setSelectedProofUrl] = useState<string>('');
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   
   useEffect(() => {
     document.title = 'Withdraw Fund - RAZ CAPITALS';
     fetchTransactions();
   }, []);
+
+  const toggleMobileSidebar = () => {
+    setIsMobileSidebarOpen(!isMobileSidebarOpen);
+  };
+
+  const closeMobileSidebar = () => {
+    setIsMobileSidebarOpen(false);
+  };
 
   const fetchTransactions = async () => {
     try {
@@ -211,43 +221,99 @@ function WithdrawFundContent() {
     return `${amount.toFixed(2)} ${currency.toUpperCase()}`;
   };
 
+  // Loading state
+  if (loading) {
+    return (
+      <div className="flex h-screen bg-[#9BC5A2] overflow-hidden">
+        <AdminSidebar 
+          currentPage="withdraw-fund" 
+          isMobileOpen={isMobileSidebarOpen}
+          onMobileClose={closeMobileSidebar}
+        />
+        <div className="flex-1 flex flex-col">
+          <AdminHeader 
+            title="Withdraw Fund"
+            onRefresh={fetchTransactions}
+            refreshing={loading}
+            showRefreshButton={true}
+            refreshButtonText="Refresh Data"
+            onMobileMenuToggle={toggleMobileSidebar}
+          />
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#0A2E1D] mx-auto mb-4"></div>
+              <p className="text-[#0A2E1D] text-lg">Loading withdrawal transactions...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="flex h-screen bg-[#9BC5A2] overflow-hidden">
+        <AdminSidebar 
+          currentPage="withdraw-fund" 
+          isMobileOpen={isMobileSidebarOpen}
+          onMobileClose={closeMobileSidebar}
+        />
+        <div className="flex-1 flex flex-col">
+          <AdminHeader 
+            title="Withdraw Fund"
+            onRefresh={fetchTransactions}
+            refreshing={false}
+            showRefreshButton={true}
+            refreshButtonText="Refresh Data"
+            onMobileMenuToggle={toggleMobileSidebar}
+          />
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-center">
+              <div className="text-red-500 text-6xl mb-4">⚠️</div>
+              <p className="text-[#0A2E1D] text-lg mb-4">{error}</p>
+              <button 
+                onClick={fetchTransactions}
+                className="px-6 py-2 bg-[#2D4A32] text-white rounded-lg hover:bg-[#3A5A3F] transition-colors"
+              >
+                Retry
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-screen bg-[#9BC5A2] overflow-hidden">
       {/* Sidebar */}
-      <AdminSidebar currentPage="withdraw-fund" />
+      <AdminSidebar 
+        currentPage="withdraw-fund" 
+        isMobileOpen={isMobileSidebarOpen}
+        onMobileClose={closeMobileSidebar}
+      />
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col">
         {/* Header */}
-        <div className="bg-[#0A2E1D] p-4 flex justify-between items-center">
-          <div 
-            className="w-12 h-12 bg-[#2D4A32] rounded-lg flex items-center justify-center cursor-pointer hover:bg-[#3A5A3F] transition-all duration-300 hover:scale-110 hover:shadow-lg transform"
-            onClick={() => router.push('/admin/dashboard')}
-          >
-            <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-          </div>
-          
-          <div className="flex items-center space-x-2">
-            <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center">
-              <span className="text-[#0A2E1D] font-bold text-sm">A</span>
-            </div>
-            <span className="text-white font-medium">Admin</span>
-            <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-            </svg>
-          </div>
-        </div>
+        <AdminHeader 
+          title="Withdraw Fund"
+          onRefresh={fetchTransactions}
+          refreshing={loading}
+          showRefreshButton={true}
+          refreshButtonText="Refresh Data"
+          onMobileMenuToggle={toggleMobileSidebar}
+        />
 
-        {/* Withdraw Finance Content (card + table) */}
-        <div className="flex-1 p-8 overflow-y-auto">
-          <div className="bg-[#E5E7EB] rounded-xl p-6 shadow-sm border border-black/10">
-            <div className="flex justify-between items-center mb-6">
+        {/* Withdraw Finance Content */}
+        <div className="flex-1 p-2 xs:p-3 sm:p-4 md:p-6 lg:p-8 overflow-y-auto">
+          <div className="bg-[#E5E7EB] rounded-xl p-4 sm:p-6 shadow-sm border border-black/10">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 sm:mb-6 gap-3">
               <div>
-                <h2 className="text-[#0A2E1D] text-2xl font-semibold">Withdraw Finance</h2>
+                <h2 className="text-[#0A2E1D] text-xl sm:text-2xl font-semibold">Withdraw Finance</h2>
                 {!loading && !error && (
-                  <p className="text-[#0A2E1D] text-sm mt-1">
+                  <p className="text-[#0A2E1D] text-xs sm:text-sm mt-1">
                     {transactions.length} transaction{transactions.length !== 1 ? 's' : ''} found
                   </p>
                 )}
@@ -255,7 +321,7 @@ function WithdrawFundContent() {
               <button
                 onClick={fetchTransactions}
                 disabled={loading}
-                className="px-4 py-2 bg-[#0A2E1D] text-white rounded-lg hover:bg-[#2D4A32] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+                className="w-full sm:w-auto px-4 py-2 bg-[#0A2E1D] text-white rounded-lg hover:bg-[#2D4A32] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2 text-sm sm:text-base"
               >
                 {loading ? (
                   <svg className="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -270,7 +336,64 @@ function WithdrawFundContent() {
               </button>
             </div>
 
-            <div className="overflow-x-auto">
+            {/* Mobile Card View */}
+            <div className="lg:hidden space-y-4">
+              {loading ? (
+                <div className="text-center text-gray-500 py-8">Loading...</div>
+              ) : error ? (
+                <div className="text-center text-red-500 py-8">{error}</div>
+              ) : transactions.length === 0 ? (
+                <div className="text-center text-gray-500 py-8">No withdrawal transactions found.</div>
+              ) : (
+                transactions.map((row) => (
+                  <div key={row.id} className="bg-white rounded-lg p-4 space-y-3 border border-gray-200">
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <div className="text-[#0A2E1D] font-medium text-sm">ID: {row.id}</div>
+                        <div className="text-[#0A2E1D] text-xs text-gray-600">{formatDate(row.created_at)}</div>
+                      </div>
+                      <span className={`inline-block px-2 py-1 rounded text-xs font-semibold bg-red-100 text-red-800`}>
+                        {row.type}
+                      </span>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      <div>
+                        <div className="text-[#0A2E1D] text-xs font-medium">Account ID</div>
+                        <div className="text-[#0A2E1D] font-mono text-xs">{row.account_id || 'N/A'}</div>
+                      </div>
+                      <div>
+                        <div className="text-[#0A2E1D] text-xs font-medium">Amount</div>
+                        <div className="text-[#0A2E1D] font-semibold text-xs">{formatAmount(row.amount, row.currency)}</div>
+                      </div>
+                      <div>
+                        <div className="text-[#0A2E1D] text-xs font-medium">Status</div>
+                        <span className={`inline-block px-2 py-1 rounded text-xs font-semibold ${getStatusColor(row.status)}`}>
+                          {getStatusDisplayName(row.status)}
+                        </span>
+                      </div>
+                      <div>
+                        <div className="text-[#0A2E1D] text-xs font-medium">Method</div>
+                        <div className="text-[#0A2E1D] text-xs">{row.payment_method}</div>
+                      </div>
+                    </div>
+                    
+                    <div className="pt-2 border-t border-gray-200">
+                      <button
+                        aria-label="View"
+                        onClick={() => handleViewClick(row)}
+                        className="w-full px-3 py-2 rounded-lg bg-[#2D4A32] text-white hover:bg-[#3A5A3F] transition-colors font-medium text-xs"
+                      >
+                        View Details
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Desktop Table View */}
+            <div className="hidden lg:block overflow-x-auto">
               <table className="w-full text-center">
                 <thead>
                   <tr className="border-b border-black/10">
@@ -285,251 +408,252 @@ function WithdrawFundContent() {
                   </tr>
                 </thead>
                 <tbody className="text-[#0A2E1D]">
-                                     {loading ? (
-                     <tr>
-                       <td colSpan={7} className="py-8 text-center text-gray-500">Loading...</td>
-                     </tr>
-                   ) : error ? (
-                     <tr>
-                       <td colSpan={7} className="py-8 text-center text-red-500">{error}</td>
-                     </tr>
-                   ) : transactions.length === 0 ? (
-                     <tr>
-                       <td colSpan={7} className="py-8 text-center text-gray-500">No withdrawal transactions found.</td>
-                     </tr>
+                  {loading ? (
+                    <tr>
+                      <td colSpan={8} className="py-8 text-center text-gray-500">Loading...</td>
+                    </tr>
+                  ) : error ? (
+                    <tr>
+                      <td colSpan={8} className="py-8 text-center text-red-500">{error}</td>
+                    </tr>
+                  ) : transactions.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="py-8 text-center text-gray-500">No withdrawal transactions found.</td>
+                    </tr>
                   ) : (
-                                         transactions.map((tx) => (
-                       <tr key={tx.id} className="border-b border-black/10 last:border-b-0">
-                         <td className="py-4 pr-4 text-center font-mono text-sm">{tx.id}</td>
-                         <td className="py-4 pr-4 text-center">{formatDate(tx.created_at)}</td>
-                         <td className="py-4 pr-4 text-center font-mono text-sm">{tx.account_id || 'N/A'}</td>
-                         <td className="py-4 pr-4 text-center font-semibold">{formatAmount(tx.amount, tx.currency)}</td>
-                         <td className="py-4 pr-4 text-center">
-                           <span className="inline-block px-2 py-1 rounded text-xs font-semibold bg-blue-100 text-blue-800">
-                             {tx.type}
-                           </span>
-                         </td>
-                         <td className="py-4 pr-4 text-center">
-                           <span className={`inline-block ${getStatusColor(tx.status)} text-xs px-3 py-1 rounded font-semibold`}>
-                             {getStatusDisplayName(tx.status)}
-                           </span>
-                         </td>
-                         <td className="py-4 pr-4 text-center text-sm">{tx.payment_method}</td>
-                         <td className="py-4 pr-4 text-center">
-                           <button
-                             className="px-3 py-1 text-xs bg-[#0A2E1D] text-white rounded hover:opacity-90 font-semibold"
-                             onClick={() => handleViewClick(tx)}
-                           >
-                             View
-                           </button>
-                         </td>
-                       </tr>
-                     ))
+                    transactions.map((row) => (
+                      <tr key={row.id} className="border-b border-black/10 last:border-b-0">
+                        <td className="py-4 pr-4">{row.id}</td>
+                        <td className="py-4 pr-4">{formatDate(row.created_at)}</td>
+                        <td className="py-4 pr-4 font-mono text-sm">{row.account_id || 'N/A'}</td>
+                        <td className="py-4 pr-4 font-semibold">{formatAmount(row.amount, row.currency)}</td>
+                        <td className="py-4 pr-4">
+                          <span className="inline-block px-2 py-1 rounded text-xs font-semibold bg-red-100 text-red-800">
+                            {row.type}
+                          </span>
+                        </td>
+                        <td className="py-4 pr-4">
+                          <span className={`inline-block px-3 py-1 rounded text-xs font-semibold ${getStatusColor(row.status)}`}>
+                            {getStatusDisplayName(row.status)}
+                          </span>
+                        </td>
+                        <td className="py-4 pr-4">{row.payment_method}</td>
+                        <td className="py-4 pr-4">
+                          <button
+                            aria-label="View"
+                            onClick={() => handleViewClick(row)}
+                            className="px-4 py-2 rounded-lg bg-[#2D4A32] text-white hover:bg-[#3A5A3F] transition-colors font-medium text-sm"
+                          >
+                            View
+                          </button>
+                        </td>
+                      </tr>
+                    ))
                   )}
                 </tbody>
               </table>
             </div>
           </div>
 
-          {/* Transaction Details Modal */}
-          {isModalOpen && selectedTransaction && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-              <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-                {/* Modal Header */}
-                <div className="bg-[#0A2E1D] text-white p-6 rounded-t-xl">
-                  <div className="flex justify-between items-center">
-                    <h3 className="text-xl font-semibold">Transaction Details</h3>
-                    <button
-                      onClick={handleCloseModal}
-                      className="text-white hover:text-gray-300 transition-colors"
-                    >
-                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                  </div>
-                </div>
-
-                {/* Modal Body */}
-                <div className="p-6">
-                  {/* Transaction Information */}
-                  <div className="grid grid-cols-2 gap-4 mb-6">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Transaction ID</label>
-                      <p className="text-gray-900 font-mono">{selectedTransaction.id}</p>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
-                      <span className="inline-block px-2 py-1 rounded text-xs font-semibold bg-blue-100 text-blue-800">
-                        {selectedTransaction.type}
-                      </span>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
-                      <p className="text-gray-900">{formatDate(selectedTransaction.created_at)}</p>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Account ID</label>
-                      <p className="text-gray-900 font-mono text-sm">{selectedTransaction.account_id || 'N/A'}</p>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Payment Method</label>
-                      <p className="text-gray-900">{selectedTransaction.payment_method}</p>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Amount</label>
-                      <p className="text-gray-900 font-semibold">{formatAmount(selectedTransaction.amount, selectedTransaction.currency)}</p>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Currency</label>
-                      <p className="text-gray-900">{selectedTransaction.currency.toUpperCase()}</p>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                      <span className={`inline-block px-3 py-1 rounded text-xs font-semibold ${
-                        selectedTransaction.status === 'completed' 
-                          ? 'bg-[#16a34a]/10 text-[#16a34a]' 
-                          : selectedTransaction.status === 'failed'
-                            ? 'bg-[#dc2626]/10 text-[#dc2626]'
-                            : selectedTransaction.status === 'pending'
-                              ? 'bg-[#f59e0b]/10 text-[#f59e0b]'
-                              : 'bg-gray-100 text-gray-600'
-                      }`}>
-                        {getStatusDisplayName(selectedTransaction.status)}
-                      </span>
-                    </div>
-                    {selectedTransaction.transaction_comments && (
-                      <div className="col-span-2">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Current Comments</label>
-                        <p className="text-gray-900 bg-gray-50 p-3 rounded-lg">{selectedTransaction.transaction_comments}</p>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Status Dropdown */}
-                  <div className="mb-6">
-                    <label className="block text-sm font-medium text-gray-700 mb-3">Update Status</label>
-                    <select
-                      value={newStatus}
-                      onChange={(e) => setNewStatus(e.target.value as 'null' | 'pending' | 'completed' | 'failed')}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0A2E1D] focus:border-transparent text-gray-900 bg-white"
-                    >
-                      <option value="null">Select Status</option>
-                      <option value="pending">Pending</option>
-                      <option value="completed">Completed</option>
-                      <option value="failed">Failed</option>
-                    </select>
-                  </div>
-
-                  {/* Transaction Comments */}
-                  {newStatus !== 'null' && newStatus !== selectedTransaction?.status && (
-                    <div className="mb-6">
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        transaction_comments
-                      </label>
-                      <textarea
-                        value={transactionComments}
-                        onChange={(e) => setTransactionComments(e.target.value)}
-                        placeholder="Please provide transaction comments..."
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0A2E1D] focus:border-transparent resize-none text-gray-900 bg-white"
-                        rows={3}
-                      />
-                    </div>
-                  )}
-
-                  {/* Action Buttons */}
-                  <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200">
-                    <button
-                      onClick={handleCloseModal}
-                      className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={handleSubmit}
-                      disabled={!canSubmit || isSubmitting}
-                      className={`px-6 py-2 rounded-lg font-medium transition-colors ${
-                        canSubmit && !isSubmitting
-                          ? newStatus === 'completed'
-                            ? 'bg-[#16a34a] text-white hover:bg-[#15803d]'
-                            : newStatus === 'failed'
-                              ? 'bg-[#dc2626] text-white hover:bg-[#b91c1c]'
-                              : 'bg-[#f59e0b] text-white hover:bg-[#d97706]'
-                          : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                      }`}
-                    >
-                      {isSubmitting ? 'Processing...' : 'Update Transaction'}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Proof Document Modal */}
-          {proofModalOpen && selectedProofUrl && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-              <div className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-                {/* Modal Header */}
-                <div className="bg-[#0A2E1D] text-white p-6 rounded-t-xl">
-                  <div className="flex justify-between items-center">
-                    <h3 className="text-xl font-semibold">Proof Document</h3>
-                    <button
-                      onClick={handleCloseProofModal}
-                      className="text-white hover:text-gray-300 transition-colors"
-                    >
-                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                  </div>
-                </div>
-
-                {/* Modal Body */}
-                <div className="p-6">
-                  <div className="w-full h-96 bg-gray-100 rounded-lg flex items-center justify-center">
-                    {selectedProofUrl.endsWith('.pdf') ? (
-                      <iframe
-                        src={selectedProofUrl}
-                        className="w-full h-full rounded-lg"
-                        title="Proof Document"
-                      />
-                    ) : (
-                      <img
-                        src={selectedProofUrl}
-                        alt="Proof Document"
-                        className="max-w-full max-h-full object-contain rounded-lg"
-                      />
-                    )}
-                  </div>
-                  
-                  <div className="mt-4 text-center">
-                    <a
-                      href={selectedProofUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 hover:text-blue-800 underline"
-                    >
-                      Open in New Tab
-                    </a>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Scroll to top button */}
+          {/* Scroll to top button (bottom-right) */}
           <button
             aria-label="Scroll to top"
             onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-            className="fixed bottom-6 right-6 h-14 w-14 rounded-full bg-[#0A2E1D] text-white flex items-center justify-center shadow-md"
+            className="fixed bottom-6 right-6 h-12 w-12 sm:h-14 sm:w-14 rounded-full bg-[#0A2E1D] text-white flex items-center justify-center shadow-md"
           >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
             </svg>
           </button>
         </div>
       </div>
+
+      {/* Transaction Details Modal */}
+      {isModalOpen && selectedTransaction && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            {/* Modal Header */}
+            <div className="bg-[#0A2E1D] text-white p-4 sm:p-6 rounded-t-xl">
+              <div className="flex justify-between items-center">
+                <h3 className="text-lg sm:text-xl font-semibold">Transaction Details</h3>
+                <button
+                  onClick={handleCloseModal}
+                  className="text-white hover:text-gray-300 transition-colors"
+                >
+                  <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-4 sm:p-6">
+              {/* Transaction Information */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mb-4 sm:mb-6">
+                <div>
+                  <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Transaction ID</label>
+                  <p className="text-gray-900 font-mono text-sm">{selectedTransaction.id}</p>
+                </div>
+                <div>
+                  <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Type</label>
+                  <span className="inline-block px-2 py-1 rounded text-xs font-semibold bg-red-100 text-red-800">
+                    {selectedTransaction.type}
+                  </span>
+                </div>
+                <div>
+                  <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Date</label>
+                  <p className="text-gray-900 text-sm">{formatDate(selectedTransaction.created_at)}</p>
+                </div>
+                <div>
+                  <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Account ID</label>
+                  <p className="text-gray-900 font-mono text-xs">{selectedTransaction.account_id || 'N/A'}</p>
+                </div>
+                <div>
+                  <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Payment Method</label>
+                  <p className="text-gray-900 text-sm">{selectedTransaction.payment_method}</p>
+                </div>
+                <div>
+                  <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Amount</label>
+                  <p className="text-gray-900 font-semibold text-sm">{formatAmount(selectedTransaction.amount, selectedTransaction.currency)}</p>
+                </div>
+                <div>
+                  <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Currency</label>
+                  <p className="text-gray-900 text-sm">{selectedTransaction.currency.toUpperCase()}</p>
+                </div>
+                <div>
+                  <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Status</label>
+                  <span className={`inline-block px-3 py-1 rounded text-xs font-semibold ${
+                    selectedTransaction.status === 'completed' 
+                      ? 'bg-[#16a34a]/10 text-[#16a34a]' 
+                      : selectedTransaction.status === 'failed'
+                        ? 'bg-[#dc2626]/10 text-[#dc2626]'
+                        : selectedTransaction.status === 'pending'
+                          ? 'bg-[#f59e0b]/10 text-[#f59e0b]'
+                          : 'bg-gray-100 text-gray-600'
+                  }`}>
+                    {getStatusDisplayName(selectedTransaction.status)}
+                  </span>
+                </div>
+                {selectedTransaction.transaction_comments && (
+                  <div className="col-span-1 sm:col-span-2">
+                    <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Current Comments</label>
+                    <p className="text-gray-900 bg-gray-50 p-3 rounded-lg text-sm">{selectedTransaction.transaction_comments}</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Status Dropdown */}
+              <div className="mb-4 sm:mb-6">
+                <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-3">Update Status</label>
+                <select
+                  value={newStatus}
+                  onChange={(e) => setNewStatus(e.target.value as 'null' | 'pending' | 'completed' | 'failed')}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0A2E1D] focus:border-transparent text-gray-900 bg-white text-sm"
+                >
+                  <option value="null">Select Status</option>
+                  <option value="pending">Pending</option>
+                  <option value="completed">Completed</option>
+                  <option value="failed">Failed</option>
+                </select>
+              </div>
+
+              {/* Transaction Comments */}
+              {newStatus !== 'null' && newStatus !== selectedTransaction?.status && (
+                <div className="mb-4 sm:mb-6">
+                  <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
+                    transaction_comments
+                  </label>
+                  <textarea
+                    value={transactionComments}
+                    onChange={(e) => setTransactionComments(e.target.value)}
+                    placeholder="Please provide transaction comments..."
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0A2E1D] focus:border-transparent resize-none text-gray-900 bg-white text-sm"
+                    rows={3}
+                  />
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex flex-col sm:flex-row justify-end gap-3 pt-4 border-t border-gray-200">
+                <button
+                  onClick={handleCloseModal}
+                  className="w-full sm:w-auto px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSubmit}
+                  disabled={!canSubmit || isSubmitting}
+                  className={`w-full sm:w-auto px-6 py-2 rounded-lg font-medium transition-colors text-sm ${
+                    canSubmit && !isSubmitting
+                      ? newStatus === 'completed'
+                        ? 'bg-[#16a34a] text-white hover:bg-[#15803d]'
+                        : newStatus === 'failed'
+                          ? 'bg-[#dc2626] text-white hover:bg-[#b91c1c]'
+                          : 'bg-[#f59e0b] text-white hover:bg-[#d97706]'
+                      : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  }`}
+                >
+                  {isSubmitting ? 'Processing...' : 'Update Transaction'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Proof Document Modal */}
+      {proofModalOpen && selectedProofUrl && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            {/* Modal Header */}
+            <div className="bg-[#0A2E1D] text-white p-4 sm:p-6 rounded-t-xl">
+              <div className="flex justify-between items-center">
+                <h3 className="text-lg sm:text-xl font-semibold">Proof Document</h3>
+                <button
+                  onClick={handleCloseProofModal}
+                  className="text-white hover:text-gray-300 transition-colors"
+                >
+                  <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-4 sm:p-6">
+              <div className="w-full h-64 sm:h-96 bg-gray-100 rounded-lg flex items-center justify-center">
+                {selectedProofUrl.endsWith('.pdf') ? (
+                  <iframe
+                    src={selectedProofUrl}
+                    className="w-full h-full rounded-lg"
+                    title="Proof Document"
+                  />
+                ) : (
+                  <img
+                    src={selectedProofUrl}
+                    alt="Proof Document"
+                    className="max-w-full max-h-full object-contain rounded-lg"
+                  />
+                )}
+              </div>
+              
+              <div className="mt-4 text-center">
+                <a
+                  href={selectedProofUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-600 hover:text-blue-800 underline text-sm"
+                >
+                  Open in New Tab
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

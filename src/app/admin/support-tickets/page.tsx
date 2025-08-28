@@ -1,5 +1,6 @@
 'use client';
 
+import AdminHeader from '@/components/AdminHeader';
 import AdminSidebar from '@/components/AdminSidebar';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { supabase } from '@/lib/supabaseClient';
@@ -43,6 +44,9 @@ function SupportTicketsContent() {
   const [updateStatus, setUpdateStatus] = useState<Issue['status'] | ''>('');
   const [updatePriority, setUpdatePriority] = useState<Issue['priority'] | ''>('');
   const [isUpdating, setIsUpdating] = useState(false);
+
+  // Mobile sidebar state
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   
   useEffect(() => {
     document.title = 'Support Tickets - RAZ CAPITALS';
@@ -101,102 +105,37 @@ function SupportTicketsContent() {
           return transformed;
         });
         
-        console.log('=== FINAL TRANSFORMED DATA ===');
+        console.log('=== TRANSFORMATION COMPLETED ===');
         console.log('Transformed issues:', transformedIssues);
-        console.log('Setting issues state...');
+        console.log('Transformed issues length:', transformedIssues.length);
         
         setIssues(transformedIssues);
-        
-        console.log('Issues state updated successfully');
+      } else {
+        console.log('No data received from API');
+        setIssues([]);
       }
-    } catch (err) {
-      console.error('=== UNEXPECTED ERROR IN FETCH ===');
-      console.error('Error type:', typeof err);
-      console.error('Error message:', (err as any)?.message);
-      console.error('Full error object:', err);
+    } catch (error) {
+      console.error('=== FETCH ERROR ===');
+      console.error('Error fetching issues:', error);
       setError('An unexpected error occurred. Please try again.');
     } finally {
-      console.log('=== FETCH COMPLETED ===');
-      console.log('Setting loading to false');
       setLoading(false);
       console.log('=== FETCHING ISSUES COMPLETED ===');
     }
   };
-
-  // Filter issues based on search and filter criteria
-  const filteredIssues = issues.filter(issue => {
-    const matchesSearch = !searchTerm || 
-      issue.subject?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      issue.user_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      issue.account_id?.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesStatus = statusFilter === 'All Status' || issue.status === statusFilter;
-    const matchesPriority = priorityFilter === 'All Priorities' || issue.priority === priorityFilter;
-    const matchesType = typeFilter === 'All Types' || issue.type === typeFilter.toLowerCase().replace(' ', '_');
-    
-    const matchesDate = !dateFilter || issue.created_at.startsWith(dateFilter);
-    
-    return matchesSearch && matchesStatus && matchesPriority && matchesType && matchesDate;
-  });
-
-  // Calculate statistics
-  const totalTickets = issues.length;
-  const openTickets = issues.filter(issue => issue.status === 'Open').length;
-  const inProgressTickets = issues.filter(issue => issue.status === 'In_Progress').length;
-  const resolvedTickets = issues.filter(issue => issue.status === 'Resolved').length;
-  const avgResponseTime = '2.4h'; // This could be calculated from actual data
 
   const handleRefresh = () => {
     fetchIssues();
   };
 
   const handleCreateTicket = () => {
-    // TODO: Implement create ticket functionality
-    console.log('Create ticket clicked');
-  };
-
-  const handleViewTicket = (issue: Issue) => {
-    console.log('=== MODAL OPENING ===');
-    console.log('Opening modal for ticket:', issue);
-    console.log('Ticket ID:', issue.id);
-    console.log('Current status:', issue.status);
-    console.log('Current priority:', issue.priority);
-    
-    setSelectedTicket(issue);
-    setUpdateStatus(issue.status || '');
-    setUpdatePriority(issue.priority || '');
-    setIsModalOpen(true);
-    
-    console.log('Modal state set to open');
-  };
-
-  const handleCloseModal = () => {
-    console.log('=== MODAL CLOSING ===');
-    console.log('Closing modal');
-    console.log('Current selected ticket:', selectedTicket);
-    console.log('Current update status:', updateStatus);
-    console.log('Current update priority:', updatePriority);
-    
-    setIsModalOpen(false);
-    setSelectedTicket(null);
-    setUpdateStatus('');
-    setUpdatePriority('');
-    
-    console.log('Modal state reset');
+    // Implement create ticket functionality
+    alert('Create ticket functionality to be implemented');
   };
 
   const handleUpdateTicket = async () => {
-    console.log('=== TICKET UPDATE PROCESS STARTED ===');
-    console.log('Selected ticket:', selectedTicket);
-    
-    if (!selectedTicket) {
-      console.error('No ticket selected for update');
-      return;
-    }
-
-    // Validate ticket ID
-    if (!selectedTicket.id || isNaN(selectedTicket.id)) {
-      console.error('Invalid ticket ID:', selectedTicket.id);
+    if (!selectedTicket || !selectedTicket.id) {
+      console.error('No ticket selected or invalid ticket ID');
       alert('Invalid ticket ID. Please refresh and try again.');
       return;
     }
@@ -298,112 +237,95 @@ function SupportTicketsContent() {
       }
 
       if (updateError) {
-        console.error('=== ERROR HANDLING ===');
-        console.error('Error updating ticket:', updateError);
-        
-        // Provide more specific error messages based on error type
-        if (updateError.code === 'PGRST204') {
-          console.error('Database schema error detected');
-          alert('Database schema error: One or more fields do not exist in the database. Please contact support.');
-        } else if (updateError.code === 'PGRST116') {
-          console.error('Database connection error detected');
-          alert('Database connection error: Please check your internet connection and try again.');
-        } else {
-          console.error('Generic error detected');
-          alert(`Failed to update ticket: ${updateError.message || 'Please try again.'}`);
-        }
+        console.error('=== UPDATE FAILED ===');
+        alert('Failed to update ticket. Please try again.');
         return;
       }
 
-      console.log('=== SUCCESS - UPDATING LOCAL STATE ===');
-      console.log('API call successful, no errors returned');
-      console.log('Response data received:', updateResponse);
-
-      // Update local state
-      console.log('=== UPDATING LOCAL STATE ===');
-      console.log('Previous issues count:', issues.length);
-      console.log('Finding issue with ID:', selectedTicket.id);
+      console.log('=== UPDATE SUCCESSFUL ===');
+      console.log('Update response:', updateResponse);
       
-      setIssues(prevIssues => {
-        console.log('Previous issues state:', prevIssues);
-        
-        const updatedIssues = prevIssues.map(issue => {
-          if (issue.id === selectedTicket.id) {
-            console.log('Found matching issue:', issue);
-            const updatedIssue = { 
-              ...issue, 
-              status: updateStatus || issue.status, 
-              priority: updatePriority || issue.priority
-            };
-            console.log('Updated issue:', updatedIssue);
-            return updatedIssue;
-          }
-          return issue;
-        });
-        
-        console.log('New issues state:', updatedIssues);
-        return updatedIssues;
-      });
-
-      console.log('=== SUCCESS COMPLETE ===');
-      console.log('Local state updated successfully');
-      console.log('Showing success alert to user');
+      // Update local state
+      setIssues(prevIssues => 
+        prevIssues.map(issue => 
+          issue.id === selectedTicket.id 
+            ? { 
+                ...issue, 
+                status: updateStatus || issue.status,
+                priority: updatePriority || issue.priority
+              }
+            : issue
+        )
+      );
+      
+      // Close modal and reset form
+      setIsModalOpen(false);
+      setSelectedTicket(null);
+      setUpdateStatus('');
+      setUpdatePriority('');
       
       alert('Ticket updated successfully!');
       
-      console.log('=== CLOSING MODAL ===');
-      handleCloseModal();
-    } catch (err: unknown) {
-      console.error('=== UNEXPECTED ERROR CAUGHT ===');
-      console.error('Error type:', typeof err);
-      console.error('Error constructor:', (err as any)?.constructor?.name);
-      console.error('Error message:', (err as any)?.message);
-      console.error('Error stack:', (err as any)?.stack);
-      console.error('Full error object:', err);
-      
-      if (err instanceof Error) {
-        console.error('Standard Error object detected');
-        console.error('Error name:', err.name);
-        console.error('Error message:', err.message);
-        console.error('Error stack:', err.stack);
-      } else if (typeof err === 'string') {
-        console.error('String error detected:', err);
-      } else if (err && typeof err === 'object') {
-        console.error('Object error detected');
-        console.error('Error keys:', Object.keys(err as object));
-        console.error('Error values:', Object.values(err as object));
-      }
-      
-      alert(`An unexpected error occurred: ${err instanceof Error ? err.message : 'Please try again.'}`);
+    } catch (error) {
+      console.error('=== UPDATE ERROR ===');
+      console.error('Error updating ticket:', error);
+      alert('An unexpected error occurred. Please try again.');
     } finally {
-      console.log('=== FINALLY BLOCK EXECUTING ===');
-      console.log('Setting isUpdating to false');
       setIsUpdating(false);
-      console.log('=== TICKET UPDATE PROCESS COMPLETED ===');
+      console.log('=== UPDATE COMPLETED ===');
     }
   };
 
-  const handleReplyTicket = (issue: Issue) => {
-    // TODO: Implement reply functionality
-    console.log('Reply to ticket:', issue);
+  const toggleMobileSidebar = () => {
+    setIsMobileSidebarOpen(!isMobileSidebarOpen);
   };
 
-  const handleAssignTicket = (issue: Issue) => {
-    // TODO: Implement assign functionality
-    console.log('Assign ticket:', issue);
+  const closeMobileSidebar = () => {
+    setIsMobileSidebarOpen(false);
   };
 
-  const handleEscalateTicket = (issue: Issue) => {
-    // TODO: Implement escalate functionality
-    console.log('Escalate ticket:', issue);
-  };
+  // Calculate statistics
+  const totalTickets = issues.length;
+  const openTickets = issues.filter(issue => issue.status === 'Open').length;
+  const inProgressTickets = issues.filter(issue => issue.status === 'In_Progress').length;
+  const resolvedTickets = issues.filter(issue => issue.status === 'Resolved').length;
+  const avgResponseTime = '2.5h'; // Placeholder
+
+  // Filter issues based on search and filters
+  const filteredIssues = issues.filter(issue => {
+    const matchesSearch = searchTerm === '' || 
+      issue.subject?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      issue.account_id.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const matchesStatus = statusFilter === 'All Status' || issue.status === statusFilter;
+    const matchesPriority = priorityFilter === 'All Priorities' || issue.priority === priorityFilter;
+    const matchesType = typeFilter === 'All Types' || issue.type === typeFilter;
+    
+    return matchesSearch && matchesStatus && matchesPriority && matchesType;
+  });
 
   if (loading) {
     return (
       <div className="flex h-screen bg-[#9BC5A2] overflow-hidden">
-        <AdminSidebar currentPage="support-tickets" />
-        <div className="flex-1 flex items-center justify-center">
-          <div className="text-[#0A2E1D] text-xl">Loading support tickets...</div>
+        <AdminSidebar 
+          currentPage="support-tickets" 
+          isMobileOpen={isMobileSidebarOpen}
+          onMobileClose={closeMobileSidebar}
+        />
+        <div className="flex-1 flex flex-col">
+          <AdminHeader 
+            title="Support Tickets"
+            onRefresh={handleRefresh}
+            refreshing={loading}
+            showBackButton={true}
+            backUrl="/admin/dashboard"
+            showRefreshButton={true}
+            refreshButtonText="Refresh"
+            onMobileMenuToggle={toggleMobileSidebar}
+          />
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-[#0A2E1D] text-xl">Loading support tickets...</div>
+          </div>
         </div>
       </div>
     );
@@ -412,9 +334,25 @@ function SupportTicketsContent() {
   if (error) {
     return (
       <div className="flex h-screen bg-[#9BC5A2] overflow-hidden">
-        <AdminSidebar currentPage="support-tickets" />
-        <div className="flex-1 flex items-center justify-center">
-          <div className="text-red-600 text-xl">{error}</div>
+        <AdminSidebar 
+          currentPage="support-tickets" 
+          isMobileOpen={isMobileSidebarOpen}
+          onMobileClose={closeMobileSidebar}
+        />
+        <div className="flex-1 flex flex-col">
+          <AdminHeader 
+            title="Support Tickets"
+            onRefresh={handleRefresh}
+            refreshing={false}
+            showBackButton={true}
+            backUrl="/admin/dashboard"
+            showRefreshButton={true}
+            refreshButtonText="Refresh"
+            onMobileMenuToggle={toggleMobileSidebar}
+          />
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-red-600 text-xl">{error}</div>
+          </div>
         </div>
       </div>
     );
@@ -423,102 +361,81 @@ function SupportTicketsContent() {
   return (
     <div className="flex h-screen bg-[#9BC5A2] overflow-hidden">
       {/* Sidebar */}
-      <AdminSidebar currentPage="support-tickets" />
+      <AdminSidebar 
+        currentPage="support-tickets" 
+        isMobileOpen={isMobileSidebarOpen}
+        onMobileClose={closeMobileSidebar}
+      />
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col">
         {/* Header */}
-        <div className="bg-[#0A2E1D] p-4 flex justify-between items-start">
-          {/* Left Side - Document Icon and Refresh Button */}
-          <div className="flex items-center space-x-3">
-            {/* Document Icon Button */}
-            <div 
-              className="w-12 h-12 bg-[#2D4A32] rounded-lg flex items-center justify-center cursor-pointer hover:bg-[#3A5A3F] transition-all duration-300 hover:scale-110 hover:shadow-lg transform"
-            >
-              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
-            </div>
-            
-            {/* Refresh Button */}
-            <button 
-              onClick={handleRefresh}
-              className="bg-[#2D4A32] text-white px-4 py-2 rounded-lg hover:bg-[#3A5A3F] transition-colors flex items-center space-x-2"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-              <span>Refresh</span>
-            </button>
-          </div>
-
-          {/* Right Side - Admin Section */}
-          <div className="flex items-center space-x-2">
-            <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center">
-              <span className="text-[#0A2E1D] font-bold text-sm">A</span>
-            </div>
-            <span className="text-white font-medium">Admin</span>
-            <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-            </svg>
-          </div>
-        </div>
+        <AdminHeader 
+          title="Support Tickets"
+          onRefresh={handleRefresh}
+          refreshing={loading}
+          showBackButton={true}
+          backUrl="/admin/dashboard"
+          showRefreshButton={true}
+          refreshButtonText="Refresh"
+          onMobileMenuToggle={toggleMobileSidebar}
+        />
 
         {/* Support Tickets Content */}
-        <div className="flex-1 p-8 overflow-y-auto">
-          <div className="flex justify-between items-center mb-8">
-            <h1 className="text-[#0A2E1D] text-3xl font-bold">Support Tickets</h1>
+        <div className="flex-1 p-2 xs:p-3 sm:p-4 md:p-6 lg:p-8 overflow-y-auto">
+          <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-4 xs:mb-5 sm:mb-6 md:mb-7 lg:mb-8 space-y-4 lg:space-y-0">
+            <h1 className="text-[#0A2E1D] text-xl xs:text-2xl sm:text-2xl md:text-3xl lg:text-3xl font-bold">Support Tickets</h1>
             <button 
               onClick={handleCreateTicket}
-              className="px-6 py-2 bg-[#2D4A32] text-white rounded-lg hover:bg-[#3A5A3F] transition-colors"
+              className="px-3 xs:px-4 sm:px-4 md:px-5 lg:px-6 py-1.5 xs:py-2 sm:py-2 md:py-2 lg:py-2 bg-[#2D4A32] text-white rounded-lg hover:bg-[#3A5A3F] transition-colors text-xs xs:text-sm sm:text-sm md:text-sm lg:text-base"
             >
               Create New Ticket
             </button>
           </div>
 
           {/* Statistics Cards */}
-          <div className="grid grid-cols-5 gap-6 mb-8">
-            <div className="bg-[#2D4A32] rounded-2xl p-6 text-center">
-              <h3 className="text-[#9BC5A2] text-sm font-medium mb-2">Total Tickets</h3>
-              <p className="text-white text-2xl font-bold">{totalTickets}</p>
+          <div className="grid grid-cols-2 xs:grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-5 gap-2 xs:gap-3 sm:gap-3 md:gap-4 lg:gap-6 mb-4 xs:mb-5 sm:mb-6 md:mb-7 lg:mb-8">
+            <div className="bg-[#2D4A32] rounded-2xl p-2 xs:p-3 sm:p-3 md:p-4 lg:p-6 text-center">
+              <h3 className="text-[#9BC5A2] text-xs xs:text-xs sm:text-xs md:text-sm lg:text-sm font-medium mb-1 xs:mb-1.5 sm:mb-2">Total Tickets</h3>
+              <p className="text-white text-base xs:text-lg sm:text-lg md:text-xl lg:text-2xl font-bold">{totalTickets}</p>
             </div>
-            <div className="bg-[#2D4A32] rounded-2xl p-6 text-center">
-              <h3 className="text-[#9BC5A2] text-sm font-medium mb-2">Open Tickets</h3>
-              <p className="text-red-400 text-2xl font-bold">{openTickets}</p>
+            <div className="bg-[#2D4A32] rounded-2xl p-2 xs:p-3 sm:p-3 md:p-4 lg:p-6 text-center">
+              <h3 className="text-[#9BC5A2] text-xs xs:text-xs sm:text-xs md:text-sm lg:text-sm font-medium mb-1 xs:mb-1.5 sm:mb-2">Open Tickets</h3>
+              <p className="text-red-400 text-base xs:text-lg sm:text-lg md:text-xl lg:text-2xl font-bold">{openTickets}</p>
             </div>
-            <div className="bg-[#2D4A32] rounded-2xl p-6 text-center">
-              <h3 className="text-[#9BC5A2] text-sm font-medium mb-2">In Progress</h3>
-              <p className="text-yellow-400 text-2xl font-bold">{inProgressTickets}</p>
+            <div className="bg-[#2D4A32] rounded-2xl p-2 xs:p-3 sm:p-3 md:p-4 lg:p-6 text-center">
+              <h3 className="text-[#9BC5A2] text-xs xs:text-xs sm:text-xs md:text-sm lg:text-sm font-medium mb-1 xs:mb-1.5 sm:mb-2">In Progress</h3>
+              <p className="text-yellow-400 text-base xs:text-lg sm:text-lg md:text-xl lg:text-2xl font-bold">{inProgressTickets}</p>
             </div>
-            <div className="bg-[#2D4A32] rounded-2xl p-6 text-center">
-              <h3 className="text-[#9BC5A2] text-sm font-medium mb-2">Resolved</h3>
-              <p className="text-green-400 text-2xl font-bold">{resolvedTickets}</p>
+            <div className="bg-[#2D4A32] rounded-2xl p-2 xs:p-3 sm:p-3 md:p-4 lg:p-6 text-center">
+              <h3 className="text-[#9BC5A2] text-xs xs:text-xs sm:text-xs md:text-sm lg:text-sm font-medium mb-1 xs:mb-1.5 sm:mb-2">Resolved</h3>
+              <p className="text-green-400 text-base xs:text-lg sm:text-lg md:text-xl lg:text-2xl font-bold">{resolvedTickets}</p>
             </div>
-            <div className="bg-[#2D4A32] rounded-2xl p-6 text-center">
-              <h3 className="text-[#9BC5A2] text-sm font-medium mb-2">Avg Response</h3>
-              <p className="text-white text-2xl font-bold">{avgResponseTime}</p>
+            <div className="bg-[#2D4A32] rounded-2xl p-2 xs:p-3 sm:p-3 md:p-4 lg:p-6 text-center col-span-2 xs:col-span-2 sm:col-span-1">
+              <h3 className="text-[#9BC5A2] text-xs xs:text-xs sm:text-xs md:text-sm lg:text-sm font-medium mb-1 xs:mb-1.5 sm:mb-2">Avg Response</h3>
+              <p className="text-white text-base xs:text-lg sm:text-lg md:text-xl lg:text-2xl font-bold">{avgResponseTime}</p>
             </div>
           </div>
 
-          {/* Search and Filter Section */}
-          <div className="bg-[#2D4A32] rounded-2xl p-6 mb-8">
-            <div className="grid grid-cols-5 gap-4">
+          {/* Search and Filters */}
+          <div className="bg-[#2D4A32] rounded-2xl p-3 xs:p-4 sm:p-4 md:p-5 lg:p-6 mb-4 xs:mb-5 sm:mb-6 md:mb-7 lg:mb-8">
+            <div className="grid grid-cols-1 xs:grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 xs:gap-3 sm:gap-4 md:gap-4 lg:gap-4 mb-4">
               <div>
-                <label className="text-white text-sm font-medium mb-2 block">Search</label>
+                <label className="text-white text-xs xs:text-sm sm:text-sm md:text-sm lg:text-sm font-medium mb-1.5 xs:mb-2 block">Search</label>
                 <input 
                   type="text" 
-                  placeholder="Ticket ID, User, Subject..."
+                  placeholder="Search tickets..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full bg-[#4A6741] text-white px-4 py-2 rounded-lg border border-[#9BC5A2]/30 focus:border-[#9BC5A2] focus:outline-none placeholder-gray-400"
+                  className="w-full bg-[#4A6741] text-white px-2 xs:px-3 sm:px-3 md:px-3 lg:px-4 py-1.5 xs:py-2 sm:py-2 md:py-2 lg:py-2 rounded-lg border border-[#9BC5A9]/30 focus:border-[#9BC5A9] focus:outline-none placeholder-gray-400 text-xs xs:text-sm sm:text-sm md:text-sm lg:text-base"
                 />
               </div>
               <div>
-                <label className="text-white text-sm font-medium mb-2 block">Status</label>
+                <label className="text-white text-xs xs:text-sm sm:text-sm md:text-sm lg:text-sm font-medium mb-1.5 xs:mb-2 block">Status</label>
                 <select 
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
-                  className="w-full bg-[#4A6741] text-white px-4 py-2 rounded-lg border border-[#9BC5A2]/30 focus:border-[#9BC5A2] focus:outline-none"
+                  className="w-full bg-[#4A6741] text-white px-2 xs:px-3 sm:px-3 md:px-3 lg:px-4 py-1.5 xs:py-2 sm:py-2 md:py-2 lg:py-2 rounded-lg border border-[#9BC5A9]/30 focus:border-[#9BC5A9] focus:outline-none text-xs xs:text-sm sm:text-sm md:text-sm lg:text-base"
                 >
                   <option>All Status</option>
                   <option>Open</option>
@@ -529,11 +446,11 @@ function SupportTicketsContent() {
                 </select>
               </div>
               <div>
-                <label className="text-white text-sm font-medium mb-2 block">Priority</label>
+                <label className="text-white text-xs xs:text-sm sm:text-sm md:text-sm lg:text-sm font-medium mb-1.5 xs:mb-2 block">Priority</label>
                 <select 
                   value={priorityFilter}
                   onChange={(e) => setPriorityFilter(e.target.value)}
-                  className="w-full bg-[#4A6741] text-white px-4 py-2 rounded-lg border border-[#9BC5A2]/30 focus:border-[#9BC5A2] focus:outline-none"
+                  className="w-full bg-[#4A6741] text-white px-2 xs:px-3 sm:px-3 md:px-3 lg:px-4 py-1.5 xs:py-2 sm:py-2 md:py-2 lg:py-2 rounded-lg border border-[#9BC5A9]/30 focus:border-[#9BC5A9] focus:outline-none text-xs xs:text-sm sm:text-sm md:text-sm lg:text-base"
                 >
                   <option>All Priorities</option>
                   <option>critical</option>
@@ -543,305 +460,209 @@ function SupportTicketsContent() {
                 </select>
               </div>
               <div>
-                <label className="text-white text-sm font-medium mb-2 block">Type</label>
+                <label className="text-white text-xs xs:text-sm sm:text-sm md:text-sm lg:text-sm font-medium mb-1.5 xs:mb-2 block">Type</label>
                 <select 
                   value={typeFilter}
                   onChange={(e) => setTypeFilter(e.target.value)}
-                  className="w-full bg-[#4A6741] text-white px-4 py-2 rounded-lg border border-[#9BC5A2]/30 focus:border-[#9BC5A2] focus:outline-none"
+                  className="w-full bg-[#4A6741] text-white px-2 xs:px-3 sm:px-3 md:px-3 lg:px-4 py-1.5 xs:py-2 sm:py-2 md:py-2 lg:py-2 rounded-lg border border-[#9BC5A9]/30 focus:border-[#9BC5A9] focus:outline-none text-xs xs:text-sm sm:text-sm md:text-sm lg:text-base"
                 >
                   <option>All Types</option>
-                  <option>Technical Issue</option>
-                  <option>Account Problem</option>
-                  <option>Trading Issue</option>
-                  <option>Payment Problem</option>
+                  <option>technical_issue</option>
+                  <option>account_problem</option>
+                  <option>trading_issue</option>
+                  <option>payment_problem</option>
                 </select>
-              </div>
-              <div>
-                <label className="text-white text-sm font-medium mb-2 block">Date</label>
-                <input 
-                  type="date" 
-                  value={dateFilter}
-                  onChange={(e) => setDateFilter(e.target.value)}
-                  className="w-full bg-[#4A6741] text-white px-4 py-2 rounded-lg border border-[#9BC5A2]/30 focus:border-[#9BC5A2] focus:outline-none"
-                />
               </div>
             </div>
           </div>
 
-          {/* Support Tickets Table */}
-          <div className="bg-[#2D4A32] rounded-2xl p-6">
-            <h2 className="text-white text-xl font-bold mb-6">Recent Support Tickets</h2>
+          {/* Tickets List */}
+          <div className="bg-[#2D4A32] rounded-2xl p-3 xs:p-4 sm:p-4 md:p-5 lg:p-6">
+            <h2 className="text-white text-base xs:text-lg sm:text-lg md:text-xl lg:text-xl font-bold mb-3 xs:mb-4 sm:mb-4 md:mb-5 lg:mb-6">Recent Tickets</h2>
             
-            {filteredIssues.length === 0 ? (
-              <div className="text-center py-8">
-                <p className="text-[#9BC5A2] text-lg">No issues found matching your criteria.</p>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-[#4A6741]">
-                      <th className="text-left text-[#9BC5A2] font-medium py-3">Ticket ID</th>
-                      <th className="text-left text-[#9BC5A2] font-medium py-3">User</th>
-                      <th className="text-left text-[#9BC5A2] font-medium py-3">Subject</th>
-                      <th className="text-left text-[#9BC5A2] font-medium py-3">Type</th>
-                      <th className="text-left text-[#9BC5A2] font-medium py-3">Priority</th>
-                      <th className="text-left text-[#9BC5A2] font-medium py-3">Status</th>
-                      <th className="text-left text-[#9BC5A2] font-medium py-3">Created</th>
-                      <th className="text-left text-[#9BC5A2] font-medium py-3">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredIssues.map((issue) => (
+            {/* Mobile Card View */}
+            <div className="lg:hidden space-y-3 xs:space-y-3 sm:space-y-4">
+              {filteredIssues.length > 0 ? (
+                filteredIssues.map((issue) => (
+                  <div key={issue.id} className="bg-[#4A6741] rounded-lg p-3 xs:p-4 sm:p-4 space-y-2 xs:space-y-3 sm:space-y-3">
+                    <div className="flex justify-between items-start">
+                      <div className="text-white font-medium text-sm xs:text-sm sm:text-sm">#{issue.id}</div>
+                      <span className={`px-1.5 xs:px-2 sm:px-2 py-0.5 xs:py-1 sm:py-1 rounded-full text-xs ${
+                        issue.status === 'Open' 
+                          ? 'bg-red-500/20 text-red-400'
+                          : issue.status === 'In_Progress'
+                          ? 'bg-yellow-500/20 text-yellow-400'
+                          : issue.status === 'Resolved'
+                          ? 'bg-green-500/20 text-green-400'
+                          : 'bg-gray-500/20 text-gray-400'
+                      }`}>
+                        {formatStatusForDisplay(issue.status)}
+                      </span>
+                    </div>
+                    <div className="text-white text-xs xs:text-sm sm:text-sm">
+                      <div className="font-medium">{issue.subject || 'No Subject'}</div>
+                      <div className="text-[#9BC5A9]">User: {issue.user_name}</div>
+                      <div className="text-[#9BC5A9]">Type: {issue.type?.replace(/_/g, ' ') || 'Unknown'}</div>
+                      <div className="text-[#9BC5A9]">Priority: {issue.priority || 'Unknown'}</div>
+                      <div className="text-[#9BC5A9]">Created: {new Date(issue.created_at).toLocaleDateString()}</div>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5 xs:gap-2 sm:gap-2 pt-1.5 xs:pt-2 sm:pt-2">
+                      <button 
+                        className="text-[#9BC5A9] hover:text-white transition-colors px-2 xs:px-3 sm:px-3 py-1 xs:py-1 sm:py-1 bg-[#2D4A32] rounded hover:bg-[#3A5A3F] text-xs xs:text-sm sm:text-sm"
+                        onClick={() => {
+                          setSelectedTicket(issue);
+                          setIsModalOpen(true);
+                        }}
+                      >
+                        Update
+                      </button>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-6 xs:py-8 sm:py-8">
+                  <div className="text-[#9BC5A9] text-base xs:text-lg sm:text-lg mb-1.5 xs:mb-2 sm:mb-2">No tickets found</div>
+                  <div className="text-[#9BC5A9]/70 text-xs xs:text-sm sm:text-sm">Try adjusting your search criteria</div>
+                </div>
+              )}
+            </div>
+
+            {/* Desktop Table View */}
+            <div className="hidden lg:block overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-[#4A6741]">
+                    <th className="text-left text-[#9BC5A9] font-medium py-3">ID</th>
+                    <th className="text-left text-[#9BC5A9] font-medium py-3">Subject</th>
+                    <th className="text-left text-[#9BC5A9] font-medium py-3">User</th>
+                    <th className="text-left text-[#9BC5A9] font-medium py-3">Type</th>
+                    <th className="text-left text-[#9BC5A9] font-medium py-3">Priority</th>
+                    <th className="text-left text-[#9BC5A9] font-medium py-3">Status</th>
+                    <th className="text-left text-[#9BC5A9] font-medium py-3">Created</th>
+                    <th className="text-left text-[#9BC5A9] font-medium py-3">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredIssues.length > 0 ? (
+                    filteredIssues.map((issue) => (
                       <tr key={issue.id} className="border-b border-[#4A6741]/50">
-                        <td className="text-white py-4">#{issue.id.toString().padStart(6, '0')}</td>
+                        <td className="text-white py-4">#{issue.id}</td>
+                        <td className="text-white py-4">{issue.subject || 'No Subject'}</td>
                         <td className="text-white py-4">{issue.user_name}</td>
-                        <td className="text-white py-4">{issue.subject || 'No subject'}</td>
+                        <td className="text-white py-4">{issue.type?.replace(/_/g, ' ') || 'Unknown'}</td>
                         <td className="text-white py-4">
-                          {issue.type ? issue.type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) : 'Unknown'}
+                          <span className={`px-2 py-1 rounded-full text-xs ${
+                            issue.priority === 'critical' 
+                              ? 'bg-red-500/20 text-red-400'
+                              : issue.priority === 'high'
+                              ? 'bg-orange-500/20 text-orange-400'
+                              : issue.priority === 'medium'
+                              ? 'bg-yellow-500/20 text-yellow-400'
+                              : 'bg-green-500/20 text-green-400'
+                          }`}>
+                            {issue.priority || 'Unknown'}
+                          </span>
                         </td>
                         <td className="py-4">
-                          {issue.priority && (
-                            <span className={`px-2 py-1 rounded-full text-sm ${
-                              issue.priority === 'critical' ? 'bg-red-500/20 text-red-400' :
-                              issue.priority === 'high' ? 'bg-red-500/20 text-red-400' :
-                              issue.priority === 'medium' ? 'bg-orange-500/20 text-orange-400' :
-                              'bg-blue-500/20 text-blue-400'
-                            }`}>
-                              {issue.priority.charAt(0).toUpperCase() + issue.priority.slice(1)}
-                            </span>
-                          )}
+                          <span className={`px-2 py-1 rounded-full text-xs ${
+                            issue.status === 'Open' 
+                              ? 'bg-red-500/20 text-red-400'
+                              : issue.status === 'In_Progress'
+                              ? 'bg-yellow-500/20 text-yellow-400'
+                              : issue.status === 'Resolved'
+                              ? 'bg-green-500/20 text-green-400'
+                              : 'bg-gray-500/20 text-gray-400'
+                          }`}>
+                            {formatStatusForDisplay(issue.status)}
+                          </span>
                         </td>
+                        <td className="text-white py-4">{new Date(issue.created_at).toLocaleDateString()}</td>
                         <td className="py-4">
-                          {issue.status && (
-                            <span className={`px-2 py-1 rounded-full text-sm ${
-                              issue.status === 'Open' ? 'bg-red-500/20 text-red-400' :
-                              issue.status === 'In_Progress' ? 'bg-yellow-500/20 text-yellow-400' :
-                              issue.status === 'Awaiting_Response' ? 'bg-yellow-500/20 text-yellow-400' :
-                              issue.status === 'Resolved' ? 'bg-green-500/20 text-green-400' :
-                              'bg-gray-500/20 text-gray-400'
-                            }`}>
-                              {formatStatusForDisplay(issue.status)}
-                            </span>
-                          )}
-                        </td>
-                        <td className="text-white py-4">
-                          {new Date(issue.created_at).toLocaleDateString('en-US', {
-                            month: 'short',
-                            day: 'numeric',
-                            year: 'numeric'
-                          })}
-                        </td>
-                        <td className="py-4">
-                          <div className="flex space-x-2">
-                            <button 
-                              onClick={() => handleViewTicket(issue)}
-                              className="text-[#9BC5A2] hover:text-white transition-colors px-3 py-1 bg-[#4A6741] rounded hover:bg-[#3A5A3F] text-sm"
-                            >
-                              View
-                            </button>
-                            {issue.status === 'Open' && (
-                              <button 
-                                onClick={() => handleAssignTicket(issue)}
-                                className="text-green-400 hover:text-green-300 transition-colors px-3 py-1 bg-green-900/20 rounded hover:bg-green-900/30 text-sm"
-                              >
-                                Assign
-                              </button>
-                            )}
-                            {issue.status === 'Awaiting_Response' && (
-                              <button 
-                                onClick={() => handleReplyTicket(issue)}
-                                className="text-blue-400 hover:text-blue-300 transition-colors px-3 py-1 bg-blue-900/20 rounded hover:bg-blue-900/30 text-sm"
-                              >
-                                Reply
-                              </button>
-                            )}
-                            {issue.priority === 'critical' && issue.status === 'Open' && (
-                              <button 
-                                onClick={() => handleEscalateTicket(issue)}
-                                className="text-orange-400 hover:text-orange-300 transition-colors px-3 py-1 bg-orange-900/20 rounded hover:bg-orange-900/30 text-sm"
-                              >
-                                Escalate
-                              </button>
-                            )}
-                          </div>
+                          <button 
+                            className="text-[#9BC5A9] hover:text-white transition-colors px-3 py-1 bg-[#4A6741] rounded hover:bg-[#3A5A3F] text-sm"
+                            onClick={() => {
+                              setSelectedTicket(issue);
+                              setIsModalOpen(true);
+                            }}
+                          >
+                            Update
+                          </button>
                         </td>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={8} className="text-center py-8">
+                        <div className="text-[#9BC5A9] text-lg mb-2">No tickets found</div>
+                        <div className="text-[#9BC5A9]/70 text-sm">Try adjusting your search criteria</div>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Ticket Update Modal */}
+      {/* Update Ticket Modal */}
       {isModalOpen && selectedTicket && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-[#2D4A32] rounded-2xl p-8 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-white text-2xl font-bold">
-                Update Ticket #{selectedTicket.id.toString().padStart(6, '0')}
-              </h2>
-              <button
-                onClick={handleCloseModal}
-                className="text-[#9BC5A2] hover:text-white transition-colors"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-[#2D4A32] rounded-2xl p-6 max-w-md w-full">
+            <h3 className="text-white text-lg font-bold mb-4">Update Ticket #{selectedTicket.id}</h3>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="text-white text-sm font-medium mb-2 block">Status</label>
+                <select 
+                  value={updateStatus}
+                  onChange={(e) => setUpdateStatus(e.target.value as Issue['status'])}
+                  className="w-full bg-[#4A6741] text-white px-4 py-2 rounded-lg border border-[#9BC5A9]/30 focus:border-[#9BC5A9] focus:outline-none"
+                >
+                  <option value="">Select Status</option>
+                  <option value="Open">Open</option>
+                  <option value="In_Progress">In Progress</option>
+                  <option value="Awaiting_Response">Awaiting Response</option>
+                  <option value="Resolved">Resolved</option>
+                  <option value="Closed">Closed</option>
+                </select>
+              </div>
+              
+              <div>
+                <label className="text-white text-sm font-medium mb-2 block">Priority</label>
+                <select 
+                  value={updatePriority}
+                  onChange={(e) => setUpdatePriority(e.target.value as Issue['priority'])}
+                  className="w-full bg-[#4A6741] text-white px-4 py-2 rounded-lg border border-[#9BC5A9]/30 focus:border-[#9BC5A9] focus:outline-none"
+                >
+                  <option value="">Select Priority</option>
+                  <option value="critical">Critical</option>
+                  <option value="high">High</option>
+                  <option value="medium">Medium</option>
+                  <option value="low">Low</option>
+                </select>
+              </div>
             </div>
-
-            <div className="space-y-6">
-              {/* Ticket Info */}
-              <div className="bg-[#4A6741] rounded-lg p-4">
-                <h3 className="text-white font-semibold mb-3">Ticket Information</h3>
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <span className="text-[#9BC5A2]">User:</span>
-                    <span className="text-white ml-2">{selectedTicket.user_name}</span>
-                  </div>
-                  <div>
-                    <span className="text-[#9BC5A2]">Subject:</span>
-                    <span className="text-white ml-2">{selectedTicket.subject || 'No subject'}</span>
-                  </div>
-                  <div>
-                    <span className="text-[#9BC5A2]">Type:</span>
-                    <span className="text-white ml-2">
-                      {selectedTicket.type ? selectedTicket.type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) : 'Unknown'}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-[#9BC5A2]">Status:</span>
-                    <span className="text-white ml-2">
-                      {formatStatusForDisplay(selectedTicket.status)}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-[#9BC5A2]">Created:</span>
-                    <span className="text-white ml-2">
-                      {new Date(selectedTicket.created_at).toLocaleDateString('en-US', {
-                        month: 'short',
-                        day: 'numeric',
-                        year: 'numeric'
-                      })}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Update Fields */}
-              <div className="space-y-4">
-                <div>
-                  <label className="text-white text-sm font-medium mb-2 block">
-                    Status
-                    {updateStatus && updateStatus !== selectedTicket.status && (
-                      <span className="text-yellow-400 ml-2">(Modified)</span>
-                    )}
-                  </label>
-                  <select 
-                    value={updateStatus}
-                    onChange={(e) => {
-                      const newStatus = e.target.value as Issue['status'];
-                      console.log('=== STATUS FIELD CHANGED ===');
-                      console.log('Previous status:', updateStatus);
-                      console.log('New status:', newStatus);
-                      console.log('Original ticket status:', selectedTicket.status);
-                      setUpdateStatus(newStatus);
-                    }}
-                    className={`w-full px-4 py-2 rounded-lg border focus:outline-none ${
-                      updateStatus && updateStatus !== selectedTicket.status
-                        ? 'bg-yellow-500/20 text-white border-yellow-400'
-                        : 'bg-[#4A6741] text-white border-[#9BC5A2]/30 focus:border-[#9BC5A2]'
-                    }`}
-                  >
-                    <option value="">Select Status</option>
-                    <option value="Open">Open</option>
-                    <option value="In_Progress">In Progress</option>
-                    <option value="Awaiting_Response">Awaiting Response</option>
-                    <option value="Resolved">Resolved</option>
-                    <option value="Closed">Closed</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="text-white text-sm font-medium mb-2 block">
-                    Priority
-                    {updatePriority && updatePriority !== selectedTicket.priority && (
-                      <span className="text-yellow-400 ml-2">(Modified)</span>
-                    )}
-                  </label>
-                  <select 
-                    value={updatePriority}
-                    onChange={(e) => {
-                      const newPriority = e.target.value as Issue['priority'];
-                      console.log('=== PRIORITY FIELD CHANGED ===');
-                      console.log('Previous priority:', updatePriority);
-                      console.log('New priority:', newPriority);
-                      console.log('Original ticket priority:', selectedTicket.priority);
-                      setUpdatePriority(newPriority);
-                    }}
-                    className={`w-full px-4 py-2 rounded-lg border focus:outline-none ${
-                      updatePriority && updatePriority !== selectedTicket.priority
-                        ? 'bg-yellow-500/20 text-white border-yellow-400'
-                        : 'bg-[#4A6741] text-white border-[#9BC5A2]/30 focus:border-[#9BC5A2]'
-                    }`}
-                  >
-                    <option value="">Select Priority</option>
-                    <option value="critical">Critical</option>
-                    <option value="high">High</option>
-                    <option value="medium">Medium</option>
-                    <option value="low">Low</option>
-                  </select>
-                </div>
-
-
-              </div>
-
-              {/* Update Summary */}
-              {(updateStatus !== selectedTicket.status || updatePriority !== selectedTicket.priority) && (
-                <div className="bg-yellow-500/20 border border-yellow-400 rounded-lg p-4">
-                  <h4 className="text-yellow-400 font-semibold mb-2">Update Summary</h4>
-                  <div className="text-sm text-white space-y-1">
-                    {updateStatus !== selectedTicket.status && (
-                      <div>Status: <span className="text-yellow-400">{selectedTicket.status || 'Not set'}</span> → <span className="text-green-400">{updateStatus}</span></div>
-                    )}
-                    {updatePriority !== selectedTicket.priority && (
-                      <div>Priority: <span className="text-yellow-400">{selectedTicket.priority || 'Not set'}</span> → <span className="text-green-400">{updatePriority}</span></div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Action Buttons */}
-              <div className="flex justify-end space-x-4 pt-4">
-                <button
-                  onClick={handleCloseModal}
-                  className="px-6 py-2 bg-[#4A6741] text-white rounded-lg hover:bg-[#3A5A3F] transition-colors"
-                  disabled={isUpdating}
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleUpdateTicket}
-                  disabled={isUpdating || (!updateStatus && !updatePriority) || (updateStatus === selectedTicket.status && updatePriority === selectedTicket.priority)}
-                  className="px-6 py-2 bg-[#9BC5A2] text-[#0A2E1D] rounded-lg hover:bg-[#8AB592] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
-                >
-                  {isUpdating ? (
-                    <>
-                      <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-[#0A2E1D]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                      <span>Updating...</span>
-                    </>
-                  ) : (
-                    <span>Update Ticket</span>
-                  )}
-                </button>
-              </div>
+            
+            <div className="flex space-x-3 mt-6">
+              <button
+                onClick={() => {
+                  setIsModalOpen(false);
+                  setSelectedTicket(null);
+                  setUpdateStatus('');
+                  setUpdatePriority('');
+                }}
+                className="flex-1 px-4 py-2 bg-[#4A6741] text-white rounded-lg hover:bg-[#3A5A3F] transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleUpdateTicket}
+                disabled={isUpdating || (!updateStatus && !updatePriority)}
+                className="flex-1 px-4 py-2 bg-[#9BC5A9] text-[#0A2E1D] rounded-lg hover:bg-[#8AB59A] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isUpdating ? 'Updating...' : 'Update Ticket'}
+              </button>
             </div>
           </div>
         </div>

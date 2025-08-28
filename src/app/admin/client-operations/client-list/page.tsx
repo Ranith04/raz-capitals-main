@@ -1,5 +1,6 @@
 'use client';
 
+import AdminHeader from '@/components/AdminHeader';
 import AdminSidebar from '@/components/AdminSidebar';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { ClientUser, UserService } from '@/lib/userService';
@@ -20,6 +21,7 @@ function ClientListContent() {
     demoAccounts: 0
   });
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   // Filter states
   const [searchTerm, setSearchTerm] = useState('');
@@ -27,15 +29,23 @@ function ClientListContent() {
   const [selectedKycStatus, setSelectedKycStatus] = useState('All KYC');
   const [selectedAccountType, setSelectedAccountType] = useState('All Types');
 
+  // Mobile sidebar state
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+
   useEffect(() => {
     document.title = 'Client List - RAZ CAPITALS';
     fetchClients();
   }, []);
 
   // Fetch clients from database
-  const fetchClients = async () => {
+  const fetchClients = async (showRefreshingState = false) => {
     try {
-      setLoading(true);
+      if (showRefreshingState) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
+      
       const [usersData, metricsData] = await Promise.all([
         UserService.getAllUsers(),
         UserService.getClientMetrics()
@@ -46,7 +56,11 @@ function ClientListContent() {
     } catch (error) {
       console.error('Failed to fetch clients:', error);
     } finally {
-      setLoading(false);
+      if (showRefreshingState) {
+        setRefreshing(false);
+      } else {
+        setLoading(false);
+      }
     }
   };
 
@@ -120,12 +134,36 @@ function ClientListContent() {
     }
   };
 
+  const toggleMobileSidebar = () => {
+    setIsMobileSidebarOpen(!isMobileSidebarOpen);
+  };
+
+  const closeMobileSidebar = () => {
+    setIsMobileSidebarOpen(false);
+  };
+
   if (loading) {
     return (
       <div className="flex h-screen bg-[#9BC5A2] overflow-hidden">
-        <AdminSidebar currentPage="client-list" />
-        <div className="flex-1 flex items-center justify-center">
-          <div className="text-[#0A2E1D] text-xl">Loading clients...</div>
+        <AdminSidebar 
+          currentPage="client-list" 
+          isMobileOpen={isMobileSidebarOpen}
+          onMobileClose={closeMobileSidebar}
+        />
+        <div className="flex-1 flex flex-col">
+          <AdminHeader 
+            title="Client List"
+            onRefresh={() => fetchClients(true)}
+            refreshing={refreshing}
+            showBackButton={true}
+            backUrl="/admin/dashboard"
+            showRefreshButton={true}
+            refreshButtonText="Refresh"
+            onMobileMenuToggle={toggleMobileSidebar}
+          />
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-[#0A2E1D] text-xl">Loading clients...</div>
+          </div>
         </div>
       </div>
     );
@@ -134,100 +172,81 @@ function ClientListContent() {
   return (
     <div className="flex h-screen bg-[#9BC5A2] overflow-hidden">
       {/* Sidebar */}
-      <AdminSidebar currentPage="client-list" />
+      <AdminSidebar 
+        currentPage="client-list" 
+        isMobileOpen={isMobileSidebarOpen}
+        onMobileClose={closeMobileSidebar}
+      />
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col">
         {/* Header */}
-        <div className="bg-[#0A2E1D] p-4 flex justify-between items-start">
-          {/* Left Side - Document Icon and Refresh Button */}
-          <div className="flex flex-col space-y-2">
-            {/* Document Icon Button */}
-                      <div 
-            className="w-12 h-12 bg-[#2D4A32] rounded-lg flex items-center justify-center cursor-pointer hover:bg-[#3A5A3F] transition-all duration-300 hover:scale-110 hover:shadow-lg transform"
-            onClick={() => router.push('/admin/dashboard')}
-          >
-            <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-          </div>
-            
-            {/* Refresh Button */}
-            <button className="bg-[#2D4A32] text-white px-4 py-2 rounded-lg hover:bg-[#3A5A3F] transition-colors flex items-center space-x-2">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-              <span>Refresh</span>
-            </button>
-          </div>
-
-          {/* Right Side - Admin Section */}
-          <div className="flex items-center space-x-2">
-            <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center">
-              <span className="text-[#0A2E1D] font-bold text-sm">A</span>
-            </div>
-            <span className="text-white font-medium">Admin</span>
-            <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-            </svg>
-          </div>
-        </div>
+        <AdminHeader 
+          title="Client List"
+          onRefresh={() => fetchClients(true)}
+          refreshing={refreshing}
+          showBackButton={true}
+          backUrl="/admin/dashboard"
+          showRefreshButton={true}
+          refreshButtonText="Refresh"
+          onMobileMenuToggle={toggleMobileSidebar}
+        />
 
         {/* Client List Content */}
-        <div className="flex-1 p-8 overflow-y-auto">
-          <h1 className="text-[#0A2E1D] text-3xl font-bold mb-8">Client List</h1>
+        <div className="flex-1 p-2 xs:p-3 sm:p-4 md:p-6 lg:p-8 overflow-y-auto">
+          <h1 className="text-[#0A2E1D] text-xl xs:text-2xl sm:text-2xl md:text-3xl lg:text-3xl font-bold mb-4 xs:mb-5 sm:mb-6 md:mb-7 lg:mb-8">Client List</h1>
 
           {/* Statistics Cards */}
-          <div className="grid grid-cols-4 gap-6 mb-8">
-            <div className="bg-[#2D4A32] rounded-2xl p-6 text-center">
-              <h3 className="text-[#9BC5A2] text-sm font-medium mb-2">Total Clients</h3>
-              <p className="text-white text-2xl font-bold">{metrics.totalClients}</p>
+          <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 xs:gap-3 sm:gap-3 md:gap-4 lg:gap-6 mb-4 xs:mb-5 sm:mb-6 md:mb-7 lg:mb-8">
+            <div className="bg-[#2D4A32] rounded-2xl p-2 xs:p-3 sm:p-3 md:p-4 lg:p-6 text-center">
+              <h3 className="text-[#9BC5A2] text-xs xs:text-xs sm:text-xs md:text-sm lg:text-sm font-medium mb-1 xs:mb-1.5 sm:mb-2">Total Clients</h3>
+              <p className="text-white text-base xs:text-lg sm:text-lg md:text-xl lg:text-2xl font-bold">{metrics.totalClients}</p>
             </div>
-            <div className="bg-[#2D4A32] rounded-2xl p-6 text-center">
-              <h3 className="text-[#9BC5A2] text-sm font-medium mb-2">Active Clients</h3>
-              <p className="text-white text-2xl font-bold">{metrics.activeClients}</p>
+            <div className="bg-[#2D4A32] rounded-2xl p-2 xs:p-3 sm:p-3 md:p-4 lg:p-6 text-center">
+              <h3 className="text-[#9BC5A2] text-xs xs:text-xs sm:text-xs md:text-sm lg:text-sm font-medium mb-1 xs:mb-1.5 sm:mb-2">Active Clients</h3>
+              <p className="text-white text-base xs:text-lg sm:text-lg md:text-xl lg:text-2xl font-bold">{metrics.activeClients}</p>
             </div>
-            <div className="bg-[#2D4A32] rounded-2xl p-6 text-center">
-              <h3 className="text-[#9BC5A2] text-sm font-medium mb-2">KYC Verified</h3>
-              <p className="text-white text-2xl font-bold">{metrics.kycVerified}</p>
+            <div className="bg-[#2D4A32] rounded-2xl p-2 xs:p-3 sm:p-3 md:p-4 lg:p-6 text-center">
+              <h3 className="text-[#9BC5A2] text-xs xs:text-xs sm:text-xs md:text-sm lg:text-sm font-medium mb-1 xs:mb-1.5 sm:mb-2">KYC Verified</h3>
+              <p className="text-white text-base xs:text-lg sm:text-lg md:text-xl lg:text-2xl font-bold">{metrics.kycVerified}</p>
             </div>
-            <div className="bg-[#2D4A32] rounded-2xl p-6 text-center">
-              <h3 className="text-[#9BC5A2] text-sm font-medium mb-2">KYC Pending</h3>
-              <p className="text-white text-2xl font-bold">{metrics.kycPending}</p>
+            <div className="bg-[#2D4A32] rounded-2xl p-2 xs:p-3 sm:p-3 md:p-4 lg:p-6 text-center">
+              <h3 className="text-[#9BC5A2] text-xs xs:text-xs sm:text-xs md:text-sm lg:text-sm font-medium mb-1 xs:mb-1.5 sm:mb-2">KYC Pending</h3>
+              <p className="text-white text-base xs:text-lg sm:text-lg md:text-xl lg:text-2xl font-bold">{metrics.kycPending}</p>
             </div>
           </div>
 
           {/* Additional Metrics Row */}
-          <div className="grid grid-cols-2 gap-6 mb-8">
-            <div className="bg-[#2D4A32] rounded-2xl p-6 text-center">
-              <h3 className="text-[#9BC5A2] text-sm font-medium mb-2">Live Accounts</h3>
-              <p className="text-white text-2xl font-bold">{metrics.liveAccounts}</p>
+          <div className="grid grid-cols-2 gap-2 xs:gap-3 sm:gap-3 md:gap-4 lg:gap-6 mb-4 xs:mb-5 sm:mb-6 md:mb-7 lg:mb-8">
+            <div className="bg-[#2D4A32] rounded-2xl p-2 xs:p-3 sm:p-3 md:p-4 lg:p-6 text-center">
+              <h3 className="text-[#9BC5A2] text-xs xs:text-xs sm:text-xs md:text-sm lg:text-sm font-medium mb-1 xs:mb-1.5 sm:mb-2">Live Accounts</h3>
+              <p className="text-white text-base xs:text-lg sm:text-lg md:text-xl lg:text-2xl font-bold">{metrics.liveAccounts}</p>
             </div>
-            <div className="bg-[#2D4A32] rounded-2xl p-6 text-center">
-              <h3 className="text-[#9BC5A2] text-sm font-medium mb-2">Demo Accounts</h3>
-              <p className="text-white text-2xl font-bold">{metrics.demoAccounts}</p>
+            <div className="bg-[#2D4A32] rounded-2xl p-2 xs:p-3 sm:p-3 md:p-4 lg:p-6 text-center">
+              <h3 className="text-[#9BC5A2] text-xs xs:text-xs sm:text-xs md:text-sm lg:text-sm font-medium mb-1 xs:mb-1.5 sm:mb-2">Demo Accounts</h3>
+              <p className="text-white text-base xs:text-lg sm:text-lg md:text-xl lg:text-2xl font-bold">{metrics.demoAccounts}</p>
             </div>
           </div>
 
           {/* Search and Filter Section */}
-          <div className="bg-[#2D4A32] rounded-2xl p-6 mb-8">
-            <div className="grid grid-cols-4 gap-4 mb-4">
+          <div className="bg-[#2D4A32] rounded-2xl p-3 xs:p-4 sm:p-4 md:p-5 lg:p-6 mb-4 xs:mb-5 sm:mb-6 md:mb-7 lg:mb-8">
+            <div className="grid grid-cols-1 xs:grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 xs:gap-3 sm:gap-4 md:gap-4 lg:gap-4 mb-4">
               <div>
-                <label className="text-white text-sm font-medium mb-2 block">Search Client</label>
+                <label className="text-white text-xs xs:text-sm sm:text-sm md:text-sm lg:text-sm font-medium mb-1.5 xs:mb-2 block">Search Client</label>
                 <input 
                   type="text" 
                   placeholder="Enter client name or ID..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full bg-[#4A6741] text-white px-4 py-2 rounded-lg border border-[#9BC5A9]/30 focus:border-[#9BC5A9] focus:outline-none placeholder-gray-400"
+                  className="w-full bg-[#4A6741] text-white px-2 xs:px-3 sm:px-3 md:px-3 lg:px-4 py-1.5 xs:py-2 sm:py-2 md:py-2 lg:py-2 rounded-lg border border-[#9BC5A9]/30 focus:border-[#9BC5A9] focus:outline-none placeholder-gray-400 text-xs xs:text-sm sm:text-sm md:text-sm lg:text-base"
                 />
               </div>
               <div>
-                <label className="text-white text-sm font-medium mb-2 block">Status</label>
+                <label className="text-white text-xs xs:text-sm sm:text-sm md:text-sm lg:text-sm font-medium mb-1.5 xs:mb-2 block">Status</label>
                 <select 
                   value={selectedStatus}
                   onChange={(e) => setSelectedStatus(e.target.value)}
-                  className="w-full bg-[#4A6741] text-white px-4 py-2 rounded-lg border border-[#9BC5A9]/30 focus:border-[#9BC5A9] focus:outline-none"
+                  className="w-full bg-[#4A6741] text-white px-2 xs:px-3 sm:px-3 md:px-3 lg:px-4 py-1.5 xs:py-2 sm:py-2 md:py-2 lg:py-2 rounded-lg border border-[#9BC5A9]/30 focus:border-[#9BC5A9] focus:outline-none text-xs xs:text-sm sm:text-sm md:text-sm lg:text-base"
                 >
                   <option>All Status</option>
                   <option>Active</option>
@@ -236,11 +255,11 @@ function ClientListContent() {
                 </select>
               </div>
               <div>
-                <label className="text-white text-sm font-medium mb-2 block">KYC Status</label>
+                <label className="text-white text-xs xs:text-sm sm:text-sm md:text-sm lg:text-sm font-medium mb-1.5 xs:mb-2 block">KYC Status</label>
                 <select 
                   value={selectedKycStatus}
                   onChange={(e) => setSelectedKycStatus(e.target.value)}
-                  className="w-full bg-[#4A6741] text-white px-4 py-2 rounded-lg border border-[#9BC5A9]/30 focus:border-[#9BC5A9] focus:outline-none"
+                  className="w-full bg-[#4A6741] text-white px-2 xs:px-3 sm:px-3 md:px-3 lg:px-4 py-1.5 xs:py-2 sm:py-2 md:py-2 lg:py-2 rounded-lg border border-[#9BC5A9]/30 focus:border-[#9BC5A9] focus:outline-none text-xs xs:text-sm sm:text-sm md:text-sm lg:text-base"
                 >
                   <option>All KYC</option>
                   <option>Approved</option>
@@ -249,11 +268,11 @@ function ClientListContent() {
                 </select>
               </div>
               <div>
-                <label className="text-white text-sm font-medium mb-2 block">Account Type</label>
+                <label className="text-white text-xs xs:text-sm sm:text-sm md:text-sm lg:text-sm font-medium mb-1.5 xs:mb-2 block">Account Type</label>
                 <select 
                   value={selectedAccountType}
                   onChange={(e) => setSelectedAccountType(e.target.value)}
-                  className="w-full bg-[#4A6741] text-white px-4 py-2 rounded-lg border border-[#9BC5A9]/30 focus:border-[#9BC5A9] focus:outline-none"
+                  className="w-full bg-[#4A6741] text-white px-2 xs:px-3 sm:px-3 md:px-3 lg:px-4 py-1.5 xs:py-2 sm:py-2 md:py-2 lg:py-2 rounded-lg border border-[#9BC5A9]/30 focus:border-[#9BC5A9] focus:outline-none text-xs xs:text-sm sm:text-sm md:text-sm lg:text-base"
                 >
                   <option>All Types</option>
                   <option>Live</option>
@@ -263,13 +282,13 @@ function ClientListContent() {
             </div>
             
             {/* Filter Actions */}
-            <div className="flex justify-between items-center">
-              <div className="text-white text-sm">
+            <div className="flex flex-col xs:flex-col sm:flex-row justify-between items-start xs:items-start sm:items-center space-y-2 xs:space-y-2 sm:space-y-0">
+              <div className="text-white text-xs xs:text-sm sm:text-sm">
                 Showing {filteredClients.length} of {clients.length} clients
               </div>
               <button 
                 onClick={clearFilters}
-                className="px-4 py-2 bg-[#4A6741] text-white rounded-lg hover:bg-[#3A5A3F] transition-colors text-sm"
+                className="px-3 xs:px-4 sm:px-4 py-1.5 xs:py-2 sm:py-2 bg-[#4A6741] text-white rounded-lg hover:bg-[#3A5A3F] transition-colors text-xs xs:text-sm sm:text-sm"
               >
                 Clear Filters
               </button>
@@ -277,10 +296,54 @@ function ClientListContent() {
           </div>
 
           {/* Clients Table */}
-          <div className="bg-[#2D4A32] rounded-2xl p-6">
-            <h2 className="text-white text-xl font-bold mb-6">All Clients</h2>
+          <div className="bg-[#2D4A32] rounded-2xl p-3 xs:p-4 sm:p-4 md:p-5 lg:p-6">
+            <h2 className="text-white text-base xs:text-lg sm:text-lg md:text-xl lg:text-xl font-bold mb-3 xs:mb-4 sm:mb-4 md:mb-5 lg:mb-6">All Clients</h2>
             
-            <div className="overflow-x-auto">
+            {/* Mobile Card View */}
+            <div className="lg:hidden space-y-3 xs:space-y-3 sm:space-y-4">
+              {filteredClients.length > 0 ? (
+                filteredClients.map((client) => (
+                  <div key={client.id} className="bg-[#4A6741] rounded-lg p-3 xs:p-4 sm:p-4 space-y-2 xs:space-y-3 sm:space-y-3">
+                    <div className="flex justify-between items-start">
+                      <div className="text-white font-medium text-sm xs:text-sm sm:text-sm">ID: {client.id}</div>
+                      <div className="flex flex-col space-y-1">
+                        <span className={`px-1.5 xs:px-2 sm:px-2 py-0.5 xs:py-1 sm:py-1 rounded-full text-xs ${getStatusBadgeStyle(client.kyc_status || 'Pending', 'kyc')}`}>
+                          {client.kyc_status || 'Pending'}
+                        </span>
+                        <span className={`px-1.5 xs:px-2 sm:px-2 py-0.5 xs:py-1 sm:py-1 rounded-full text-xs ${getStatusBadgeStyle(client.account_status || 'Active', 'account')}`}>
+                          {client.account_status || 'Active'}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="text-white text-xs xs:text-sm sm:text-sm">
+                      <div className="font-medium">{`${client.first_name || ''} ${client.last_name || ''}`.trim() || 'N/A'}</div>
+                      <div className="text-[#9BC5A9]">{client.email}</div>
+                      <div className="text-[#9BC5A9]">Registered: {formatDate(client.created_at)}</div>
+                      <div className="text-[#9BC5A9]">Type: {client.account_type || 'Demo'}</div>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5 xs:gap-2 sm:gap-2 pt-1.5 xs:pt-2 sm:pt-2">
+                      <button 
+                        className="text-[#9BC5A9] hover:text-white transition-colors px-2 xs:px-3 sm:px-3 py-1 xs:py-1 sm:py-1 bg-[#2D4A32] rounded hover:bg-[#3A5A3F] text-xs xs:text-sm sm:text-sm"
+                        onClick={() => router.push(`/admin/users/${client.id}/profile`)}
+                      >
+                        View
+                      </button>
+                      <button className="text-blue-400 hover:text-blue-300 transition-colors px-2 xs:px-3 sm:px-3 py-1 xs:py-1 sm:py-1 bg-blue-900/20 rounded hover:bg-blue-900/30 text-xs xs:text-sm sm:text-sm">
+                        Edit
+                      </button>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-6 xs:py-8 sm:py-8">
+                  <div className="text-[#9BC5A9] text-base xs:text-lg sm:text-lg mb-1.5 xs:mb-2 sm:mb-2">No clients found</div>
+                  <div className="text-[#9BC5A9]/70 text-xs xs:text-sm sm:text-sm">Try adjusting your search criteria</div>
+                </div>
+              )}
+            </div>
+
+            {/* Desktop Table View */}
+            <div className="hidden lg:block overflow-x-auto">
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-[#4A6741]">
