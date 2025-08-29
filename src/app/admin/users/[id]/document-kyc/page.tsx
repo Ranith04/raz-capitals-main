@@ -13,6 +13,7 @@ function DocumentKYCContent() {
   const router = useRouter();
   const params = useParams();
   const userId = params.id as string;
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   
   // State for user data
   const [user, setUser] = useState<EnhancedClientUser | null>(null);
@@ -32,6 +33,9 @@ function DocumentKYCContent() {
       fetchUserData();
     }
   }, [userId]);
+
+  const toggleMobileSidebar = () => setIsMobileSidebarOpen(!isMobileSidebarOpen);
+  const closeMobileSidebar = () => setIsMobileSidebarOpen(false);
 
   // Fetch enhanced user data from database
   const fetchUserData = async () => {
@@ -208,7 +212,7 @@ function DocumentKYCContent() {
   if (loading) {
     return (
       <div className="flex h-screen bg-[#9BC5A2] overflow-hidden">
-        <AdminSidebar currentPage="document-kyc" />
+        <AdminSidebar currentPage="document-kyc" isMobileOpen={isMobileSidebarOpen} onMobileClose={closeMobileSidebar} />
         <div className="flex-1 flex items-center justify-center">
           <div className="text-[#0A2E1D] text-xl">Loading user data...</div>
         </div>
@@ -219,7 +223,7 @@ function DocumentKYCContent() {
   if (error || !user) {
     return (
       <div className="flex h-screen bg-[#9BC5A2] overflow-hidden">
-        <AdminSidebar currentPage="document-kyc" />
+        <AdminSidebar currentPage="document-kyc" isMobileOpen={isMobileSidebarOpen} onMobileClose={closeMobileSidebar} />
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
             <div className="text-[#0A2E1D] text-xl mb-4">{error || 'User not found'}</div>
@@ -272,51 +276,38 @@ function DocumentKYCContent() {
   return (
     <div className="flex h-screen bg-[#9BC5A2] overflow-hidden">
       {/* Sidebar */}
-      <AdminSidebar currentPage="document-kyc" />
+      <AdminSidebar currentPage="document-kyc" isMobileOpen={isMobileSidebarOpen} onMobileClose={closeMobileSidebar} />
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col">
         {/* Header */}
-        <div className="bg-[#0A2E1D] p-4 flex justify-between items-center">
-          <div 
-            className="w-12 h-12 bg-[#2D4A32] rounded-lg flex items-center justify-center cursor-pointer hover:bg-[#3A5A3F] transition-all duration-300 hover:scale-110 hover:shadow-lg transform"
-            onClick={() => router.push('/admin/dashboard')}
-          >
-            <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
-          </div>
-          
-          <div className="flex items-center space-x-2">
-            <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center">
-              <span className="text-[#0A2E1D] font-bold text-sm">A</span>
-            </div>
-            <span className="text-white font-medium">Admin</span>
-            <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-            </svg>
-          </div>
-        </div>
+        <AdminHeader 
+          title="Document KYC"
+          showRefreshButton={false}
+          showBackButton={true}
+          backUrl="/admin/client-operations/new-client-list"
+          onMobileMenuToggle={toggleMobileSidebar}
+        />
 
         {/* Document KYC Content */}
-        <div className="flex-1 p-8 overflow-y-auto">
+        <div className="flex-1 p-2 xs:p-3 sm:p-4 md:p-6 lg:p-8 overflow-y-auto">
           {/* Navigation Tabs */}
-          <div className="mb-8">
-            <div className="flex space-x-1 bg-[#2D4A32] rounded-lg p-1">
+          <div className="mb-4 sm:mb-6 lg:mb-8">
+            <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-1 bg-[#2D4A32] rounded-lg p-1">
               <button 
-                className="px-6 py-3 text-[#9BC5A2] hover:text-white rounded-md font-medium transition-colors"
+                className="px-4 sm:px-6 py-2 sm:py-3 text-[#9BC5A2] hover:text-white rounded-md font-medium transition-colors text-sm sm:text-base"
                 onClick={() => router.push(`/admin/users/${userId}/profile`)}
               >
                 Profile
               </button>
               <button 
-                className="px-6 py-3 bg-[#4A6741] text-white rounded-md font-medium transition-colors"
+                className="px-4 sm:px-6 py-2 sm:py-3 bg-[#4A6741] text-white rounded-md font-medium transition-colors text-sm sm:text-base"
                 onClick={() => router.push(`/admin/users/${userId}/document-kyc`)}
               >
                 Document KYC
               </button>
               <button 
-                className="px-6 py-3 text-[#9BC5A2] hover:text-white rounded-md font-medium transition-colors"
+                className="px-4 sm:px-6 py-2 sm:py-3 text-[#9BC5A2] hover:text-white rounded-md font-medium transition-colors text-sm sm:text-base"
                 onClick={() => router.push(`/admin/users/${userId}/credit-bonus`)}
               >
                 Credit Bonus
@@ -325,20 +316,20 @@ function DocumentKYCContent() {
           </div>
 
           {/* User Information and Address Section */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 lg:gap-8 mb-6 sm:mb-8">
             {/* Left: User Information */}
-            <div className="bg-black rounded-2xl p-6">
-              <div className="flex items-center space-x-4">
-                <div className="w-16 h-16 bg-[#9BC5A2] rounded-full flex items-center justify-center">
-                  <svg className="w-8 h-8 text-[#0A2E1D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="bg-black rounded-2xl p-3 sm:p-4 md:p-6">
+              <div className="flex flex-col sm:flex-row sm:items-center space-y-3 sm:space-y-0 sm:space-x-4">
+                <div className="w-12 h-12 sm:w-16 sm:h-16 bg-[#9BC5A2] rounded-full flex items-center justify-center mx-auto sm:mx-0">
+                  <svg className="w-6 h-6 sm:w-8 sm:h-8 text-[#0A2E1D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                   </svg>
                 </div>
-                <div>
-                  <h3 className="text-white text-lg font-medium">
+                <div className="text-center sm:text-left">
+                  <h3 className="text-white text-base sm:text-lg font-medium">
                     {`${user.first_name || ''} ${user.last_name || ''}`.trim() || 'N/A'}
                   </h3>
-                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                  <span className={`px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-medium ${
                     user.status === 'verified' 
                       ? 'bg-green-500 text-white'
                       : user.status === 'pending'
@@ -352,26 +343,26 @@ function DocumentKYCContent() {
             </div>
 
             {/* Right: Address Section */}
-            <div className="bg-black rounded-2xl p-6">
-              <h3 className="text-white text-lg font-medium mb-4">Address</h3>
-              <div className="space-y-3">
-                <div className="flex justify-between">
-                  <span className="text-[#9BC5A2]">Country:</span>
-                  <span className="text-white">{user.country_of_birth || 'N/A'}</span>
+            <div className="bg-black rounded-2xl p-3 sm:p-4 md:p-6">
+              <h3 className="text-white text-base sm:text-lg font-medium mb-3 sm:mb-4">Address</h3>
+              <div className="space-y-2 sm:space-y-3">
+                <div className="flex flex-col sm:flex-row sm:justify-between">
+                  <span className="text-[#9BC5A2] text-sm">Country:</span>
+                  <span className="text-white text-sm">{user.country_of_birth || 'N/A'}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-[#9BC5A2]">Residential Address:</span>
-                  <span className="text-white">{user.residential_address || 'N/A'}</span>
+                <div className="flex flex-col sm:flex-row sm:justify-between">
+                  <span className="text-[#9BC5A2] text-sm">Residential Address:</span>
+                  <span className="text-white text-sm">{user.residential_address || 'N/A'}</span>
                 </div>
               </div>
             </div>
           </div>
 
           {/* Address Proof Verification / Documents Section */}
-          <div className="bg-black rounded-2xl p-6">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-white text-xl font-bold">Address Proof Verification</h2>
-              <div className="flex space-x-2">
+          <div className="bg-black rounded-2xl p-3 sm:p-4 md:p-6">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 sm:mb-6 space-y-3 sm:space-y-0">
+              <h2 className="text-white text-lg sm:text-xl font-bold">Address Proof Verification</h2>
+              <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
                 {(!user.status || user.status === 'pending') && (
                   <button 
                     onClick={async () => {
@@ -388,7 +379,7 @@ function DocumentKYCContent() {
                         alert('Error creating KYC documents');
                       }
                     }}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2"
+                    className="px-3 sm:px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center sm:justify-start space-x-2 text-sm sm:text-base"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
@@ -398,7 +389,7 @@ function DocumentKYCContent() {
                 )}
                 <button 
                   onClick={fetchUserData}
-                  className="px-4 py-2 bg-[#4A6741] text-white rounded-lg hover:bg-[#3A5A3F] transition-colors flex items-center space-x-2"
+                  className="px-3 sm:px-4 py-2 bg-[#4A6741] text-white rounded-lg hover:bg-[#3A5A3F] transition-colors flex items-center justify-center sm:justify-start space-x-2 text-sm sm:text-base"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -408,7 +399,101 @@ function DocumentKYCContent() {
               </div>
             </div>
             
-            <div className="overflow-x-auto">
+            {/* Mobile Card View */}
+            <div className="lg:hidden space-y-3">
+              {user.status && user.status !== 'pending' ? (
+                // Show verified/rejected status
+                <div className="bg-[#2D4A32] rounded-lg p-3 space-y-2">
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1">
+                      <div className="text-white font-medium text-sm">KYC Status</div>
+                      <div className="text-[#9BC5A2] text-xs">Overall Status</div>
+                    </div>
+                    <span className={`px-2 py-1 rounded-full text-xs ${
+                      user.status === 'verified' 
+                        ? 'bg-green-500/20 text-green-400'
+                        : user.status === 'rejected'
+                        ? 'bg-red-500/20 text-red-400'
+                        : 'bg-yellow-500/20 text-yellow-400'
+                    }`}>
+                      {user.status === 'verified' ? 'Verified' : user.status === 'rejected' ? 'Rejected' : 'Pending'}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div>
+                      <div className="text-[#9BC5A2]">Upload Date</div>
+                      <div className="text-white">{formatDate(user.created_at)}</div>
+                    </div>
+                    <div>
+                      <div className="text-[#9BC5A2]">Status</div>
+                      <div className="text-[#9BC5A2] text-xs">Status Updated</div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                // Fallback to default documents if no KYC documents found
+                <>
+                  <div className="bg-[#2D4A32] rounded-lg p-3 space-y-2">
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <div className="text-white font-medium text-sm">Id proof</div>
+                        <div className="text-[#9BC5A2] text-xs">ID Proof</div>
+                      </div>
+                      <span className={`px-2 py-1 rounded-full text-xs ${
+                        user.status === 'verified' 
+                          ? 'bg-green-500/20 text-green-400'
+                          : user.status === 'pending'
+                          ? 'bg-yellow-500/20 text-yellow-400'
+                          : 'bg-red-500/20 text-red-400'
+                      }`}>
+                        {user.status || 'pending'}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div>
+                        <div className="text-[#9BC5A2]">Upload Date</div>
+                        <div className="text-white">{formatDate(user.created_at)}</div>
+                      </div>
+                      <div>
+                        <div className="text-[#9BC5A2]">Actions</div>
+                        <div className="text-[#9BC5A2] text-xs">No actions available</div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="bg-[#2D4A32] rounded-lg p-3 space-y-2">
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <div className="text-white font-medium text-sm">Id proof</div>
+                        <div className="text-[#9BC5A2] text-xs">Address Proof</div>
+                      </div>
+                      <span className={`px-2 py-1 rounded-full text-xs ${
+                        user.status === 'verified' 
+                          ? 'bg-green-500/20 text-green-400'
+                          : user.status === 'pending'
+                          ? 'bg-yellow-500/20 text-yellow-400'
+                          : 'bg-red-500/20 text-red-400'
+                      }`}>
+                        {user.status || 'pending'}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div>
+                        <div className="text-[#9BC5A2]">Upload Date</div>
+                        <div className="text-white">{formatDate(user.created_at)}</div>
+                      </div>
+                      <div>
+                        <div className="text-[#9BC5A2]">Actions</div>
+                        <div className="text-[#9BC5A2] text-xs">No actions available</div>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Desktop Table View */}
+            <div className="hidden lg:block overflow-x-auto">
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-[#4A6741]">
@@ -509,19 +594,19 @@ function DocumentKYCContent() {
                   )}
                 </tbody>
               </table>
-              
-              {/* Change KYC Status Button */}
-              <div className="mt-6 flex justify-center">
-                <button 
-                  onClick={handleOpenKycDialog}
-                  className="px-6 py-3 bg-[#4A6741] text-white rounded-lg hover:bg-[#3A5A3F] transition-colors flex items-center space-x-2"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <span>Change KYC Status</span>
-                </button>
-              </div>
+            </div>
+            
+            {/* Change KYC Status Button */}
+            <div className="mt-4 sm:mt-6 flex justify-center">
+              <button 
+                onClick={handleOpenKycDialog}
+                className="w-full sm:w-auto px-4 sm:px-6 py-2 sm:py-3 bg-[#4A6741] text-white rounded-lg hover:bg-[#3A5A3F] transition-colors flex items-center justify-center space-x-2 text-sm sm:text-base"
+              >
+                <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span>Change KYC Status</span>
+              </button>
             </div>
           </div>
         </div>
@@ -529,17 +614,17 @@ function DocumentKYCContent() {
 
       {/* KYC Status Update Dialog */}
       {showKycDialog && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-[#2D4A32] rounded-2xl p-8 max-w-md w-full mx-4">
-            <h3 className="text-white text-xl font-bold mb-6">Update KYC Status</h3>
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-[#2D4A32] rounded-2xl p-4 sm:p-6 md:p-8 max-w-md w-full mx-4">
+            <h3 className="text-white text-lg sm:text-xl font-bold mb-4 sm:mb-6">Update KYC Status</h3>
             
-            <div className="space-y-4">
+            <div className="space-y-3 sm:space-y-4">
               <div>
                 <label className="text-[#9BC5A2] text-sm font-medium mb-2 block">KYC Status</label>
                 <select
                   value={kycStatus}
                   onChange={(e) => setKycStatus(e.target.value as 'pending' | 'verified' | 'rejected' | '')}
-                  className="w-full px-4 py-2 bg-[#4A6741] text-white rounded-lg border border-[#9BC5A2] focus:outline-none focus:ring-2 focus:ring-[#9BC5A2]"
+                  className="w-full px-3 sm:px-4 py-2 bg-[#4A6741] text-white rounded-lg border border-[#9BC5A2] focus:outline-none focus:ring-2 focus:ring-[#9BC5A2] text-sm sm:text-base"
                 >
                   <option value="">Select Status</option>
                   <option value="pending">Pending</option>
@@ -555,12 +640,12 @@ function DocumentKYCContent() {
                   onChange={(e) => setApprovalComments(e.target.value)}
                   placeholder="Enter approval comments..."
                   rows={3}
-                  className="w-full px-4 py-2 bg-[#4A6741] text-white rounded-lg border border-[#9BC5A2] focus:outline-none focus:ring-2 focus:ring-[#9BC5A2] resize-none"
+                  className="w-full px-3 sm:px-4 py-2 bg-[#4A6741] text-white rounded-lg border border-[#9BC5A2] focus:outline-none focus:ring-2 focus:ring-[#9BC5A2] resize-none text-sm sm:text-base"
                 />
               </div>
             </div>
             
-            <div className="flex space-x-3 mt-6">
+            <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3 mt-4 sm:mt-6">
               <button
                 onClick={() => {
                   setShowKycDialog(false);
@@ -568,7 +653,7 @@ function DocumentKYCContent() {
                   setKycStatus((user?.status as 'pending' | 'verified' | 'rejected') || 'pending');
                   setApprovalComments('');
                 }}
-                className="flex-1 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+                className="flex-1 px-3 sm:px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors text-sm sm:text-base"
                 disabled={updatingKyc}
               >
                 Cancel
@@ -576,7 +661,7 @@ function DocumentKYCContent() {
               <button
                 onClick={handleKycStatusUpdate}
                 disabled={!kycStatus.trim() || updatingKyc}
-                className="flex-1 px-4 py-2 bg-[#4A6741] text-white rounded-lg hover:bg-[#3A5A3F] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-1 px-3 sm:px-4 py-2 bg-[#4A6741] text-white rounded-lg hover:bg-[#3A5A3F] transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
               >
                 {updatingKyc ? 'Updating...' : 'Update Status'}
               </button>
