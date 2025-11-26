@@ -18,26 +18,38 @@ export async function authenticateAdmin(email: string, password: string): Promis
   try {
     console.log('🔐 Admin authentication attempt:', { email, password: '***' });
     
-    // For admin emails, accept any password for now
-    // This makes testing easier and allows any password to work
-    if (isAdminEmail(email)) {
-      console.log('✅ Admin email detected, accepting any password for testing');
+    // Only allow specific admin credentials
+    const ADMIN_EMAIL = 'admin@razcapitals.com';
+    const ADMIN_PASSWORD = 'Admin@123';
+    
+    // Check for exact admin credentials match
+    if (email.toLowerCase() === ADMIN_EMAIL.toLowerCase() && password === ADMIN_PASSWORD) {
+      console.log('✅ Valid admin credentials detected');
       
-      // Create a mock admin user for any admin email
-      const mockAdmin: AdminUser = {
+      // Create admin user with exact credentials
+      const adminUser: AdminUser = {
         id: 1,
-        email: email,
-        fullname: email.includes('admin') ? 'System Administrator' : 'Admin User',
+        email: ADMIN_EMAIL,
+        fullname: 'System Administrator',
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       };
 
-      console.log('👤 Mock admin user created:', { id: mockAdmin.id, email: mockAdmin.email, fullname: mockAdmin.fullname });
+      console.log('👤 Admin user authenticated:', { id: adminUser.id, email: adminUser.email, fullname: adminUser.fullname });
 
       return {
         success: true,
-        user: mockAdmin,
+        user: adminUser,
         message: 'Admin authentication successful'
+      };
+    }
+    
+    // If admin email but wrong password, reject immediately
+    if (isAdminEmail(email)) {
+      console.log('❌ Admin email detected but invalid password');
+      return {
+        success: false,
+        message: 'Invalid admin credentials. Please check your email and password.'
       };
     }
 
@@ -86,31 +98,11 @@ export async function authenticateAdmin(email: string, password: string): Promis
     } catch (tableError) {
       console.error('❌ Admin table access error:', tableError);
       
-      // If admin table doesn't exist, fall back to mock admin for admin emails
-      if (isAdminEmail(email)) {
-        console.log('🔄 Falling back to mock admin for admin email');
-        
-        const mockAdmin: AdminUser = {
-          id: 1,
-          email: email,
-          fullname: email.includes('admin') ? 'System Administrator' : 'Admin User',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        };
-
-        console.log('👤 Mock admin user created (fallback):', { id: mockAdmin.id, email: mockAdmin.email });
-
-        return {
-          success: true,
-          user: mockAdmin,
-          message: 'Admin authentication successful (mock)'
-        };
-      }
-      
-      console.log('❌ No fallback available for non-admin email');
+      // No fallback - only exact credentials are allowed
+      console.log('❌ Admin authentication failed - database error');
       return {
         success: false,
-        message: 'Admin authentication failed. Please try again.'
+        message: 'Admin authentication failed. Please check your credentials and try again.'
       };
     }
   } catch (error) {
