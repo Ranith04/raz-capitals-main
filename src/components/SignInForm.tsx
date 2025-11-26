@@ -8,7 +8,7 @@ import { useState } from 'react';
 
 export default function SignInForm() {
   const [loginMethod, setLoginMethod] = useState<'email' | 'trading'>('email');
-  const [email, setEmail] = useState('admin@razcapitals.com');
+  const [email, setEmail] = useState('');
   const [tradingId, setTradingId] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -470,12 +470,6 @@ export default function SignInForm() {
         </p>
       </div>
 
-      {/* Testing Note */}
-      <div className="mt-4 text-center">
-        <p className="text-xs text-gray-500">
-          💡 <strong>Testing:</strong> Any password will work for admin@razcapitals.com
-        </p>
-      </div>
     </div>
   );
 }

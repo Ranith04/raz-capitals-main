@@ -1,8 +1,10 @@
 'use client';
 
-import { NavItem } from '@/types';
+import Image from 'next/image';
 import Link from 'next/link';
 import { useState } from 'react';
+
+import { NavItem } from '@/types';
 
 const navItems: NavItem[] = [
   { label: 'Home', href: '/' },
@@ -28,11 +30,16 @@ export default function Navbar() {
         <div className="flex justify-between items-center h-full">
           {/* Logo */}
           <div className="flex-shrink-0">
-            <Link href="/" className="flex items-center space-x-2">
-              <div className="w-8 h-8 bg-[#A0C8A9] rounded-lg flex items-center justify-center">
-                <span className="text-[#1E2E23] font-bold text-lg">R</span>
-              </div>
-              <span className="text-xl font-bold text-white">RAZ CAPITALS</span>
+            <Link href="/" className="flex items-center">
+              <Image
+                src="/logo/raz-capitals-logo.png"
+                alt="Raz Capitals"
+                width={170}
+                height={63}
+                priority
+                className="h-12 w-auto"
+              />
+              <span className="sr-only">Raz Capitals</span>
             </Link>
           </div>
 
