@@ -170,7 +170,7 @@ export default function TradingAccounts() {
 
         {/* Features Guarantee */}
         <div className="text-center">
-          <p className="text-[#C4CEC1] text-sm mb-4">✓ 30-day money-back guarantee</p>
+          <p className="text-[#C4CEC1] text-sm mb-4">Trusted by thousands of traders worldwide</p>
           <div className="flex justify-center space-x-8 text-[#C4CEC1]">
             <div className="flex items-center space-x-2">
               <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
