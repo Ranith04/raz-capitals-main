@@ -1,5 +1,6 @@
 'use client';
 
+import AuthShell from '@/components/AuthShell';
 import { supabase } from '@/lib/supabaseClient';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -228,23 +229,13 @@ export default function SignUpSuccess() {
 
   if (isCreatingAccount) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden" style={{ backgroundColor: '#0A2E1D' }}>
-        {/* Background decorative elements */}
-        <div className="absolute inset-0">
-          <div className="absolute top-20 left-20 w-32 h-32 rounded-full border" style={{ borderColor: 'rgba(160, 200, 169, 0.3)' }}></div>
-          <div className="absolute bottom-20 left-20 w-24 h-24 rounded-full border" style={{ borderColor: 'rgba(160, 200, 169, 0.2)' }}></div>
-          <div className="absolute bottom-32 right-32 w-40 h-40 rounded-full border" style={{ borderColor: 'rgba(160, 200, 169, 0.25)' }}></div>
+      <AuthShell>
+        <div className="bg-white rounded-2xl p-8 shadow-2xl text-center">
+          <div className="animate-spin w-16 h-16 border-4 border-green-500 border-t-transparent rounded-full mx-auto mb-6"></div>
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Creating Your Trading Account</h2>
+          <p className="text-gray-600">Please wait while we set up your trading credentials...</p>
         </div>
-
-        {/* Loading Card */}
-        <div className="relative z-10 w-full max-w-md">
-          <div className="bg-white rounded-2xl p-8 shadow-2xl text-center">
-            <div className="animate-spin w-16 h-16 border-4 border-green-500 border-t-transparent rounded-full mx-auto mb-6"></div>
-            <h2 className="text-xl font-semibold text-gray-900 mb-2">Creating Your Trading Account</h2>
-            <p className="text-gray-600">Please wait while we set up your trading credentials...</p>
-          </div>
-        </div>
-      </div>
+      </AuthShell>
     );
   }
 
@@ -253,17 +244,9 @@ export default function SignUpSuccess() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden" style={{ backgroundColor: '#0A2E1D' }}>
-      {/* Background decorative elements */}
-      <div className="absolute inset-0">
-        <div className="absolute top-20 left-20 w-32 h-32 rounded-full border" style={{ borderColor: 'rgba(160, 200, 169, 0.3)' }}></div>
-        <div className="absolute bottom-20 left-20 w-24 h-24 rounded-full border" style={{ borderColor: 'rgba(160, 200, 169, 0.2)' }}></div>
-        <div className="absolute bottom-32 right-32 w-40 h-40 rounded-full border" style={{ borderColor: 'rgba(160, 200, 169, 0.25)' }}></div>
-      </div>
-
+    <AuthShell>
       {/* Success Card - Exact match to mobile design */}
-      <div className="relative z-10 w-full max-w-md">
-        <div className="bg-white rounded-2xl p-8 shadow-2xl">
+      <div className="bg-white rounded-2xl p-8 shadow-2xl">
           {/* Success Icon - Large square green with white checkmark */}
           <div className="flex justify-center mb-6">
             <div className="w-16 h-16 bg-green-500 rounded-lg flex items-center justify-center">
@@ -365,8 +348,7 @@ export default function SignUpSuccess() {
           >
             Proceed to Login
           </button>
-        </div>
       </div>
-    </div>
+    </AuthShell>
   );
 }
