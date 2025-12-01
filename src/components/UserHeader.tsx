@@ -2,6 +2,7 @@
 
 import UserInitial from '@/components/UserInitial';
 import UserName from '@/components/UserName';
+import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 interface UserHeaderProps {
@@ -14,9 +15,8 @@ interface UserHeaderProps {
 export default function UserHeader({ 
   sidebarOpen, 
   setSidebarOpen, 
-  darkMode = true, 
-  setDarkMode 
 }: UserHeaderProps) {
+  const router = useRouter();
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
 
@@ -38,13 +38,6 @@ export default function UserHeader({
       });
     } else {
       document.exitFullscreen();
-    }
-  };
-
-  // Toggle dark mode
-  const toggleDarkMode = () => {
-    if (setDarkMode) {
-      setDarkMode(!darkMode);
     }
   };
 
@@ -74,17 +67,6 @@ export default function UserHeader({
           <UserName fallback="User" />
         </h1>
         <div className="flex items-center space-x-4">
-          {/* Dark/Light Mode Toggle */}
-          <button 
-            onClick={toggleDarkMode}
-            className="text-white hover:text-gray-300 p-2 transition-colors"
-            title={darkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
-            </svg>
-          </button>
-
           {/* Full Screen Toggle */}
           <button 
             onClick={toggleFullscreen}
@@ -97,7 +79,11 @@ export default function UserHeader({
           </button>
 
           {/* Notification Bell */}
-          <button className="text-white hover:text-gray-300 p-2 transition-colors relative">
+          <button 
+            onClick={() => router.push('/dashboard/notifications')}
+            className="text-white hover:text-gray-300 p-2 transition-colors relative"
+            title="View notifications"
+          >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
             </svg>
