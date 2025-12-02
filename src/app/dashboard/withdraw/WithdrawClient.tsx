@@ -1,6 +1,7 @@
 'use client';
 
 import UserHeader from '@/components/UserHeader';
+import Image from 'next/image';
 import { useState } from 'react';
 
 export default function WithdrawClient() {
@@ -22,11 +23,15 @@ export default function WithdrawClient() {
         sidebarOpen ? 'translate-x-0' : '-translate-x-full'
       }`}>
         <div className={`p-6 border-b ${darkMode ? 'border-[#A0C8A9]/20' : 'border-gray-200'}`}>
-          <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 bg-[#A0C8A9] rounded-lg flex items-center justify-center">
-              <span className="text-[#1E2E23] font-bold text-lg">R</span>
-            </div>
-            <span className={`font-bold text-lg ${darkMode ? 'text-white' : 'text-gray-900'}`}>RAZ CAPITALS</span>
+          <div className="flex items-center">
+            <Image
+              src="/logo/raz-capitals-logo.png"
+              alt="RAZ CAPITALS"
+              width={170}
+              height={63}
+              priority
+              className="h-14 w-auto"
+            />
           </div>
         </div>
 

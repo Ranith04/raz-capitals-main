@@ -6,9 +6,12 @@ import UserBalanceDetails from '@/components/UserBalanceDetails';
 import UserHeader from '@/components/UserHeader';
 import { useDashboardMetrics } from '@/hooks/useDashboardMetrics';
 import { useUserTradingAccountCounts } from '@/hooks/useUserTradingAccountCounts';
+import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { useState } from 'react';
 
 export default function DashboardClient() {
+  const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [darkMode, setDarkMode] = useState(true);
   const { metrics } = useDashboardMetrics();
@@ -30,11 +33,15 @@ export default function DashboardClient() {
       }`}>
         {/* Logo */}
         <div className={`p-6 border-b ${darkMode ? 'border-[#A0C8A9]/20' : 'border-gray-200'}`}>
-          <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 bg-[#A0C8A9] rounded-lg flex items-center justify-center">
-              <span className="text-[#1E2E23] font-bold text-lg">R</span>
-            </div>
-            <span className={`font-bold text-lg ${darkMode ? 'text-white' : 'text-gray-900'}`}>RAZ CAPITALS</span>
+          <div className="flex items-center">
+            <Image
+              src="/logo/raz-capitals-logo.png"
+              alt="RAZ CAPITALS"
+              width={170}
+              height={63}
+              priority
+              className="h-14 w-auto"
+            />
           </div>
         </div>
 
@@ -132,7 +139,10 @@ export default function DashboardClient() {
 
           {/* Action Buttons */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
-            <button className={`${darkMode ? 'bg-[#2D4A35] hover:bg-[#3A5642] text-white' : 'bg-white hover:bg-gray-50 text-gray-900 border border-gray-200'} rounded-lg p-4 sm:p-6 transition-colors duration-200 flex flex-col items-center`}>
+            <button 
+              onClick={() => router.push('/dashboard/deposit')}
+              className={`${darkMode ? 'bg-[#2D4A35] hover:bg-[#3A5642] text-white' : 'bg-white hover:bg-gray-50 text-gray-900 border border-gray-200'} rounded-lg p-4 sm:p-6 transition-colors duration-200 flex flex-col items-center cursor-pointer`}
+            >
               <div className="w-10 h-10 sm:w-12 sm:h-12 bg-[#A0C8A9] rounded-full flex items-center justify-center mb-2 sm:mb-3">
                 <svg className="w-5 h-5 sm:w-6 sm:h-6 text-[#1E2E23]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
@@ -141,7 +151,10 @@ export default function DashboardClient() {
               <span className="text-xs sm:text-sm font-medium">Deposit</span>
             </button>
             
-            <button className={`${darkMode ? 'bg-[#2D4A35] hover:bg-[#3A5642] text-white' : 'bg-white hover:bg-gray-50 text-gray-900 border border-gray-200'} rounded-lg p-4 sm:p-6 transition-colors duration-200 flex flex-col items-center`}>
+            <button 
+              onClick={() => router.push('/dashboard/withdraw')}
+              className={`${darkMode ? 'bg-[#2D4A35] hover:bg-[#3A5642] text-white' : 'bg-white hover:bg-gray-50 text-gray-900 border border-gray-200'} rounded-lg p-4 sm:p-6 transition-colors duration-200 flex flex-col items-center cursor-pointer`}
+            >
               <div className="w-10 h-10 sm:w-12 sm:h-12 bg-[#A0C8A9] rounded-full flex items-center justify-center mb-2 sm:mb-3">
                 <svg className="w-5 h-5 sm:w-6 sm:h-6 text-[#1E2E23]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
@@ -150,7 +163,10 @@ export default function DashboardClient() {
               <span className="text-xs sm:text-sm font-medium">Withdraw</span>
             </button>
             
-            <button className={`${darkMode ? 'bg-[#2D4A35] hover:bg-[#3A5642] text-white' : 'bg-white hover:bg-gray-50 text-gray-900 border border-gray-200'} rounded-lg p-4 sm:p-6 transition-colors duration-200 flex flex-col items-center`}>
+            <button 
+              onClick={() => router.push('/dashboard/transfer')}
+              className={`${darkMode ? 'bg-[#2D4A35] hover:bg-[#3A5642] text-white' : 'bg-white hover:bg-gray-50 text-gray-900 border border-gray-200'} rounded-lg p-4 sm:p-6 transition-colors duration-200 flex flex-col items-center cursor-pointer`}
+            >
               <div className="w-10 h-10 sm:w-12 sm:h-12 bg-[#A0C8A9] rounded-full flex items-center justify-center mb-2 sm:mb-3">
                 <svg className="w-5 h-5 sm:w-6 sm:h-6 text-[#1E2E23]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
@@ -159,7 +175,10 @@ export default function DashboardClient() {
               <span className="text-xs sm:text-sm font-medium">Transfer</span>
             </button>
             
-            <button className={`${darkMode ? 'bg-[#2D4A35] hover:bg-[#3A5642] text-white' : 'bg-white hover:bg-gray-50 text-gray-900 border border-gray-200'} rounded-lg p-4 sm:p-6 transition-colors duration-200 flex flex-col items-center`}>
+            <button 
+              onClick={() => router.push('/dashboard/my-accounts')}
+              className={`${darkMode ? 'bg-[#2D4A35] hover:bg-[#3A5642] text-white' : 'bg-white hover:bg-gray-50 text-gray-900 border border-gray-200'} rounded-lg p-4 sm:p-6 transition-colors duration-200 flex flex-col items-center cursor-pointer`}
+            >
               <div className="w-10 h-10 sm:w-12 sm:h-12 bg-[#A0C8A9] rounded-full flex items-center justify-center mb-2 sm:mb-3">
                 <svg className="w-5 h-5 sm:w-6 sm:h-6 text-[#1E2E23]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -168,7 +187,10 @@ export default function DashboardClient() {
               <span className="text-xs sm:text-sm font-medium">Accounts</span>
             </button>
             
-            <button className={`${darkMode ? 'bg-[#2D4A35] hover:bg-[#3A5642] text-white' : 'bg-white hover:bg-gray-50 text-gray-900 border border-gray-200'} rounded-lg p-4 sm:p-6 transition-colors duration-200 flex flex-col items-center sm:col-span-3 lg:col-span-1 relative`}>
+            <button 
+              onClick={() => router.push('/dashboard/settings/kyc')}
+              className={`${darkMode ? 'bg-[#2D4A35] hover:bg-[#3A5642] text-white' : 'bg-white hover:bg-gray-50 text-gray-900 border border-gray-200'} rounded-lg p-4 sm:p-6 transition-colors duration-200 flex flex-col items-center sm:col-span-3 lg:col-span-1 relative cursor-pointer`}
+            >
               <div className="w-10 h-10 sm:w-12 sm:h-12 bg-[#A0C8A9] rounded-full flex items-center justify-center mb-2 sm:mb-3">
                 <svg className="w-5 h-5 sm:w-6 sm:h-6 text-[#1E2E23]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />

@@ -1,4 +1,5 @@
 import { Metadata } from 'next';
+import Image from 'next/image';
 
 export const metadata: Metadata = {
   title: 'Accounts History - RAZ CAPITALS',
@@ -11,11 +12,15 @@ export default function AccountsPage() {
       {/* Sidebar */}
       <div className="w-64 bg-[#0F1B14] border-r border-[#A0C8A9]/20 flex flex-col">
         <div className="p-6 border-b border-[#A0C8A9]/20">
-          <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 bg-[#A0C8A9] rounded-lg flex items-center justify-center">
-              <span className="text-[#1E2E23] font-bold text-lg">R</span>
-            </div>
-            <span className="text-white font-bold text-lg">RAZ CAPITALS</span>
+          <div className="flex items-center">
+            <Image
+              src="/logo/raz-capitals-logo.png"
+              alt="RAZ CAPITALS"
+              width={170}
+              height={63}
+              priority
+              className="h-14 w-auto"
+            />
           </div>
         </div>
 
