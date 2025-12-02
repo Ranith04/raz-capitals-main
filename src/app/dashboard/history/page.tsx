@@ -2,96 +2,422 @@
 
 import UserHeader from '@/components/UserHeader';
 import Image from 'next/image';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { supabase } from '@/lib/supabaseClient';
+import { getCurrentUser } from '@/utils/auth';
+import { TradingAccount } from '@/types';
+
+interface TransactionHistoryItem {
+  id: string;
+  date: string;
+  type: string;
+  description: string;
+  account: string;
+  amount: string;
+  status: string;
+  amountType: 'positive' | 'negative' | 'neutral';
+  rawDate: string;
+  accountUid?: string; // Store account_uid for filtering
+}
 
 export default function HistoryPage() {
   const [activeTab, setActiveTab] = useState('transactions');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [darkMode, setDarkMode] = useState(true);
+  const [transactions, setTransactions] = useState<TransactionHistoryItem[]>([]);
+  const [accounts, setAccounts] = useState<TradingAccount[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  
+  // Filters
+  const [daysFilter, setDaysFilter] = useState<string>('all');
+  const [typeFilter, setTypeFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [accountFilter, setAccountFilter] = useState<string>('all');
 
-  const transactions = [
-    {
-      date: 'Dec 18, 2024 2:30 PM',
-      type: 'Deposit',
-      description: 'Credit Card Deposit',
-      account: 'Standard Account',
-      amount: '+$5,000.00',
-      status: 'Completed',
-      amountType: 'positive'
-    },
-    {
-      date: 'Dec 17, 2024 4:15 PM',
-      type: 'Trade',
-      description: 'Buy EUR/USD',
-      account: 'Pro Account',
-      amount: '+$1,250.00',
-      status: 'Completed',
-      amountType: 'positive'
-    },
-    {
-      date: 'Dec 16, 2024 1:45 PM',
-      type: 'Transfer',
-      description: 'Internal Transfer',
-      account: 'USD Wallet → Pro Account',
-      amount: '$10,000.00',
-      status: 'Completed',
-      amountType: 'neutral'
-    },
-    {
-      date: 'Dec 15, 2024 11:20 AM',
-      type: 'Withdrawal',
-      description: 'Bank Transfer',
-      account: 'Standard Account',
-      amount: '-$2,500.00',
-      status: 'Processing',
-      amountType: 'negative'
-    },
-    {
-      date: 'Dec 14, 2024 3:30 PM',
-      type: 'Trade',
-      description: 'Sell GBP/USD',
-      account: 'Pro Account',
-      amount: '-$890.00',
-      status: 'Completed',
-      amountType: 'negative'
-    },
-    {
-      date: 'Dec 13, 2024 9:15 AM',
-      type: 'Copy Trade',
-      description: 'Following Sarah Kim',
-      account: 'Standard Account',
-      amount: '+$420.00',
-      status: 'Completed',
-      amountType: 'positive'
-    }
-  ];
+  useEffect(() => {
+    fetchUserData();
+  }, []);
 
-  const accounts = [
-    {
-      accountNumber: 'ACC-001',
-      accountType: 'Standard Trading Account',
-      balance: '$25,000.00',
-      currency: 'USD',
-      status: 'Active',
-      lastActivity: 'Dec 18, 2024'
-    },
-    {
-      accountNumber: 'ACC-002',
-      accountType: 'Pro Trading Account',
-      balance: '$50,000.00',
-      currency: 'USD',
-      status: 'Active',
-      lastActivity: 'Dec 17, 2024'
-    },
-    {
-      accountNumber: 'ACC-003',
-      accountType: 'USD Wallet',
-      balance: '$15,000.00',
-      currency: 'USD',
-      status: 'Active',
-      lastActivity: 'Dec 16, 2024'
+  useEffect(() => {
+    if (accounts.length > 0) {
+      fetchTransactions();
     }
-  ];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [daysFilter, typeFilter, statusFilter, accountFilter, accounts.length]);
+
+  const fetchUserData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Get user ID
+      let userId: string | null = null;
+      
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (authUser) {
+        userId = authUser.id;
+      } else {
+        const sessionUser = getCurrentUser();
+        if (sessionUser?.id) {
+          userId = sessionUser.id;
+          
+          if (!userId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+            const { data: userData, error: userError } = await supabase
+              .from('users')
+              .select('user_uuid')
+              .eq('email', sessionUser.email)
+              .single();
+            
+            if (!userError && userData?.user_uuid) {
+              userId = userData.user_uuid;
+            }
+          }
+        }
+      }
+
+      if (!userId) {
+        setError('No user session found. Please log in again.');
+        setLoading(false);
+        return;
+      }
+
+      // Fetch user's trading accounts
+      const { data: tradingAccounts, error: accountsError } = await supabase
+        .from('tradingAccounts')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false });
+
+      if (accountsError) {
+        console.error('Error fetching trading accounts:', accountsError);
+        setError('Failed to fetch accounts. Please try again.');
+        setLoading(false);
+        return;
+      }
+
+      if (tradingAccounts && tradingAccounts.length > 0) {
+        const transformedAccounts: TradingAccount[] = tradingAccounts.map((account: any) => ({
+          id: account.id,
+          account_uid: account.account_uid,
+          account_password: account.account_password,
+          levarage: account.levarage || 0,
+          balance: account.balance || 0,
+          currency: account.currency || 'USD',
+          status: account.status || 'active',
+          created_at: account.created_at,
+          free_margin: account.free_margin || 0,
+          equity: account.equity || account.balance || 0,
+          user_id: account.user_id,
+          margin: account.margin || 0,
+          watchlist: account.watchlist || [],
+          account_type: account.account_type || 'standard',
+        }));
+
+        setAccounts(transformedAccounts);
+      } else {
+        setAccounts([]);
+      }
+    } catch (err) {
+      console.error('Exception while fetching data:', err);
+      setError('An unexpected error occurred. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchTransactions = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      if (accounts.length === 0) {
+        setTransactions([]);
+        setLoading(false);
+        return;
+      }
+
+      const accountUids = accounts.map(acc => acc.account_uid);
+      
+      // Build date filter
+      let dateFilter: Date | null = null;
+      if (daysFilter !== 'all') {
+        const days = parseInt(daysFilter);
+        if (!isNaN(days)) {
+          dateFilter = new Date();
+          dateFilter.setDate(dateFilter.getDate() - days);
+        }
+      }
+
+      // Determine which account UIDs to use for filtering
+      const filteredAccountUids = accountFilter !== 'all' 
+        ? [accountFilter] 
+        : accountUids;
+
+      // Fetch transactions (only if typeFilter allows it)
+      let allTransactions: TransactionHistoryItem[] = [];
+
+      // Only fetch transactions if typeFilter is 'all' or matches transaction types
+      if (typeFilter === 'all' || typeFilter === 'deposit' || typeFilter === 'withdrawal' || typeFilter === 'transfer') {
+        let query = supabase
+          .from('transactions')
+          .select('*')
+          .in('account_id', filteredAccountUids)
+          .order('created_at', { ascending: false });
+
+        // Apply type filter (typeFilter is already lowercase from dropdown)
+        if (typeFilter !== 'all') {
+          query = query.eq('type', typeFilter);
+        }
+
+        // Apply status filter (statusFilter is already lowercase from dropdown)
+        if (statusFilter !== 'all') {
+          query = query.eq('status', statusFilter);
+        }
+
+        // Apply date filter
+        if (dateFilter) {
+          query = query.gte('created_at', dateFilter.toISOString());
+        }
+
+        const { data: transactionsData, error: transactionsError } = await query;
+
+        if (transactionsError) {
+          console.error('Error fetching transactions:', transactionsError);
+        } else if (transactionsData) {
+          // Transform transactions for display
+          const transformedTransactions: TransactionHistoryItem[] = transactionsData.map((tx: any) => {
+            const account = accounts.find(acc => acc.account_uid === tx.account_id);
+            const accountName = account ? formatAccountType(account.account_type) : `Account ${tx.account_uid}`;
+            
+            let description = tx.transaction_comments || '';
+            if (!description) {
+              if (tx.type === 'deposit') {
+                description = tx.mode_of_payment ? `${formatPaymentMethod(tx.mode_of_payment)} Deposit` : 'Deposit';
+              } else if (tx.type === 'withdrawal') {
+                description = tx.mode_of_payment ? `${formatPaymentMethod(tx.mode_of_payment)} Withdrawal` : 'Withdrawal';
+              } else if (tx.type === 'transfer') {
+                const toAccount = accounts.find(acc => acc.account_uid === tx.to_account_id);
+                description = toAccount 
+                  ? `Transfer to ${formatAccountType(toAccount.account_type)}`
+                  : 'Transfer';
+              }
+            }
+
+            let amountType: 'positive' | 'negative' | 'neutral' = 'neutral';
+            let amountDisplay = formatCurrency(tx.amount || 0, tx.currency || 'USD');
+            
+            if (tx.type === 'deposit') {
+              amountType = 'positive';
+              amountDisplay = '+' + amountDisplay;
+            } else if (tx.type === 'withdrawal') {
+              amountType = 'negative';
+              amountDisplay = '-' + amountDisplay;
+            } else if (tx.type === 'transfer') {
+              // For transfers, show neutral (no + or -)
+              amountType = 'neutral';
+            }
+
+            return {
+              id: `tx-${tx.id}`,
+              date: formatDate(tx.created_at),
+              type: capitalizeFirst(tx.type || 'Transaction'),
+              description,
+              account: accountName,
+              amount: amountDisplay,
+              status: capitalizeFirst(tx.status || 'pending'),
+              amountType,
+              rawDate: tx.created_at,
+              accountUid: tx.account_id, // Store account_uid for filtering
+            };
+          });
+
+          allTransactions.push(...transformedTransactions);
+        }
+      }
+
+      // Fetch trades only if typeFilter is 'all' or 'trade'
+      if (typeFilter === 'all' || typeFilter === 'trade') {
+        try {
+          let tradesQuery = supabase
+            .from('trades')
+            .select('*')
+            .in('account_id', filteredAccountUids)
+            .order('created_at', { ascending: false })
+            .limit(100);
+
+          // Note: Date filtering for trades will be done client-side since trades table
+          // might have different date field names (created_at, close_time, open_time)
+
+          const { data: tradesData, error: tradesError } = await tradesQuery;
+
+          if (!tradesError && tradesData) {
+            const tradeTransactions: TransactionHistoryItem[] = tradesData
+              .map((trade: any) => {
+                const account = accounts.find(acc => acc.account_uid === trade.account_id);
+                const accountName = account ? formatAccountType(account.account_type) : `Account ${trade.account_id}`;
+                
+                const description = trade.instrument 
+                  ? `${trade.type === 'buy' ? 'Buy' : 'Sell'} ${trade.instrument}`
+                  : `${trade.type === 'buy' ? 'Buy' : 'Sell'} Trade`;
+                
+                const profit = trade.profit || trade.pnl || 0;
+                const amountType: 'positive' | 'negative' | 'neutral' = profit >= 0 ? 'positive' : 'negative';
+                const amountDisplay = (profit >= 0 ? '+' : '') + formatCurrency(Math.abs(profit), trade.currency || 'USD');
+
+                const tradeStatus = trade.status === 'closed' ? 'Completed' : capitalizeFirst(trade.status || 'Open');
+                const tradeDate = trade.created_at || trade.close_time || trade.open_time;
+
+                return {
+                  id: `trade-${trade.id}`,
+                  date: formatDate(tradeDate),
+                  type: 'Trade',
+                  description,
+                  account: accountName,
+                  amount: amountDisplay,
+                  status: tradeStatus,
+                  amountType,
+                  rawDate: tradeDate,
+                  accountUid: trade.account_id, // Store account_uid for filtering
+                };
+              })
+              // Apply status filter to trades client-side
+              .filter((trade) => {
+                if (statusFilter === 'all') return true;
+                const tradeStatusLower = trade.status.toLowerCase();
+                const filterStatusLower = statusFilter.toLowerCase();
+                
+                // Map trade statuses to filter statuses
+                if (filterStatusLower === 'completed') {
+                  return tradeStatusLower === 'completed' || tradeStatusLower === 'closed';
+                }
+                if (filterStatusLower === 'pending' || filterStatusLower === 'processing') {
+                  return tradeStatusLower === 'pending' || tradeStatusLower === 'processing' || tradeStatusLower === 'open';
+                }
+                return tradeStatusLower === filterStatusLower;
+              })
+              // Apply account filter to trades client-side (double-check)
+              .filter((trade) => {
+                if (accountFilter === 'all') return true;
+                return trade.accountUid === accountFilter;
+              });
+
+            allTransactions.push(...tradeTransactions);
+          }
+        } catch (err) {
+          // Trades table might not exist, that's okay
+          console.log('Trades table not available or error fetching:', err);
+        }
+      }
+
+      // Apply client-side filtering for date (ensures all transaction types are filtered correctly)
+      let filteredTransactions = allTransactions;
+      
+      if (dateFilter) {
+        filteredTransactions = filteredTransactions.filter(tx => {
+          try {
+            const txDate = new Date(tx.rawDate);
+            return txDate >= dateFilter!;
+          } catch (err) {
+            console.error('Error parsing date:', tx.rawDate, err);
+            return false;
+          }
+        });
+      }
+
+      // Apply client-side account filter (double-check all transactions)
+      if (accountFilter !== 'all') {
+        filteredTransactions = filteredTransactions.filter(tx => {
+          return tx.accountUid === accountFilter;
+        });
+      }
+
+      // Sort by date (newest first)
+      filteredTransactions.sort((a, b) => 
+        new Date(b.rawDate).getTime() - new Date(a.rawDate).getTime()
+      );
+
+      setTransactions(filteredTransactions);
+    } catch (err) {
+      console.error('Exception while fetching transactions:', err);
+      setError('An unexpected error occurred while fetching transactions.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const formatCurrency = (amount: number, currency: string = 'USD'): string => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: currency,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(amount);
+  };
+
+  const formatDate = (dateString: string): string => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    });
+  };
+
+  const formatAccountType = (type: string): string => {
+    const typeMap: { [key: string]: string } = {
+      'standard': 'Standard Account',
+      'premium': 'Premium Account',
+      'vip': 'VIP Account',
+      'demo': 'Demo Account',
+      'demo_30': 'Demo Account (30 days)',
+      'demo_60': 'Demo Account (60 days)',
+      'demo_90': 'Demo Account (90 days)',
+      'demo_unlimited': 'Demo Account (Unlimited)',
+    };
+    return typeMap[type] || 'Trading Account';
+  };
+
+  const formatPaymentMethod = (method?: string): string => {
+    if (!method) return 'Unknown';
+    return method.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+  };
+
+  const capitalizeFirst = (str: string): string => {
+    if (!str) return '';
+    return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
+  };
+
+  const generateCSV = (): string => {
+    const headers = ['Date', 'Type', 'Description', 'Account', 'Amount', 'Status'];
+    const rows = transactions.map(tx => [
+      tx.date,
+      tx.type,
+      tx.description,
+      tx.account,
+      tx.amount,
+      tx.status,
+    ]);
+    
+    return [
+      headers.join(','),
+      ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+    ].join('\n');
+  };
+
+  const downloadCSV = (csv: string, filename: string) => {
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+  };
 
   return (
     <div className={`flex h-screen overflow-hidden ${darkMode ? 'bg-[#0A2E1D]' : 'bg-gray-100'}`}>
@@ -226,35 +552,65 @@ export default function HistoryPage() {
             <div>
               <h1 className="text-2xl font-bold text-[#1E2E23] mb-6">Transaction History</h1>
 
-          {/* Filters */}
+              {error && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+                  <p className="text-red-800 text-sm">{error}</p>
+                </div>
+              )}
+
+              {/* Filters */}
               <div className="flex flex-wrap items-center gap-4 mb-6">
-                <select className="px-4 py-2 bg-white/70 border border-[#A0C8A9]/30 rounded-lg text-sm text-[#1E2E23]">
-                  <option>Select Days</option>
-                  <option>Last 7 days</option>
-                  <option>Last 30 days</option>
-                  <option>Last 90 days</option>
+                <select 
+                  value={daysFilter}
+                  onChange={(e) => setDaysFilter(e.target.value)}
+                  className="px-4 py-2 bg-white/70 border border-[#A0C8A9]/30 rounded-lg text-sm text-[#1E2E23]"
+                >
+                  <option value="all">All Time</option>
+                  <option value="7">Last 7 days</option>
+                  <option value="30">Last 30 days</option>
+                  <option value="90">Last 90 days</option>
                 </select>
-                <select className="px-4 py-2 bg-white/70 border border-[#A0C8A9]/30 rounded-lg text-sm text-[#1E2E23]">
-                  <option>All transaction types</option>
-                  <option>Deposits</option>
-                  <option>Withdrawals</option>
-                  <option>Transfers</option>
-                  <option>Trades</option>
+                <select 
+                  value={typeFilter}
+                  onChange={(e) => setTypeFilter(e.target.value)}
+                  className="px-4 py-2 bg-white/70 border border-[#A0C8A9]/30 rounded-lg text-sm text-[#1E2E23]"
+                >
+                  <option value="all">All transaction types</option>
+                  <option value="deposit">Deposits</option>
+                  <option value="withdrawal">Withdrawals</option>
+                  <option value="transfer">Transfers</option>
+                  <option value="trade">Trades</option>
                 </select>
-                <select className="px-4 py-2 bg-white/70 border border-[#A0C8A9]/30 rounded-lg text-sm text-[#1E2E23]">
-                  <option>All statuses</option>
-                  <option>Completed</option>
-                  <option>Processing</option>
-                  <option>Pending</option>
-                  <option>Failed</option>
+                <select 
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="px-4 py-2 bg-white/70 border border-[#A0C8A9]/30 rounded-lg text-sm text-[#1E2E23]"
+                >
+                  <option value="all">All statuses</option>
+                  <option value="completed">Completed</option>
+                  <option value="processing">Processing</option>
+                  <option value="pending">Pending</option>
+                  <option value="failed">Failed</option>
                 </select>
-                <select className="px-4 py-2 bg-white/70 border border-[#A0C8A9]/30 rounded-lg text-sm text-[#1E2E23]">
-                  <option>All accounts</option>
-                  <option>Standard Account</option>
-                  <option>Pro Account</option>
-                  <option>USD Wallet</option>
+                <select 
+                  value={accountFilter}
+                  onChange={(e) => setAccountFilter(e.target.value)}
+                  className="px-4 py-2 bg-white/70 border border-[#A0C8A9]/30 rounded-lg text-sm text-[#1E2E23]"
+                >
+                  <option value="all">All accounts</option>
+                  {accounts.map((account) => (
+                    <option key={account.id} value={account.account_uid}>
+                      {formatAccountType(account.account_type)} ({account.account_uid})
+                    </option>
+                  ))}
                 </select>
-                <button className="px-4 py-2 bg-[#0A2E1D] text-white rounded-lg text-sm flex items-center space-x-2 hover:bg-[#0F1B14]">
+                <button 
+                  onClick={() => {
+                    const csv = generateCSV();
+                    downloadCSV(csv, 'transaction-history.csv');
+                  }}
+                  className="px-4 py-2 bg-[#0A2E1D] text-white rounded-lg text-sm flex items-center space-x-2 hover:bg-[#0F1B14]"
+                >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
@@ -263,104 +619,137 @@ export default function HistoryPage() {
               </div>
 
               {/* Transactions Table */}
-              <div className="bg-[#2D4A35] border border-[#A0C8A9]/20 rounded-lg overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="bg-[#254031]">
-                      <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-[#A0C8A9] uppercase tracking-wider">Date</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-[#A0C8A9] uppercase tracking-wider">Type</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-[#A0C8A9] uppercase tracking-wider">Description</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-[#A0C8A9] uppercase tracking-wider">Account</th>
-                        <th className="px-6 py-3 text-right text-xs font-medium text-[#A0C8A9] uppercase tracking-wider">Amount</th>
-                        <th className="px-6 py-3 text-center text-xs font-medium text-[#A0C8A9] uppercase tracking-wider">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-[#A0C8A9]/10">
-                      {transactions.map((transaction, index) => (
-                        <tr key={index} className="hover:bg-[#23392c]">
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-white">{transaction.date}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-white">{transaction.type}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-white">{transaction.description}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-white">{transaction.account}</td>
-                          <td className={`px-6 py-4 whitespace-nowrap text-sm text-right font-medium ${
-                            transaction.amountType === 'positive' ? 'text-green-400' :
-                            transaction.amountType === 'negative' ? 'text-red-400' : 'text-white'
-                          }`}>
-                            {transaction.amount}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-center">
-                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                              transaction.status === 'Completed' ? 'bg-green-100 text-green-800' :
-                              transaction.status === 'Processing' ? 'bg-yellow-100 text-yellow-800' :
-                              'bg-gray-100 text-gray-800'
-                            }`}>
-                              {transaction.status}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+              {loading ? (
+                <div className="bg-[#2D4A35] border border-[#A0C8A9]/20 rounded-lg p-12 text-center">
+                  <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-[#A0C8A9] mb-4"></div>
+                  <p className="text-white text-sm">Loading transactions...</p>
                 </div>
-              </div>
+              ) : transactions.length === 0 ? (
+                <div className="bg-[#2D4A35] border border-[#A0C8A9]/20 rounded-lg p-12 text-center">
+                  <svg className="mx-auto h-12 w-12 text-[#A0C8A9] mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  <p className="text-white font-medium mb-2">No transactions found</p>
+                  <p className="text-[#A0C8A9] text-sm">Your transaction history will appear here</p>
+                </div>
+              ) : (
+                <div className="bg-[#2D4A35] border border-[#A0C8A9]/20 rounded-lg overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead className="bg-[#254031]">
+                        <tr>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-[#A0C8A9] uppercase tracking-wider">Date</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-[#A0C8A9] uppercase tracking-wider">Type</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-[#A0C8A9] uppercase tracking-wider">Description</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-[#A0C8A9] uppercase tracking-wider">Account</th>
+                          <th className="px-6 py-3 text-right text-xs font-medium text-[#A0C8A9] uppercase tracking-wider">Amount</th>
+                          <th className="px-6 py-3 text-center text-xs font-medium text-[#A0C8A9] uppercase tracking-wider">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#A0C8A9]/10">
+                        {transactions.map((transaction) => (
+                          <tr key={transaction.id} className="hover:bg-[#23392c]">
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-white">{transaction.date}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-white">{transaction.type}</td>
+                            <td className="px-6 py-4 text-sm text-white max-w-xs truncate" title={transaction.description}>
+                              {transaction.description}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-white">{transaction.account}</td>
+                            <td className={`px-6 py-4 whitespace-nowrap text-sm text-right font-medium ${
+                              transaction.amountType === 'positive' ? 'text-green-400' :
+                              transaction.amountType === 'negative' ? 'text-red-400' : 'text-white'
+                            }`}>
+                              {transaction.amount}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-center">
+                              <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                transaction.status === 'Completed' ? 'bg-green-100 text-green-800' :
+                                transaction.status === 'Processing' ? 'bg-yellow-100 text-yellow-800' :
+                                transaction.status === 'Pending' ? 'bg-yellow-100 text-yellow-800' :
+                                transaction.status === 'Failed' ? 'bg-red-100 text-red-800' :
+                                'bg-gray-100 text-gray-800'
+                              }`}>
+                                {transaction.status}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
-              <div>
+            <div>
               <h1 className="text-2xl font-bold text-[#1E2E23] mb-6">Accounts History</h1>
               
-              {/* Filters */}
-              <div className="flex flex-wrap items-center gap-4 mb-6">
-                <select className="px-4 py-2 bg-white/70 border border-[#A0C8A9]/30 rounded-lg text-sm text-[#1E2E23]">
-                  <option>Select Type</option>
-                  <option>Trading Account</option>
-                  <option>Wallet</option>
-                  <option>Demo Account</option>
-                </select>
-                <select className="px-4 py-2 bg-white/70 border border-[#A0C8A9]/30 rounded-lg text-sm text-[#1E2E23]">
-                  <option>Select Account</option>
-                  <option>Standard Trading Account</option>
-                  <option>Pro Trading Account</option>
-                  <option>USD Wallet</option>
-                </select>
-                <input type="date" className="px-4 py-2 bg-white/70 border border-[#A0C8A9]/30 rounded-lg text-sm text-[#1E2E23]" defaultValue="2025-08-19" />
-                <input type="date" className="px-4 py-2 bg-white/70 border border-[#A0C8A9]/30 rounded-lg text-sm text-[#1E2E23]" defaultValue="2025-08-19" />
-                <button className="px-4 py-2 bg-[#0A2E1D] text-white rounded-lg text-sm hover:bg-[#0F1B14]">Filter</button>
-            </div>
-            
-              {/* Accounts Table */}
-              <div className="bg-[#2D4A35] border border-[#A0C8A9]/20 rounded-lg overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                    <thead className="bg-[#254031]">
-                      <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-[#A0C8A9] uppercase tracking-wider">Account Number</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-[#A0C8A9] uppercase tracking-wider">Account Type</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-[#A0C8A9] uppercase tracking-wider">Balance</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-[#A0C8A9] uppercase tracking-wider">Currency</th>
-                        <th className="px-6 py-3 text-center text-xs font-medium text-[#A0C8A9] uppercase tracking-wider">Status</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-[#A0C8A9] uppercase tracking-wider">Last Activity</th>
-                  </tr>
-                </thead>
-                    <tbody className="divide-y divide-[#A0C8A9]/10">
-                      {accounts.map((account, index) => (
-                        <tr key={index} className="hover:bg-[#23392c]">
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-white">{account.accountNumber}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-white">{account.accountType}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">{account.balance}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-white">{account.currency}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-center">
-                            <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
-                              {account.status}
-                            </span>
-                    </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-white">{account.lastActivity}</td>
-                  </tr>
-                      ))}
-                </tbody>
-              </table>
-            </div>
-              </div>
+              {loading ? (
+                <div className="bg-[#2D4A35] border border-[#A0C8A9]/20 rounded-lg p-12 text-center">
+                  <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-[#A0C8A9] mb-4"></div>
+                  <p className="text-white text-sm">Loading accounts...</p>
+                </div>
+              ) : accounts.length === 0 ? (
+                <div className="bg-[#2D4A35] border border-[#A0C8A9]/20 rounded-lg p-12 text-center">
+                  <svg className="mx-auto h-12 w-12 text-[#A0C8A9] mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+                  </svg>
+                  <p className="text-white font-medium mb-2">No accounts found</p>
+                  <p className="text-[#A0C8A9] text-sm mb-4">You don't have any trading accounts yet.</p>
+                  <a href="/dashboard/new-account" className="inline-block bg-[#A0C8A9] text-[#1E2E23] px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#8FB89A] transition-colors">
+                    Create New Account
+                  </a>
+                </div>
+              ) : (
+                <>
+                  {/* Accounts Table */}
+                  <div className="bg-[#2D4A35] border border-[#A0C8A9]/20 rounded-lg overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead className="bg-[#254031]">
+                          <tr>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-[#A0C8A9] uppercase tracking-wider">Account Number</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-[#A0C8A9] uppercase tracking-wider">Account Type</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-[#A0C8A9] uppercase tracking-wider">Balance</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-[#A0C8A9] uppercase tracking-wider">Currency</th>
+                            <th className="px-6 py-3 text-center text-xs font-medium text-[#A0C8A9] uppercase tracking-wider">Status</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-[#A0C8A9] uppercase tracking-wider">Created</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-[#A0C8A9]/10">
+                          {accounts.map((account) => (
+                            <tr key={account.id} className="hover:bg-[#23392c]">
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-white">{account.account_uid}</td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-white">{formatAccountType(account.account_type)}</td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">
+                                {formatCurrency(account.equity || account.balance || 0, account.currency)}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-white">{account.currency}</td>
+                              <td className="px-6 py-4 whitespace-nowrap text-center">
+                                <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                  (account.status === 'active' || (account.status as string).toLowerCase().includes('activ')) ? 'bg-green-100 text-green-800' :
+                                  account.status === 'inactive' ? 'bg-gray-100 text-gray-800' :
+                                  account.status === 'suspended' ? 'bg-red-100 text-red-800' :
+                                  'bg-yellow-100 text-yellow-800'
+                                }`}>
+                                  {capitalizeFirst(account.status)}
+                                </span>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-white">
+                                {new Date(account.created_at).toLocaleDateString('en-US', {
+                                  year: 'numeric',
+                                  month: 'short',
+                                  day: 'numeric',
+                                })}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           )}
         </div>

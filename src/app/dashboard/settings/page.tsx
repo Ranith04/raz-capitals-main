@@ -2,12 +2,160 @@
 
 import UserHeader from '@/components/UserHeader';
 import Image from 'next/image';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { supabase } from '@/lib/supabaseClient';
+import { getCurrentUser } from '@/utils/auth';
+import { TradingAccount } from '@/types';
+
+interface UserProfile {
+  id: number;
+  user_uuid: string;
+  first_name: string;
+  last_name?: string;
+  email: string;
+  phone_no?: string;
+  dob?: string;
+  gender?: string;
+  country_of_birth?: string;
+  residential_address?: string;
+  city?: string;
+  zip?: string;
+  created_at: string;
+  kyc_status?: string;
+  account_status?: string;
+}
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState('profile');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [darkMode, setDarkMode] = useState(true);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [accounts, setAccounts] = useState<TradingAccount[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [totalBalance, setTotalBalance] = useState(0);
+  const [totalEquity, setTotalEquity] = useState(0);
+  const [walletBalance, setWalletBalance] = useState(0);
+
+  useEffect(() => {
+    fetchUserData();
+  }, []);
+
+  const fetchUserData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Get user ID
+      let userId: string | null = null;
+      
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (authUser) {
+        userId = authUser.id;
+      } else {
+        const sessionUser = getCurrentUser();
+        if (sessionUser?.id) {
+          userId = sessionUser.id;
+          
+          // If session user ID is not a UUID, try to find the user in users table
+          if (!userId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+            const { data: userData, error: userError } = await supabase
+              .from('users')
+              .select('user_uuid')
+              .eq('email', sessionUser.email)
+              .single();
+            
+            if (!userError && userData?.user_uuid) {
+              userId = userData.user_uuid;
+            }
+          }
+        }
+      }
+
+      if (!userId) {
+        setError('User not found. Please log in again.');
+        setLoading(false);
+        return;
+      }
+
+      // Fetch user profile
+      const { data: profileData, error: profileError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('user_uuid', userId)
+        .single();
+
+      if (profileError && profileError.code !== 'PGRST116') {
+        console.error('Error fetching user profile:', profileError);
+        setError('Failed to load user profile.');
+      } else if (profileData) {
+        setUserProfile(profileData);
+      }
+
+      // Fetch trading accounts
+      const { data: accountsData, error: accountsError } = await supabase
+        .from('tradingAccounts')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false });
+
+      if (accountsError) {
+        console.error('Error fetching accounts:', accountsError);
+      } else if (accountsData) {
+        setAccounts(accountsData);
+        
+        // Calculate totals
+        const balance = accountsData.reduce((sum, acc) => sum + (acc.balance || 0), 0);
+        const equity = accountsData.reduce((sum, acc) => sum + (acc.equity || 0), 0);
+        const freeMargin = accountsData.reduce((sum, acc) => sum + (acc.free_margin || 0), 0);
+        
+        setTotalBalance(balance);
+        setTotalEquity(equity);
+        setWalletBalance(freeMargin);
+      }
+    } catch (err) {
+      console.error('Exception while fetching user data:', err);
+      setError('An unexpected error occurred. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const formatDate = (dateString: string): string => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+      weekday: 'short',
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    });
+  };
+
+  const formatCurrency = (amount: number): string => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(amount);
+  };
+
+  const formatDOB = (dob?: string): string => {
+    if (!dob) return '';
+    // Handle different date formats
+    try {
+      const date = new Date(dob);
+      const day = String(date.getDate()).padStart(2, '0');
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const year = date.getFullYear();
+      return `${day}-${month}-${year}`;
+    } catch {
+      return dob;
+    }
+  };
 
   return (
     <div className={`flex h-screen overflow-hidden ${darkMode ? 'bg-[#0A2E1D]' : 'bg-gray-100'}`}>
@@ -200,34 +348,61 @@ export default function SettingsPage() {
                 
                 {/* White Content Section */}
                 <div className="bg-white rounded-b-lg p-6 shadow">
-                  <div className="text-center mb-4">
-                    <h2 className="text-2xl font-bold text-gray-900 mb-2">RANITH KUMAR</h2>
-                    <span className="inline-block bg-[#0A2E1D] text-white px-3 py-1 rounded-full text-sm mb-2">Unverified</span>
-                    <p className="text-gray-600">India</p>
-                  </div>
-                  
-                  <div className="space-y-3 text-sm text-gray-600">
-                    <div className="flex justify-between">
-                      <span>Member since:</span>
-                      <span className="font-medium">Mon, Aug 11, 2025 5:24 AM</span>
+                  {loading ? (
+                    <div className="text-center py-8">
+                      <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-[#0A2E1D]"></div>
+                      <p className="mt-2 text-gray-600">Loading profile...</p>
                     </div>
-                    <div className="flex justify-between">
-                      <span>Customer Group:</span>
-                      <span className="font-medium">N/A</span>
+                  ) : error ? (
+                    <div className="text-center py-8">
+                      <p className="text-red-600">{error}</p>
                     </div>
-                    <div className="flex justify-between">
-                      <span>Risk Profile:</span>
-                      <span className="font-medium">N/A</span>
+                  ) : userProfile ? (
+                    <>
+                      <div className="text-center mb-4">
+                        <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                          {userProfile.first_name} {userProfile.last_name || ''}
+                        </h2>
+                        <span className={`inline-block px-3 py-1 rounded-full text-sm mb-2 ${
+                          userProfile.kyc_status === 'verified' || userProfile.account_status === 'verified'
+                            ? 'bg-green-100 text-green-800'
+                            : 'bg-[#0A2E1D] text-white'
+                        }`}>
+                          {userProfile.kyc_status === 'verified' || userProfile.account_status === 'verified' ? 'Verified' : 'Unverified'}
+                        </span>
+                        <p className="text-gray-600">{userProfile.country_of_birth || 'N/A'}</p>
+                      </div>
+                      
+                      <div className="space-y-3 text-sm text-gray-600">
+                        <div className="flex justify-between">
+                          <span>Member since:</span>
+                          <span className="font-medium">{formatDate(userProfile.created_at)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Customer Group:</span>
+                          <span className="font-medium">N/A</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Risk Profile:</span>
+                          <span className="font-medium">N/A</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>KYC Level:</span>
+                          <span className="font-medium">
+                            {userProfile.kyc_status === 'verified' ? 'Level 2' : userProfile.kyc_status || 'Level 1'}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>IB Member:</span>
+                          <span className="font-medium">Unprocessed</span>
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="text-center py-8">
+                      <p className="text-gray-600">No profile data available</p>
                     </div>
-                    <div className="flex justify-between">
-                      <span>KYC Level:</span>
-                      <span className="font-medium">Level 1</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>IB Member:</span>
-                      <span className="font-medium">Unprocessed</span>
-                    </div>
-                  </div>
+                  )}
                 </div>
               </div>
 
@@ -237,131 +412,174 @@ export default function SettingsPage() {
                 <div className="grid grid-cols-3 gap-4">
                   <div className="bg-white rounded-lg p-4 shadow">
                     <h3 className="text-sm text-gray-600 mb-1">Balance</h3>
-                    <p className="text-xl font-bold text-gray-900">$0</p>
+                    <p className="text-xl font-bold text-gray-900">
+                      {loading ? '...' : formatCurrency(totalBalance)}
+                    </p>
                   </div>
                   <div className="bg-white rounded-lg p-4 shadow">
                     <h3 className="text-sm text-gray-600 mb-1">Equity</h3>
-                    <p className="text-xl font-bold text-gray-900">$0</p>
+                    <p className="text-xl font-bold text-gray-900">
+                      {loading ? '...' : formatCurrency(totalEquity)}
+                    </p>
                   </div>
                   <div className="bg-white rounded-lg p-4 shadow">
                     <h3 className="text-sm text-gray-600 mb-1">Wallet Balance</h3>
-                    <p className="text-xl font-bold text-gray-900">0</p>
+                    <p className="text-xl font-bold text-gray-900">
+                      {loading ? '...' : formatCurrency(walletBalance)}
+                    </p>
                   </div>
                 </div>
 
                 {/* Personal Information Form */}
                 <div className="bg-white rounded-lg shadow p-6">
                   <h3 className="text-lg font-semibold text-gray-900 mb-4">Personal Information</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">First Name</label>
-                      <input 
-                        type="text" 
-                        defaultValue="RANITH"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#A0C8A9] focus:border-transparent"
-                      />
+                  {loading ? (
+                    <div className="text-center py-8">
+                      <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-[#0A2E1D]"></div>
+                      <p className="mt-2 text-gray-600">Loading...</p>
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
-                      <input 
-                        type="text" 
-                        defaultValue="KUMAR"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#A0C8A9] focus:border-transparent"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Username</label>
-                      <input 
-                        type="text" 
-                        defaultValue="RANITHKUMAR5325"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#A0C8A9] focus:border-transparent"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Gender</label>
-                      <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent">
-                        <option value="male">Male</option>
-                        <option value="female">Female</option>
-                        <option value="other">Other</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Date Of Birth</label>
-                      <div className="relative">
-                        <input 
-                          type="text" 
-                          placeholder="dd-mm-yyyy"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#A0C8A9] focus:border-transparent pr-10"
-                        />
-                        <svg className="absolute right-3 top-2.5 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                        </svg>
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
-                      <input 
-                        type="email" 
-                        defaultValue="ranithkumar04@gmail.com"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#A0C8A9] focus:border-transparent"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
-                      <div className="flex">
-                        <div className="flex items-center px-3 py-2 border border-r-0 border-gray-300 rounded-l-md bg-gray-50">
-                          <span className="text-sm text-gray-500">🇮🇳 +91</span>
+                  ) : (
+                    <form onSubmit={async (e) => {
+                      e.preventDefault();
+                      const formData = new FormData(e.currentTarget);
+                      // TODO: Implement save functionality
+                      alert('Save functionality will be implemented');
+                    }}>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">First Name</label>
+                          <input 
+                            type="text" 
+                            name="first_name"
+                            defaultValue={userProfile?.first_name || ''}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#A0C8A9] focus:border-transparent"
+                          />
                         </div>
-                        <input 
-                          type="tel" 
-                          defaultValue="095156 30782"
-                          className="flex-1 px-3 py-2 border border-gray-300 rounded-r-md focus:outline-none focus:ring-2 focus:ring-[#A0C8A9] focus:border-transparent"
-                        />
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
+                          <input 
+                            type="text" 
+                            name="last_name"
+                            defaultValue={userProfile?.last_name || ''}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#A0C8A9] focus:border-transparent"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Username</label>
+                          <input 
+                            type="text" 
+                            name="username"
+                            defaultValue={userProfile?.email?.split('@')[0] || ''}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#A0C8A9] focus:border-transparent"
+                            disabled
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Gender</label>
+                          <select 
+                            name="gender"
+                            defaultValue={userProfile?.gender || ''}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#A0C8A9] focus:border-transparent"
+                          >
+                            <option value="">Select Gender</option>
+                            <option value="male">Male</option>
+                            <option value="female">Female</option>
+                            <option value="other">Other</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Date Of Birth</label>
+                          <div className="relative">
+                            <input 
+                              type="text" 
+                              name="dob"
+                              placeholder="dd-mm-yyyy"
+                              defaultValue={formatDOB(userProfile?.dob)}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#A0C8A9] focus:border-transparent pr-10"
+                            />
+                            <svg className="absolute right-3 top-2.5 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
+                          <input 
+                            type="email" 
+                            name="email"
+                            defaultValue={userProfile?.email || ''}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#A0C8A9] focus:border-transparent"
+                            disabled
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                          <div className="flex">
+                            <div className="flex items-center px-3 py-2 border border-r-0 border-gray-300 rounded-l-md bg-gray-50">
+                              <span className="text-sm text-gray-500">
+                                {userProfile?.country_of_birth === 'India' ? '🇮🇳 +91' : '📞'}
+                              </span>
+                            </div>
+                            <input 
+                              type="tel" 
+                              name="phone_no"
+                              defaultValue={userProfile?.phone_no || ''}
+                              className="flex-1 px-3 py-2 border border-gray-300 rounded-r-md focus:outline-none focus:ring-2 focus:ring-[#A0C8A9] focus:border-transparent"
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Country</label>
+                          <input 
+                            type="text" 
+                            name="country_of_birth"
+                            defaultValue={userProfile?.country_of_birth || ''}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#A0C8A9] focus:border-transparent"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
+                          <input 
+                            type="text" 
+                            name="city"
+                            defaultValue={userProfile?.city || ''}
+                            placeholder="City"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#A0C8A9] focus:border-transparent"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Zip</label>
+                          <input 
+                            type="text" 
+                            name="zip"
+                            defaultValue={userProfile?.zip || ''}
+                            placeholder="Zip Code"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#A0C8A9] focus:border-transparent"
+                          />
+                        </div>
+                        <div className="md:col-span-2">
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+                          <textarea 
+                            name="residential_address"
+                            placeholder="Enter your full address"
+                            rows={3}
+                            defaultValue={userProfile?.residential_address || ''}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#A0C8A9] focus:border-transparent"
+                          />
+                        </div>
                       </div>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Country</label>
-                      <input 
-                        type="text" 
-                        defaultValue="India"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#A0C8A9] focus:border-transparent"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
-                      <input 
-                        type="text" 
-                        placeholder="City"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#A0C8A9] focus:border-transparent"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Zip</label>
-                      <input 
-                        type="text" 
-                        placeholder="Zip Code"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#A0C8A9] focus:border-transparent"
-                      />
-                    </div>
-                    <div className="md:col-span-2">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
-                      <textarea 
-                        placeholder="Enter your full address"
-                        rows={3}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#A0C8A9] focus:border-transparent"
-                      />
-                    </div>
-                  </div>
-                  
-                  {/* Save Button */}
-                  <div className="flex justify-end pt-4">
-                    <button 
-                      type="submit"
-                      className="px-8 py-3 bg-[#0A2E1D] text-white rounded-md hover:bg-[#1A3E2D] transition-colors font-medium text-lg"
-                    >
-                      Save Changes
-                    </button>
-                  </div>
+                      
+                      {/* Save Button */}
+                      <div className="flex justify-end pt-4">
+                        <button 
+                          type="submit"
+                          className="px-8 py-3 bg-[#0A2E1D] text-white rounded-md hover:bg-[#1A3E2D] transition-colors font-medium text-lg"
+                        >
+                          Save Changes
+                        </button>
+                      </div>
+                    </form>
+                  )}
                 </div>
               </div>
             </div>
@@ -369,9 +587,58 @@ export default function SettingsPage() {
 
           {/* Other tabs content */}
           {activeTab === 'withdraw-accounts' && (
-            <div className="bg-white rounded-lg p-6">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">Withdraw Accounts</h2>
-              <p className="text-gray-600">Withdraw accounts settings will be displayed here.</p>
+            <div className="space-y-6">
+              <div className="bg-white rounded-lg shadow p-6 border border-[#A0C8A9]/20">
+                <h2 className="text-xl font-semibold text-[#0A2E1D] mb-4">Withdraw Accounts</h2>
+                <p className="text-gray-600 mb-6">Manage your bank accounts and payment methods for withdrawals.</p>
+                
+                {loading ? (
+                  <div className="text-center py-8">
+                    <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-[#0A2E1D]"></div>
+                    <p className="mt-2 text-gray-600">Loading accounts...</p>
+                  </div>
+                ) : accounts.length === 0 ? (
+                  <div className="text-center py-8">
+                    <p className="text-gray-600 mb-4">No trading accounts found.</p>
+                    <a href="/dashboard/new-account" className="text-[#0A2E1D] hover:underline font-medium">
+                      Create your first trading account
+                    </a>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {accounts.map((account) => (
+                      <div key={account.account_uid} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h3 className="font-semibold text-gray-900">
+                              {account.account_type === 'standard' ? 'Standard Account' : 
+                               account.account_type === 'premium' ? 'Premium Account' :
+                               account.account_type === 'vip' ? 'VIP Account' : 'Trading Account'}
+                            </h3>
+                            <p className="text-sm text-gray-600">Account UID: {account.account_uid}</p>
+                            <p className="text-sm text-gray-600">Balance: {formatCurrency(account.balance || 0)}</p>
+                          </div>
+                          <div className="text-right">
+                            <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                              account.status === 'active' ? 'bg-green-100 text-green-800' :
+                              account.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                              'bg-gray-100 text-gray-800'
+                            }`}>
+                              {account.status || 'N/A'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                
+                <div className="mt-6 pt-6 border-t border-gray-200">
+                  <button className="px-6 py-2 bg-[#0A2E1D] text-white rounded-md hover:bg-[#1A3E2D] transition-colors font-medium">
+                    Add Bank Account
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 
@@ -397,7 +664,7 @@ export default function SettingsPage() {
                   <div className="space-y-4">
                     <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
                       <div>
-                        <p className="font-medium text-gray-900">ranithkumar04@gmail.com</p>
+                        <p className="font-medium text-gray-900">{userProfile?.email || 'N/A'}</p>
                         <p className="text-sm text-gray-500">Email address</p>
                       </div>
                       <button className="px-4 py-2 bg-[#A0C8A9] text-[#0A2E1D] rounded-md hover:bg-[#8BBF9F] transition-colors font-medium">
@@ -439,7 +706,7 @@ export default function SettingsPage() {
                     <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
                       <div>
                         <p className="font-medium text-gray-900">Security type</p>
-                        <p className="text-sm text-gray-500">ranithkumar04@gmail.com</p>
+                        <p className="text-sm text-gray-500">{userProfile?.email || 'N/A'}</p>
                       </div>
                       <button className="px-4 py-2 bg-[#A0C8A9] text-[#0A2E1D] rounded-md hover:bg-[#8BBF9F] transition-colors font-medium">
                         Change
@@ -472,11 +739,18 @@ export default function SettingsPage() {
                     <div className="w-8 h-8 bg-[#A0C8A9] rounded-full flex items-center justify-center text-[#0A2E1D] font-bold">1</div>
                     <h3 className="text-lg font-semibold text-[#0A2E1D]">Confirm Email</h3>
                   </div>
-                  <span className="px-3 py-1 bg-green-100 text-green-800 text-sm font-medium rounded-full">Verified</span>
+                  <span className={`px-3 py-1 text-sm font-medium rounded-full ${
+                    userProfile?.email ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
+                  }`}>
+                    {userProfile?.email ? 'Verified' : 'Pending'}
+                  </span>
                 </div>
                 
                 <div className="mb-4">
-                  <p className="text-gray-900 font-medium mb-2">ranithkumar04@gmail.com</p>
+                  <p className="text-gray-900 font-medium mb-2">{userProfile?.email || 'No email found'}</p>
+                  {!userProfile?.email && (
+                    <p className="text-sm text-gray-600">Please verify your email address to continue.</p>
+                  )}
                 </div>
 
                 <div className="bg-gray-50 rounded-lg p-4 mb-4">

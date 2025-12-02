@@ -2,11 +2,203 @@
 
 import UserHeader from '@/components/UserHeader';
 import Image from 'next/image';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { supabase } from '@/lib/supabaseClient';
+import { getCurrentUser } from '@/utils/auth';
+import { TradingAccount } from '@/types';
+
+interface AccountStats {
+  totalAccounts: number;
+  totalEquity: number;
+  averageReturn: number;
+}
 
 export default function MyAccountsClient() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [darkMode, setDarkMode] = useState(true);
+  const [accounts, setAccounts] = useState<TradingAccount[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [stats, setStats] = useState<AccountStats>({
+    totalAccounts: 0,
+    totalEquity: 0,
+    averageReturn: 0,
+  });
+
+  useEffect(() => {
+    fetchUserAccounts();
+  }, []);
+
+  const fetchUserAccounts = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      // First, try to get user from Supabase auth (which has UUID)
+      let userId: string | null = null;
+      
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (authUser) {
+        userId = authUser.id;
+        console.log('✅ Found user from Supabase auth:', userId);
+      } else {
+        // Fallback to session storage user
+        const sessionUser = getCurrentUser();
+        if (sessionUser?.id) {
+          userId = sessionUser.id;
+          console.log('✅ Found user from session storage:', userId);
+          
+          // If session user ID is not a UUID, try to find the user in users table
+          // and get their user_uuid which should match the user_id in tradingAccounts
+          if (!userId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+            const { data: userData, error: userError } = await supabase
+              .from('users')
+              .select('user_uuid')
+              .eq('email', sessionUser.email)
+              .single();
+            
+            if (!userError && userData?.user_uuid) {
+              userId = userData.user_uuid;
+              console.log('✅ Found user_uuid from users table:', userId);
+            }
+          }
+        }
+      }
+
+      if (!userId) {
+        setError('No user session found. Please log in again.');
+        setLoading(false);
+        return;
+      }
+
+      // Fetch trading accounts for this user
+      const { data: tradingAccounts, error: accountsError } = await supabase
+        .from('tradingAccounts')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false });
+
+      if (accountsError) {
+        console.error('Error fetching trading accounts:', accountsError);
+        setError('Failed to fetch trading accounts. Please try again.');
+        setLoading(false);
+        return;
+      }
+
+      if (tradingAccounts && tradingAccounts.length > 0) {
+        // Transform and set accounts
+        const transformedAccounts: TradingAccount[] = tradingAccounts.map((account: any) => ({
+          id: account.id,
+          account_uid: account.account_uid,
+          account_password: account.account_password,
+          levarage: account.levarage || 0,
+          balance: account.balance || 0,
+          currency: account.currency || 'USD',
+          status: account.status || 'active',
+          created_at: account.created_at,
+          free_margin: account.free_margin || 0,
+          equity: account.equity || account.balance || 0,
+          user_id: account.user_id,
+          margin: account.margin || 0,
+          watchlist: account.watchlist || [],
+          account_type: account.account_type || 'standard',
+        }));
+
+        setAccounts(transformedAccounts);
+
+        // Calculate statistics
+        const activeAccounts = transformedAccounts.filter(acc => 
+          acc.status === 'active' || acc.status === 'activ'
+        );
+        
+        const totalEquity = transformedAccounts.reduce((sum, acc) => sum + (acc.equity || acc.balance || 0), 0);
+        const totalBalance = transformedAccounts.reduce((sum, acc) => sum + (acc.balance || 0), 0);
+        const totalPL = totalEquity - totalBalance;
+        const averageReturn = totalBalance > 0 ? (totalPL / totalBalance) * 100 : 0;
+
+        setStats({
+          totalAccounts: activeAccounts.length,
+          totalEquity,
+          averageReturn,
+        });
+
+        console.log('✅ Successfully fetched accounts:', transformedAccounts.length);
+      } else {
+        setAccounts([]);
+        setStats({
+          totalAccounts: 0,
+          totalEquity: 0,
+          averageReturn: 0,
+        });
+        console.log('ℹ️ No trading accounts found for this user');
+      }
+    } catch (err) {
+      console.error('Exception while fetching accounts:', err);
+      setError('An unexpected error occurred. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const formatCurrency = (amount: number, currency: string = 'USD'): string => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: currency,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(amount);
+  };
+
+  const formatAccountType = (type: string): string => {
+    const typeMap: { [key: string]: string } = {
+      'standard': 'Standard Trading Account',
+      'premium': 'Premium Trading Account',
+      'vip': 'VIP Trading Account',
+      'demo': 'Demo Account',
+      'demo_30': 'Demo Account (30 days)',
+      'demo_60': 'Demo Account (60 days)',
+      'demo_90': 'Demo Account (90 days)',
+      'demo_unlimited': 'Demo Account (Unlimited)',
+    };
+    return typeMap[type] || 'Trading Account';
+  };
+
+  const getStatusBadge = (status: string, accountType: string) => {
+    if (accountType?.includes('demo')) {
+      return (
+        <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs font-medium">
+          Demo
+        </span>
+      );
+    }
+    
+    const statusLower = status?.toLowerCase();
+    if (statusLower === 'active' || statusLower === 'activ') {
+      return (
+        <span className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-medium">
+          Active
+        </span>
+      );
+    } else if (statusLower === 'inactive') {
+      return (
+        <span className="bg-gray-100 text-gray-800 px-2 py-1 rounded text-xs font-medium">
+          Inactive
+        </span>
+      );
+    } else if (statusLower === 'suspended') {
+      return (
+        <span className="bg-red-100 text-red-800 px-2 py-1 rounded text-xs font-medium">
+          Suspended
+        </span>
+      );
+    } else {
+      return (
+        <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded text-xs font-medium">
+          {status || 'Pending'}
+        </span>
+      );
+    }
+  };
 
   return (
     <div className={`flex h-screen overflow-hidden ${darkMode ? 'bg-[#0A2E1D]' : 'bg-gray-100'}`}>
@@ -132,18 +324,34 @@ export default function MyAccountsClient() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
             <div className="bg-[#2D4A35] rounded-lg p-4 sm:p-6 text-white">
               <h3 className="text-sm text-[#A0C8A9] mb-2">Total Accounts</h3>
-              <p className="text-xl sm:text-2xl font-bold">3</p>
+              {loading ? (
+                <p className="text-xl sm:text-2xl font-bold">...</p>
+              ) : (
+                <p className="text-xl sm:text-2xl font-bold">{stats.totalAccounts}</p>
+              )}
               <p className="text-xs text-[#A0C8A9]/70 mt-1">Active Trading Accounts</p>
             </div>
             <div className="bg-[#2D4A35] rounded-lg p-4 sm:p-6 text-white">
               <h3 className="text-sm text-[#A0C8A9] mb-2">Total Equity</h3>
-              <p className="text-xl sm:text-2xl font-bold">$68,450.00</p>
+              {loading ? (
+                <p className="text-xl sm:text-2xl font-bold">...</p>
+              ) : (
+                <p className="text-xl sm:text-2xl font-bold">
+                  {formatCurrency(stats.totalEquity, accounts[0]?.currency || 'USD')}
+                </p>
+              )}
               <p className="text-xs text-[#A0C8A9]/70 mt-1">Across All Accounts</p>
             </div>
             <div className="bg-[#2D4A35] rounded-lg p-4 sm:p-6 text-white sm:col-span-2 lg:col-span-1">
               <h3 className="text-sm text-[#A0C8A9] mb-2">Average Return</h3>
-              <p className="text-xl sm:text-2xl font-bold text-green-400">+12.5%</p>
-              <p className="text-xs text-[#A0C8A9]/70 mt-1">This Month</p>
+              {loading ? (
+                <p className="text-xl sm:text-2xl font-bold">...</p>
+              ) : (
+                <p className={`text-xl sm:text-2xl font-bold ${stats.averageReturn >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  {stats.averageReturn >= 0 ? '+' : ''}{stats.averageReturn.toFixed(2)}%
+                </p>
+              )}
+              <p className="text-xs text-[#A0C8A9]/70 mt-1">Overall Performance</p>
             </div>
           </div>
 
@@ -156,82 +364,99 @@ export default function MyAccountsClient() {
               </a>
             </div>
             
-            <div className="space-y-4">
-              {/* Account 1 */}
-              <div className="bg-[#B8D4C1] rounded-lg p-3 sm:p-4">
-                <div className="flex flex-col sm:flex-row justify-between items-start mb-2 space-y-2 sm:space-y-0">
-                  <div>
-                    <h4 className="text-[#1E2E23] font-medium text-sm sm:text-base">Standard Trading Account</h4>
-                    <p className="text-[#2D4A35] text-xs sm:text-sm">Account #: 1234567890</p>
-                  </div>
-                  <span className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-medium">Active</span>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mt-3 sm:mt-4">
-                  <div>
-                    <p className="text-[#2D4A35] text-xs">Balance</p>
-                    <p className="text-[#1E2E23] font-bold text-sm sm:text-base">$25,000.00</p>
-                  </div>
-                  <div>
-                    <p className="text-[#2D4A35] text-xs">Equity</p>
-                    <p className="text-[#1E2E23] font-bold text-sm sm:text-base">$28,150.00</p>
-                  </div>
-                  <div>
-                    <p className="text-[#2D4A35] text-xs">P&L</p>
-                    <p className="text-green-600 font-bold text-sm sm:text-base">+$3,150.00</p>
-                  </div>
+            {loading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="text-white text-center">
+                  <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-[#A0C8A9] mb-4"></div>
+                  <p className="text-[#A0C8A9]">Loading your accounts...</p>
                 </div>
               </div>
-
-              {/* Account 2 */}
-              <div className="bg-[#B8D4C1] rounded-lg p-3 sm:p-4">
-                <div className="flex flex-col sm:flex-row justify-between items-start mb-2 space-y-2 sm:space-y-0">
-                  <div>
-                    <h4 className="text-[#1E2E23] font-medium text-sm sm:text-base">Pro Trading Account</h4>
-                    <p className="text-[#2D4A35] text-xs sm:text-sm">Account #: 1234567891</p>
-                  </div>
-                  <span className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-medium">Active</span>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mt-3 sm:mt-4">
-                  <div>
-                    <p className="text-[#2D4A35] text-xs">Balance</p>
-                    <p className="text-[#1E2E23] font-bold text-sm sm:text-base">$50,000.00</p>
-                  </div>
-                  <div>
-                    <p className="text-[#2D4A35] text-xs">Equity</p>
-                    <p className="text-[#1E2E23] font-bold text-sm sm:text-base">$46,800.00</p>
-                  </div>
-                  <div>
-                    <p className="text-[#2D4A35] text-xs">P&L</p>
-                    <p className="text-red-600 font-bold text-sm sm:text-base">-$3,200.00</p>
-                  </div>
-                </div>
+            ) : error ? (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-center">
+                <p className="text-red-800 text-sm">{error}</p>
+                <button
+                  onClick={fetchUserAccounts}
+                  className="mt-3 bg-red-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-red-700 transition-colors"
+                >
+                  Retry
+                </button>
               </div>
-
-              {/* Account 3 */}
-              <div className="bg-[#B8D4C1] rounded-lg p-3 sm:p-4">
-                <div className="flex flex-col sm:flex-row justify-between items-start mb-2 space-y-2 sm:space-y-0">
-                  <div>
-                    <h4 className="text-[#1E2E23] font-medium text-sm sm:text-base">Demo Account</h4>
-                    <p className="text-[#2D4A35] text-xs sm:text-sm">Account #: 1234567892</p>
-                  </div>
-                  <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs font-medium">Demo</span>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mt-3 sm:mt-4">
-                  <div>
-                    <p className="text-[#2D4A35] text-xs">Balance</p>
-                    <p className="text-[#1E2E23] font-bold text-sm sm:text-base">$10,000.00</p>
-                  </div>
-                  <div>
-                    <p className="text-[#2D4A35] text-xs">Equity</p>
-                    <p className="text-[#1E2E23] font-bold text-sm sm:text-base">$11,500.00</p>
-                  </div>
-                  <div>
-                    <p className="text-[#2D4A35] text-xs">P&L</p>
-                    <p className="text-green-600 font-bold text-sm sm:text-base">+$1,500.00</p>
-                  </div>
-                </div>
+            ) : accounts.length === 0 ? (
+              <div className="bg-[#B8D4C1] rounded-lg p-8 text-center">
+                <svg className="mx-auto h-12 w-12 text-[#2D4A35] mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+                </svg>
+                <p className="text-[#1E2E23] font-medium mb-2">No trading accounts found</p>
+                <p className="text-[#2D4A35] text-sm mb-4">Get started by creating your first trading account.</p>
+                <a href="/dashboard/new-account" className="inline-block bg-[#A0C8A9] text-[#1E2E23] px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#8FB89A] transition-colors">
+                  Create New Account
+                </a>
               </div>
-            </div>
+            ) : (
+              <div className="space-y-4">
+                {accounts.map((account) => {
+                  const pl = (account.equity || account.balance || 0) - (account.balance || 0);
+                  const plPercent = account.balance > 0 ? (pl / account.balance) * 100 : 0;
+                  
+                  return (
+                    <div key={account.id} className="bg-[#B8D4C1] rounded-lg p-3 sm:p-4">
+                      <div className="flex flex-col sm:flex-row justify-between items-start mb-2 space-y-2 sm:space-y-0">
+                        <div>
+                          <h4 className="text-[#1E2E23] font-medium text-sm sm:text-base">
+                            {formatAccountType(account.account_type)}
+                          </h4>
+                          <p className="text-[#2D4A35] text-xs sm:text-sm">
+                            Account #: {account.account_uid}
+                          </p>
+                        </div>
+                        {getStatusBadge(account.status, account.account_type)}
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mt-3 sm:mt-4">
+                        <div>
+                          <p className="text-[#2D4A35] text-xs">Balance</p>
+                          <p className="text-[#1E2E23] font-bold text-sm sm:text-base">
+                            {formatCurrency(account.balance || 0, account.currency)}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-[#2D4A35] text-xs">Equity</p>
+                          <p className="text-[#1E2E23] font-bold text-sm sm:text-base">
+                            {formatCurrency(account.equity || account.balance || 0, account.currency)}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-[#2D4A35] text-xs">P&L</p>
+                          <p className={`font-bold text-sm sm:text-base ${pl >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {pl >= 0 ? '+' : ''}{formatCurrency(pl, account.currency)}
+                            {plPercent !== 0 && (
+                              <span className="ml-1 text-xs">
+                                ({plPercent >= 0 ? '+' : ''}{plPercent.toFixed(2)}%)
+                              </span>
+                            )}
+                          </p>
+                        </div>
+                      </div>
+                      {account.levarage > 0 && (
+                        <div className="mt-3 pt-3 border-t border-[#2D4A35]/20">
+                          <div className="flex justify-between items-center text-xs">
+                            <span className="text-[#2D4A35]">Leverage:</span>
+                            <span className="text-[#1E2E23] font-medium">1:{account.levarage}</span>
+                          </div>
+                          {account.free_margin > 0 && (
+                            <div className="flex justify-between items-center text-xs mt-1">
+                              <span className="text-[#2D4A35]">Free Margin:</span>
+                              <span className="text-[#1E2E23] font-medium">
+                                {formatCurrency(account.free_margin, account.currency)}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
       </div>

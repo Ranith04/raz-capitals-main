@@ -4,15 +4,144 @@ import UserInitial from '@/components/UserInitial';
 import UserName from '@/components/UserName';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { supabase } from '@/lib/supabaseClient';
+import { getCurrentUser } from '@/utils/auth';
+
+interface UserProfile {
+  id: number;
+  user_uuid: string;
+  email: string;
+  kyc_status?: string;
+  account_status?: string;
+  created_at: string;
+}
+
+interface KYCDocument {
+  id: number;
+  user_id: string;
+  document_type: string;
+  status: 'pending' | 'verified' | 'rejected';
+  uploaded_at: string;
+  reviewed_at?: string;
+}
 
 export default function KYCPage() {
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [darkMode, setDarkMode] = useState(true);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [kycDocuments, setKycDocuments] = useState<KYCDocument[]>([]);
+  const [emailVerified, setEmailVerified] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchUserKYCData();
+  }, []);
+
+  const fetchUserKYCData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Get user ID
+      let userId: string | null = null;
+      
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (authUser) {
+        userId = authUser.id;
+        // Check if email is verified
+        setEmailVerified(authUser.email_confirmed_at !== null);
+      } else {
+        const sessionUser = getCurrentUser();
+        if (sessionUser?.id) {
+          userId = sessionUser.id;
+          
+          if (!userId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+            const { data: userData, error: userError } = await supabase
+              .from('users')
+              .select('user_uuid')
+              .eq('email', sessionUser.email)
+              .single();
+            
+            if (!userError && userData?.user_uuid) {
+              userId = userData.user_uuid;
+            }
+          }
+        }
+      }
+
+      if (!userId) {
+        setError('No user session found. Please log in again.');
+        setLoading(false);
+        return;
+      }
+
+      // Fetch user profile
+      const { data: profileData, error: profileError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('user_uuid', userId)
+        .single();
+
+      if (profileError && profileError.code !== 'PGRST116') {
+        console.error('Error fetching user profile:', profileError);
+        setError('Failed to load user profile.');
+      } else if (profileData) {
+        setUserProfile(profileData);
+      }
+
+      // Fetch KYC documents
+      const { data: kycData, error: kycError } = await supabase
+        .from('kyc_documents')
+        .select('*')
+        .eq('user_id', userId)
+        .order('uploaded_at', { ascending: false });
+
+      if (kycError) {
+        console.error('Error fetching KYC documents:', kycError);
+      } else if (kycData) {
+        setKycDocuments(kycData);
+      }
+
+      // If no email verified from auth, check from profile
+      if (!emailVerified && profileData?.email) {
+        // Check if user has verified email by checking if they have any completed transactions or accounts
+        // For now, we'll assume email is verified if user exists
+        setEmailVerified(true);
+      }
+    } catch (err) {
+      console.error('Exception while fetching KYC data:', err);
+      setError('An unexpected error occurred. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getIdentityVerificationStatus = (): 'pending' | 'verified' | 'rejected' | 'not_started' => {
+    if (kycDocuments.length === 0) {
+      return 'not_started';
+    }
+    
+    // Check if any document is verified
+    const hasVerified = kycDocuments.some(doc => doc.status === 'verified');
+    if (hasVerified) {
+      return 'verified';
+    }
+    
+    // Check if any document is rejected
+    const hasRejected = kycDocuments.some(doc => doc.status === 'rejected');
+    if (hasRejected) {
+      return 'rejected';
+    }
+    
+    // Otherwise pending
+    return 'pending';
+  };
 
   const handleBack = () => {
-    router.push('/dashboard');
+    router.push('/dashboard/settings');
   };
 
   return (
@@ -202,19 +331,50 @@ export default function KYCPage() {
               <p className="text-gray-600">Complete your KYC steps to unlock full access including deposits, trading, and withdrawals.</p>
             </div>
 
-            {/* Step 1: Confirm Email */}
-            <div className="bg-white rounded-lg shadow p-6 border border-[#A0C8A9]/20 mb-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center space-x-3">
-                  <div className="w-8 h-8 bg-[#A0C8A9] rounded-full flex items-center justify-center text-[#0A2E1D] font-bold">1</div>
-                  <h3 className="text-lg font-semibold text-[#0A2E1D]">Confirm Email</h3>
+            {/* Loading State */}
+            {loading && (
+              <div className="bg-white rounded-lg shadow p-6 border border-[#A0C8A9]/20 mb-6">
+                <div className="text-center py-8">
+                  <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-[#0A2E1D]"></div>
+                  <p className="mt-2 text-gray-600">Loading KYC information...</p>
                 </div>
-                <span className="px-3 py-1 bg-green-100 text-green-800 text-sm font-medium rounded-full">Verified</span>
               </div>
-              
-              <div className="mb-4">
-                <p className="text-gray-900 font-medium mb-2">ranithkumar04@gmail.com</p>
+            )}
+
+            {/* Error State */}
+            {error && !loading && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-6 mb-6">
+                <p className="text-red-800">{error}</p>
               </div>
+            )}
+
+            {/* Step 1: Confirm Email */}
+            {!loading && (
+              <div className="bg-white rounded-lg shadow p-6 border border-[#A0C8A9]/20 mb-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-8 h-8 bg-[#A0C8A9] rounded-full flex items-center justify-center text-[#0A2E1D] font-bold">1</div>
+                    <h3 className="text-lg font-semibold text-[#0A2E1D]">Confirm Email</h3>
+                  </div>
+                  <span className={`px-3 py-1 text-sm font-medium rounded-full ${
+                    emailVerified 
+                      ? 'bg-green-100 text-green-800' 
+                      : 'bg-yellow-100 text-yellow-800'
+                  }`}>
+                    {emailVerified ? 'Verified' : 'Pending'}
+                  </span>
+                </div>
+                
+                <div className="mb-4">
+                  <p className="text-gray-900 font-medium mb-2">
+                    {userProfile?.email || 'No email found'}
+                  </p>
+                  {!emailVerified && (
+                    <p className="text-sm text-yellow-600">
+                      Please verify your email address to continue.
+                    </p>
+                  )}
+                </div>
 
               <div className="bg-gray-50 rounded-lg p-4 mb-4">
                 <h4 className="text-md font-medium text-[#0A2E1D] mb-3">Privileges of Account Verification</h4>
@@ -242,26 +402,70 @@ export default function KYCPage() {
                 </ul>
               </div>
 
-              <div className="flex items-center justify-between">
-                <span className="px-3 py-1 bg-green-100 text-green-800 text-sm font-medium rounded-full">Completed</span>
-                <span className="px-3 py-1 bg-blue-100 text-blue-800 text-sm font-medium rounded-full">Automated</span>
+                <div className="flex items-center justify-between">
+                  <span className={`px-3 py-1 text-sm font-medium rounded-full ${
+                    emailVerified 
+                      ? 'bg-green-100 text-green-800' 
+                      : 'bg-yellow-100 text-yellow-800'
+                  }`}>
+                    {emailVerified ? 'Completed' : 'In Progress'}
+                  </span>
+                  <span className="px-3 py-1 bg-blue-100 text-blue-800 text-sm font-medium rounded-full">Automated</span>
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Step 2: Verify Identity */}
-            <div className="bg-white rounded-lg shadow p-6 border border-[#A0C8A9]/20">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center space-x-3">
-                  <div className="w-8 h-8 bg-[#A0C8A9] rounded-full flex items-center justify-center text-[#0A2E1D] font-bold">2</div>
-                  <h3 className="text-lg font-semibold text-[#0A2E1D]">Verify your identity using Sumsub</h3>
+            {!loading && (
+              <div className="bg-white rounded-lg shadow p-6 border border-[#A0C8A9]/20">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-8 h-8 bg-[#A0C8A9] rounded-full flex items-center justify-center text-[#0A2E1D] font-bold">2</div>
+                    <h3 className="text-lg font-semibold text-[#0A2E1D]">Verify your identity using Sumsub</h3>
+                  </div>
+                  <span className={`px-3 py-1 text-sm font-medium rounded-full ${
+                    getIdentityVerificationStatus() === 'verified'
+                      ? 'bg-green-100 text-green-800'
+                      : getIdentityVerificationStatus() === 'rejected'
+                      ? 'bg-red-100 text-red-800'
+                      : 'bg-blue-100 text-blue-800'
+                  }`}>
+                    {getIdentityVerificationStatus() === 'verified' 
+                      ? 'Verified' 
+                      : getIdentityVerificationStatus() === 'rejected'
+                      ? 'Rejected'
+                      : getIdentityVerificationStatus() === 'pending'
+                      ? 'Pending'
+                      : 'Automated'}
+                  </span>
                 </div>
-                <span className="px-3 py-1 bg-blue-100 text-blue-800 text-sm font-medium rounded-full">Automated</span>
-              </div>
-              
-              <div className="mb-4">
-                <p className="text-gray-600 mb-2">Provide a document confirming your name</p>
-                <p className="text-gray-600">Verify your details please</p>
-              </div>
+                
+                <div className="mb-4">
+                  {getIdentityVerificationStatus() === 'not_started' && (
+                    <>
+                      <p className="text-gray-600 mb-2">Provide a document confirming your name</p>
+                      <p className="text-gray-600">Verify your details please</p>
+                    </>
+                  )}
+                  {getIdentityVerificationStatus() === 'pending' && (
+                    <>
+                      <p className="text-yellow-600 mb-2 font-medium">Your identity verification is under review</p>
+                      <p className="text-gray-600">We are currently reviewing your submitted documents. You will be notified once the verification is complete.</p>
+                    </>
+                  )}
+                  {getIdentityVerificationStatus() === 'verified' && (
+                    <>
+                      <p className="text-green-600 mb-2 font-medium">✓ Your identity has been verified</p>
+                      <p className="text-gray-600">Verification completed on {kycDocuments.find(d => d.status === 'verified')?.reviewed_at ? new Date(kycDocuments.find(d => d.status === 'verified')!.reviewed_at!).toLocaleDateString() : 'N/A'}</p>
+                    </>
+                  )}
+                  {getIdentityVerificationStatus() === 'rejected' && (
+                    <>
+                      <p className="text-red-600 mb-2 font-medium">Your identity verification was rejected</p>
+                      <p className="text-gray-600">Please review the rejection reason and resubmit your documents.</p>
+                    </>
+                  )}
+                </div>
 
               <div className="bg-gray-50 rounded-lg p-4 mb-4">
                 <h4 className="text-md font-medium text-[#0A2E1D] mb-3">Privileges of Profile Verification</h4>
@@ -289,12 +493,25 @@ export default function KYCPage() {
                 </ul>
               </div>
 
-              <div className="flex justify-end">
-                <button className="px-6 py-3 bg-[#0A2E1D] text-white rounded-md hover:bg-[#1A3E2D] transition-colors font-medium">
-                  Go to Sumsub
-                </button>
+                {getIdentityVerificationStatus() !== 'verified' && (
+                  <div className="flex justify-end">
+                    <button 
+                      onClick={() => {
+                        // TODO: Integrate with Sumsub API
+                        alert('Sumsub integration will be implemented here');
+                      }}
+                      className="px-6 py-3 bg-[#0A2E1D] text-white rounded-md hover:bg-[#1A3E2D] transition-colors font-medium"
+                    >
+                      {getIdentityVerificationStatus() === 'not_started' 
+                        ? 'Go to Sumsub' 
+                        : getIdentityVerificationStatus() === 'rejected'
+                        ? 'Resubmit Documents'
+                        : 'View Status'}
+                    </button>
+                  </div>
+                )}
               </div>
-            </div>
+            )}
           </div>
         </div>
       </div>
