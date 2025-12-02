@@ -1,22 +1,35 @@
 'use client';
 
+import { clearUserSession, getCurrentUser } from '@/utils/auth';
 import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import ProfileLayout from '../components/ProfileLayout';
 
 export default function LogoutPage() {
   const router = useRouter();
+  // Start with consistent fallback for SSR to prevent hydration mismatch
+  const [userName, setUserName] = useState<string>('User');
+
+  // Capture the current user's name once before we clear the session,
+  // so the logout screen can show the correct name during the transition.
+  useEffect(() => {
+    // Only access sessionStorage on client-side
+    const user = getCurrentUser();
+    if (user?.name) {
+      setUserName(user.name);
+    }
+  }, []);
 
   useEffect(() => {
-    // Clear any stored authentication data
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem('authToken');
-      localStorage.removeItem('userData');
-      sessionStorage.clear();
-    }
-    
-    // Redirect to login page after a short delay
     const timer = setTimeout(() => {
+      // Clear any stored authentication data
+      clearUserSession();
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('userData');
+      }
+
+      // Redirect to login page
       router.push('/signin');
     }, 2000);
 
@@ -27,6 +40,7 @@ export default function LogoutPage() {
     <ProfileLayout 
       title="Logging Out..." 
       description="You are being logged out of your account. Please wait while we redirect you to the login page."
+      userName={userName}
     >
       <div className="flex items-center justify-center">
         <div className="bg-[#2D4A35] rounded-lg p-8 text-center max-w-md">

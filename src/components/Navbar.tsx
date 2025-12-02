@@ -67,7 +67,7 @@ export default function Navbar() {
               Sign In
             </Link>
             <Link
-              href="/get-started"
+              href="/signup"
               className="bg-[#A0C8A9] hover:bg-[#8FB89A] text-[#1E2E23] px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200 flex items-center"
             >
               Get Started
@@ -115,7 +115,7 @@ export default function Navbar() {
                 Sign In
               </Link>
               <Link
-                href="/get-started"
+                href="/signup"
                 className="bg-[#A0C8A9] hover:bg-[#8FB89A] text-[#1E2E23] block mt-2 px-3 py-2 rounded-lg text-base font-medium transition-colors duration-200"
                 onClick={() => setIsMobileMenuOpen(false)}
               >
