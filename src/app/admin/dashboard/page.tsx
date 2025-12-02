@@ -120,75 +120,67 @@ function AdminDashboardContent() {
         />
 
         {/* Statistics Grid */}
-        <div className="flex-1 p-2 xs:p-3 sm:p-3 md:p-4 lg:p-6 grid grid-cols-1 xs:grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-2 gap-2 xs:gap-3 sm:gap-3 md:gap-4 lg:gap-x-6 lg:gap-y-0 overflow-y-auto">
-          {/* Today Registration */}
-          <div className="bg-[#2D4A32] rounded-2xl px-2 xs:px-3 sm:px-3 md:px-4 lg:px-4 py-2 xs:py-3 sm:py-3 md:py-3 lg:py-3 grid grid-cols-3 items-center h-12 xs:h-14 sm:h-14 md:h-16 lg:h-16 lg:-mb-2">
-            <span className="text-white font-medium text-xs xs:text-sm sm:text-sm md:text-sm lg:text-base">Today Registration</span>
-            <span className="text-white text-sm xs:text-lg sm:text-lg md:text-lg lg:text-lg text-center">:</span>
-            <span className="text-white font-bold text-base xs:text-lg sm:text-lg md:text-lg lg:text-xl text-right">{metrics.todayRegistration}</span>
-          </div>
+        <div className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5 lg:gap-6 max-w-7xl mx-auto">
+            {/* Today Registration */}
+            <div className="bg-white rounded-xl shadow-md hover:shadow-lg transition-shadow duration-200 border border-gray-100 p-5 flex items-center justify-between">
+              <span className="text-gray-700 font-medium text-sm sm:text-base">Today Registration</span>
+              <span className="text-[#0A2E1D] font-bold text-xl sm:text-2xl">{metrics.todayRegistration}</span>
+            </div>
 
-          {/* Total Registration */}
-          <div className="bg-[#2D4A32] rounded-2xl px-2 xs:px-3 sm:px-3 md:px-4 lg:px-4 py-2 xs:py-3 sm:py-3 md:py-3 lg:py-3 grid grid-cols-3 items-center h-12 xs:h-14 sm:h-14 md:h-16 lg:h-16 lg:-mb-2">
-            <span className="text-white font-medium text-xs xs:text-sm sm:text-sm md:text-sm lg:text-base">Total Registration</span>
-            <span className="text-white text-sm xs:text-lg sm:text-lg md:text-lg lg:text-lg text-center">:</span>
-            <span className="text-white font-bold text-base xs:text-lg sm:text-lg md:text-lg lg:text-xl text-right">{metrics.totalRegistration}</span>
-          </div>
+            {/* Total Registration */}
+            <div className="bg-white rounded-xl shadow-md hover:shadow-lg transition-shadow duration-200 border border-gray-100 p-5 flex items-center justify-between">
+              <span className="text-gray-700 font-medium text-sm sm:text-base">Total Registration</span>
+              <span className="text-[#0A2E1D] font-bold text-xl sm:text-2xl">{metrics.totalRegistration}</span>
+            </div>
 
-          {/* KYC Pending */}
-          <div className="bg-[#2D4A32] rounded-2xl px-2 xs:px-3 sm:px-3 md:px-4 lg:px-4 py-2 xs:py-3 sm:py-3 md:py-3 lg:py-3 grid grid-cols-3 items-center h-12 xs:h-14 sm:h-14 md:h-16 lg:h-16 lg:-mb-2">
-            <span className="text-white font-medium text-xs xs:text-sm sm:text-sm md:text-sm lg:text-base">KYC Pending</span>
-            <span className="text-white text-sm xs:text-lg sm:text-lg md:text-lg lg:text-lg text-center">:</span>
-            <span className="text-white font-bold text-base xs:text-lg sm:text-lg md:text-lg lg:text-xl text-right">{metrics.kycPending}</span>
-          </div>
+            {/* KYC Pending */}
+            <div className="bg-white rounded-xl shadow-md hover:shadow-lg transition-shadow duration-200 border border-gray-100 p-5 flex items-center justify-between">
+              <span className="text-gray-700 font-medium text-sm sm:text-base">KYC Pending</span>
+              <span className="text-[#0A2E1D] font-bold text-xl sm:text-2xl">{metrics.kycPending}</span>
+            </div>
 
-          {/* Total Live Accounts */}
-          <div className="bg-[#2D4A32] rounded-2xl px-2 xs:px-3 sm:px-3 md:px-4 lg:px-4 py-2 xs:py-3 sm:py-3 md:py-3 lg:py-3 grid grid-cols-3 items-center h-12 xs:h-14 sm:h-14 md:h-16 lg:h-16 lg:-mb-2">
-            <span className="text-white font-medium text-xs xs:text-sm sm:text-sm md:text-sm lg:text-base">Total Live Accounts</span>
-            <span className="text-white text-sm xs:text-lg sm:text-lg md:text-lg lg:text-lg text-center">:</span>
-            <span className="text-white font-bold text-base xs:text-lg sm:text-lg md:text-lg lg:text-xl text-right">{metrics.totalLiveAccounts}</span>
-          </div>
+            {/* Total Live Accounts */}
+            <div className="bg-white rounded-xl shadow-md hover:shadow-lg transition-shadow duration-200 border border-gray-100 p-5 flex items-center justify-between">
+              <span className="text-gray-700 font-medium text-sm sm:text-base">Total Live Accounts</span>
+              <span className="text-[#0A2E1D] font-bold text-xl sm:text-2xl">{metrics.totalLiveAccounts}</span>
+            </div>
 
-          {/* Total Demo Accounts */}
-          <div className="bg-[#2D4A32] rounded-2xl px-2 xs:px-3 sm:px-3 md:px-4 lg:px-4 py-2 xs:py-3 sm:py-3 md:py-3 lg:py-3 grid grid-cols-3 items-center h-12 xs:h-14 sm:h-14 md:h-16 lg:h-16 lg:-mb-2">
-            <span className="text-white font-medium text-xs xs:text-sm sm:text-sm md:text-sm lg:text-base">Total Demo Accounts</span>
-            <span className="text-white text-sm xs:text-lg sm:text-lg md:text-lg lg:text-lg text-center">:</span>
-            <span className="text-white font-bold text-base xs:text-lg sm:text-lg md:text-lg lg:text-xl text-right">{metrics.totalDemoAccounts}</span>
-          </div>
+            {/* Total Demo Accounts */}
+            <div className="bg-white rounded-xl shadow-md hover:shadow-lg transition-shadow duration-200 border border-gray-100 p-5 flex items-center justify-between">
+              <span className="text-gray-700 font-medium text-sm sm:text-base">Total Demo Accounts</span>
+              <span className="text-[#0A2E1D] font-bold text-xl sm:text-2xl">{metrics.totalDemoAccounts}</span>
+            </div>
 
-          {/* Total Today Deposits */}
-          <div className="bg-[#2D4A32] rounded-2xl px-2 xs:px-3 sm:px-3 md:px-4 lg:px-4 py-2 xs:py-3 sm:py-3 md:py-3 lg:py-3 grid grid-cols-3 items-center h-12 xs:h-14 sm:h-14 md:h-16 lg:h-16 lg:-mb-2">
-            <span className="text-white font-medium text-xs xs:text-sm sm:text-sm md:text-sm lg:text-base">Total Today Deposits</span>
-            <span className="text-white text-sm xs:text-lg sm:text-lg md:text-lg lg:text-lg text-center">:</span>
-            <span className="text-white font-bold text-base xs:text-lg sm:text-lg md:text-lg lg:text-xl text-right">{metrics.totalTodayDeposits}</span>
-          </div>
+            {/* Total Today Deposits */}
+            <div className="bg-white rounded-xl shadow-md hover:shadow-lg transition-shadow duration-200 border border-gray-100 p-5 flex items-center justify-between">
+              <span className="text-gray-700 font-medium text-sm sm:text-base">Total Today Deposits</span>
+              <span className="text-[#0A2E1D] font-bold text-xl sm:text-2xl">{metrics.totalTodayDeposits}</span>
+            </div>
 
-          {/* Total Today Withdrawal */}
-          <div className="bg-[#2D4A32] rounded-2xl px-2 xs:px-3 sm:px-3 md:px-4 lg:px-4 py-2 xs:py-3 sm:py-3 md:py-3 lg:py-3 grid grid-cols-3 items-center h-12 xs:h-14 sm:h-14 md:h-16 lg:h-16 lg:-mb-2">
-            <span className="text-white font-medium text-xs xs:text-sm sm:text-sm md:text-sm lg:text-base">Total Today Withdrawal</span>
-            <span className="text-white text-sm xs:text-lg sm:text-lg md:text-lg lg:text-lg text-center">:</span>
-            <span className="text-white font-bold text-base xs:text-lg sm:text-lg md:text-lg lg:text-xl text-right">{metrics.totalTodayWithdrawals}</span>
-          </div>
+            {/* Total Today Withdrawal */}
+            <div className="bg-white rounded-xl shadow-md hover:shadow-lg transition-shadow duration-200 border border-gray-100 p-5 flex items-center justify-between">
+              <span className="text-gray-700 font-medium text-sm sm:text-base">Total Today Withdrawal</span>
+              <span className="text-[#0A2E1D] font-bold text-xl sm:text-2xl">{metrics.totalTodayWithdrawals}</span>
+            </div>
 
-          {/* This Month Deposit */}
-          <div className="bg-[#2D4A32] rounded-2xl px-2 xs:px-3 sm:px-3 md:px-4 lg:px-4 py-2 xs:py-3 sm:py-3 md:py-3 lg:py-3 grid grid-cols-3 items-center h-12 xs:h-14 sm:h-14 md:h-16 lg:h-16 lg:-mb-2">
-            <span className="text-white font-medium text-xs xs:text-sm sm:text-sm md:text-sm lg:text-base">This Month Deposit</span>
-            <span className="text-white text-sm xs:text-lg sm:text-lg md:text-lg lg:text-lg text-center">:</span>
-            <span className="text-white font-bold text-base xs:text-lg sm:text-lg md:text-lg lg:text-xl text-right">{metrics.thisMonthDeposits}</span>
-          </div>
+            {/* This Month Deposit */}
+            <div className="bg-white rounded-xl shadow-md hover:shadow-lg transition-shadow duration-200 border border-gray-100 p-5 flex items-center justify-between">
+              <span className="text-gray-700 font-medium text-sm sm:text-base">This Month Deposit</span>
+              <span className="text-[#0A2E1D] font-bold text-xl sm:text-2xl">{metrics.thisMonthDeposits}</span>
+            </div>
 
-          {/* This Month Withdrawal */}
-          <div className="bg-[#2D4A32] rounded-2xl px-2 xs:px-3 sm:px-3 md:px-4 lg:px-4 py-2 xs:py-3 sm:py-3 md:py-3 lg:py-3 grid grid-cols-3 items-center h-12 xs:h-14 sm:h-14 md:h-16 lg:h-16 lg:-mb-2">
-            <span className="text-white font-medium text-xs xs:text-sm sm:text-sm md:text-sm lg:text-base">This Month Withdrawal</span>
-            <span className="text-white text-sm xs:text-lg sm:text-lg md:text-lg lg:text-lg text-center">:</span>
-            <span className="text-white font-bold text-base xs:text-lg sm:text-lg md:text-lg lg:text-xl text-right">{metrics.thisMonthWithdrawals}</span>
-          </div>
+            {/* This Month Withdrawal */}
+            <div className="bg-white rounded-xl shadow-md hover:shadow-lg transition-shadow duration-200 border border-gray-100 p-5 flex items-center justify-between">
+              <span className="text-gray-700 font-medium text-sm sm:text-base">This Month Withdrawal</span>
+              <span className="text-[#0A2E1D] font-bold text-xl sm:text-2xl">{metrics.thisMonthWithdrawals}</span>
+            </div>
 
-          {/* Total IB Clients */}
-          <div className="bg-[#2D4A32] rounded-2xl px-2 xs:px-3 sm:px-3 md:px-4 lg:px-4 py-2 xs:py-3 sm:py-3 md:py-3 lg:py-3 grid grid-cols-3 items-center h-12 xs:h-14 sm:h-14 md:h-16 lg:h-16 lg:-mb-2">
-            <span className="text-white font-medium text-xs xs:text-sm sm:text-sm md:text-sm lg:text-base">Total IB Clients</span>
-            <span className="text-white text-sm xs:text-lg sm:text-lg md:text-lg lg:text-lg text-center">:</span>
-            <span className="text-white font-bold text-base xs:text-lg sm:text-lg md:text-lg lg:text-xl text-right">{metrics.totalIBClients}</span>
+            {/* Total IB Clients */}
+            <div className="bg-white rounded-xl shadow-md hover:shadow-lg transition-shadow duration-200 border border-gray-100 p-5 flex items-center justify-between">
+              <span className="text-gray-700 font-medium text-sm sm:text-base">Total IB Clients</span>
+              <span className="text-[#0A2E1D] font-bold text-xl sm:text-2xl">{metrics.totalIBClients}</span>
+            </div>
           </div>
         </div>
 
