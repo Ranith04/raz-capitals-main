@@ -2,6 +2,7 @@
 
 import AdminHeader from '@/components/AdminHeader';
 import AdminSidebar from '@/components/AdminSidebar';
+import AdminPageSkeleton from '@/components/AdminPageSkeleton';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { ClientUser, UserService } from '@/lib/userService';
 import { useRouter } from 'next/navigation';
@@ -76,11 +77,32 @@ function NewClientListContent() {
         client.id.toString().includes(searchTerm.toLowerCase()) ||
         client.email.toLowerCase().includes(searchTerm.toLowerCase());
 
-      // Date filter
-      const matchesDate = selectedDate === '' || client.created_at?.includes(selectedDate);
+      // Date filter - properly compare dates
+      let matchesDate = true;
+      if (selectedDate !== '') {
+        try {
+          // Extract date portion from ISO timestamp (YYYY-MM-DD)
+          const clientDate = client.created_at ? new Date(client.created_at).toISOString().split('T')[0] : '';
+          matchesDate = clientDate === selectedDate;
+        } catch (error) {
+          // Fallback to string includes if date parsing fails
+          matchesDate = client.created_at?.includes(selectedDate) || false;
+        }
+      }
 
-      // KYC Status filter
-      const matchesKycStatus = selectedKycStatus === 'All Status' || client.kyc_status === selectedKycStatus;
+      // KYC Status filter - map UI values to database values
+      let matchesKycStatus = true;
+      if (selectedKycStatus !== 'All Status') {
+        // Map UI dropdown values to database values
+        const statusMap: { [key: string]: string } = {
+          'Pending': 'pending',
+          'Approved': 'verified',
+          'Rejected': 'rejected'
+        };
+        const dbStatus = statusMap[selectedKycStatus] || selectedKycStatus.toLowerCase();
+        // Compare case-insensitively
+        matchesKycStatus = (client.kyc_status || 'pending').toLowerCase() === dbStatus.toLowerCase();
+      }
 
       return matchesSearch && matchesDate && matchesKycStatus;
     });
@@ -202,20 +224,8 @@ function NewClientListContent() {
     setIsMobileSidebarOpen(false);
   };
 
-  if (loading) {
-    return (
-      <div className="flex h-screen bg-[#9BC5A2] overflow-hidden">
-        <AdminSidebar 
-          currentPage="new-client-list" 
-          isMobileOpen={isMobileSidebarOpen}
-          onMobileClose={closeMobileSidebar}
-        />
-        <div className="flex-1 flex items-center justify-center">
-          <div className="text-[#0A2E1D] text-xl">Loading clients...</div>
-        </div>
-      </div>
-    );
-  }
+  // Show skeleton immediately for better UX - don't block the entire UI
+  const showSkeleton = loading && clients.length === 0;
 
   return (
     <div className="flex h-screen bg-[#9BC5A2] overflow-hidden">
@@ -240,8 +250,12 @@ function NewClientListContent() {
           onMobileMenuToggle={toggleMobileSidebar}
         />
 
-        {/* New Client List Content */}
-        <div className="flex-1 p-2 xs:p-3 sm:p-4 md:p-6 lg:p-8 overflow-y-auto">
+        {/* Show skeleton for initial load, content otherwise */}
+        {showSkeleton ? (
+          <AdminPageSkeleton />
+        ) : (
+          /* New Client List Content */
+          <div className="flex-1 p-2 xs:p-3 sm:p-4 md:p-6 lg:p-8 overflow-y-auto">
           {/* Notification */}
           {notification && (
             <div className={`mb-4 xs:mb-5 sm:mb-6 p-3 xs:p-4 sm:p-4 rounded-lg ${
@@ -471,6 +485,7 @@ function NewClientListContent() {
             </div>
           </div>
         </div>
+        )}
       </div>
 
       {/* Rejection Modal */}

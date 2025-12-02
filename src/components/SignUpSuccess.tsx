@@ -2,6 +2,7 @@
 
 import AuthShell from '@/components/AuthShell';
 import { supabase } from '@/lib/supabaseClient';
+import { TradingCredentialsService } from '@/lib/tradingCredentialsService';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
@@ -61,14 +62,15 @@ export default function SignUpSuccess() {
               account_uid: newTradingId,
               account_password: newPassword,
               user_id: userUuid,
-              leverage: 100.0,
-              balance: 10000.0,
+              levarage: 100.0,
+              balance: 0.0, // Start with zero balance - user needs to deposit
               currency: 'USD',
-              status: '00:00:00',
-              free_margin: 10000.0,
-              equity: 10000.0,
+              status: 'active',
+              free_margin: 0.0, // Start with zero free margin
+              equity: 0.0, // Start with zero equity
               margin: 0.0,
-              watchlist: '[]',
+              watchlist: [],
+              account_type: 'real', // Real live account, not demo
               created_at: new Date().toISOString()
             });
 
@@ -81,11 +83,38 @@ export default function SignUpSuccess() {
           // Store credentials in sessionStorage for login
           sessionStorage.setItem('trading_credentials', JSON.stringify({ tradingId: newTradingId, password: newPassword }));
           
+          // Get user email from sessionStorage
+          const userEmail = sessionStorage.getItem('signup_email') || '';
+          
+          // Send trading credentials via email API
+          if (userEmail) {
+            try {
+              console.log('📧 Sending trading credentials to email:', userEmail);
+              const emailResult = await TradingCredentialsService.sendTradingCredentials(
+                userEmail,
+                newTradingId,
+                newPassword
+              );
+              
+              if (emailResult.success) {
+                console.log('✅ Trading credentials email sent successfully');
+              } else {
+                console.warn('⚠️ Failed to send trading credentials email:', emailResult.error);
+                // Don't block the flow if email fails
+              }
+            } catch (emailError) {
+              console.error('❌ Error sending trading credentials email:', emailError);
+              // Don't block the flow if email fails
+            }
+          } else {
+            console.warn('⚠️ No user email found, skipping email notification');
+          }
+          
           // Also store basic user info for immediate access
           const basicUserInfo = {
             id: userUuid,
             name: 'Trading User',
-            email: 'trading@razcapitals.com',
+            email: userEmail || 'trading@razcapitals.com',
             role: 'user',
             createdAt: new Date().toISOString(),
             lastLogin: new Date().toISOString()
@@ -105,14 +134,15 @@ export default function SignUpSuccess() {
               account_uid: tradingId,
               account_password: password,
               user_id: userUuid,
-              leverage: 100.0, // Default leverage as float8
-              balance: 10000.0, // Default balance as float8
+              levarage: 100.0, // Default leverage as float8
+              balance: 0.0, // Start with zero balance - user needs to deposit
               currency: 'USD', // Default currency as varchar
-              status: '00:00:00', // Default status as time (HH:MM:SS format)
-              free_margin: 10000.0, // Default free margin as float8
-              equity: 10000.0, // Default equity as float8
+              status: 'active', // Default status as enum
+              free_margin: 0.0, // Start with zero free margin
+              equity: 0.0, // Start with zero equity
               margin: 0.0, // Default margin as float8
-              watchlist: '[]', // Empty watchlist as text
+              watchlist: [], // Empty watchlist as array
+              account_type: 'real', // Real live account, not demo
               created_at: new Date().toISOString()
             });
 
@@ -136,11 +166,38 @@ export default function SignUpSuccess() {
         // Store credentials in sessionStorage for login
         sessionStorage.setItem('trading_credentials', JSON.stringify({ tradingId, password }));
         
+        // Get user email from sessionStorage
+        const userEmail = sessionStorage.getItem('signup_email') || '';
+        
+        // Send trading credentials via email API
+        if (userEmail) {
+          try {
+            console.log('📧 Sending trading credentials to email:', userEmail);
+            const emailResult = await TradingCredentialsService.sendTradingCredentials(
+              userEmail,
+              tradingId,
+              password
+            );
+            
+            if (emailResult.success) {
+              console.log('✅ Trading credentials email sent successfully');
+            } else {
+              console.warn('⚠️ Failed to send trading credentials email:', emailResult.error);
+              // Don't block the flow if email fails
+            }
+          } catch (emailError) {
+            console.error('❌ Error sending trading credentials email:', emailError);
+            // Don't block the flow if email fails
+          }
+        } else {
+          console.warn('⚠️ No user email found, skipping email notification');
+        }
+        
         // Also store basic user info for immediate access
         const basicUserInfo = {
           id: userUuid,
           name: 'Trading User',
-          email: 'trading@razcapitals.com',
+          email: userEmail || 'trading@razcapitals.com',
           role: 'user',
           createdAt: new Date().toISOString(),
           lastLogin: new Date().toISOString()
@@ -191,40 +248,29 @@ export default function SignUpSuccess() {
     return result;
   };
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    // You could add a toast notification here
+  const copyToClipboard = (text: string, label: string = '') => {
+    navigator.clipboard.writeText(text).then(() => {
+      // Show success feedback
+      console.log(`${label || 'Text'} copied to clipboard`);
+    }).catch((err) => {
+      console.error('Failed to copy:', err);
+    });
   };
 
   const handleProceedToLogin = () => {
-    // Check if we have stored credentials and user session
-    const storedCredentials = sessionStorage.getItem('trading_credentials');
-    const userUuid = sessionStorage.getItem('signup_user_uuid');
+    // Clear signup session data
+    sessionStorage.removeItem('signup_user_uuid');
+    sessionStorage.removeItem('signup_email');
+    sessionStorage.removeItem('signup_password');
+    sessionStorage.removeItem('signup_step2');
+    sessionStorage.removeItem('signup_step3');
+    sessionStorage.removeItem('signup_step4');
+    sessionStorage.removeItem('signup_step5');
+    sessionStorage.removeItem('signup_step6');
+    sessionStorage.removeItem('signup_step7');
     
-    if (storedCredentials && userUuid) {
-      // We have credentials, try to authenticate directly
-      console.log('Auto-authenticating with stored credentials');
-      
-      // Create a simple user session for immediate access
-      const userData = {
-        id: userUuid,
-        name: 'Trading User',
-        email: 'trading@razcapitals.com',
-        role: 'user',
-        createdAt: new Date().toISOString(),
-        lastLogin: new Date().toISOString()
-      };
-      
-      // Store user session
-      sessionStorage.setItem('user', JSON.stringify(userData));
-      sessionStorage.setItem('token', 'trading-auth-token');
-      
-      // Redirect directly to dashboard
-      router.push('/dashboard');
-    } else {
-      // Fallback to signin page
-      router.push('/signin');
-    }
+    // Navigate to login page
+    router.push('/signin');
   };
 
   if (isCreatingAccount) {
@@ -281,11 +327,16 @@ export default function SignUpSuccess() {
               <div className="flex items-center justify-between">
                 <span className="text-xl font-bold text-gray-800">{credentials.tradingId}</span>
                 <button
-                  onClick={() => copyToClipboard(credentials.tradingId)}
-                  className="p-2 hover:bg-gray-200 rounded-lg transition-colors"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    copyToClipboard(credentials.tradingId, 'Trading ID');
+                  }}
+                  className="p-2.5 hover:bg-gray-200 rounded-lg transition-all duration-200 hover:scale-105 active:scale-95"
+                  title="Copy Trading ID"
+                  aria-label="Copy Trading ID to clipboard"
                 >
-                  <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  <svg className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
                   </svg>
                 </button>
               </div>
@@ -300,32 +351,54 @@ export default function SignUpSuccess() {
                 <span className="text-sm text-gray-600">Password</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-xl font-bold text-gray-800">
-                  {showPassword ? credentials.password : '•'.repeat(7)}
+                <span className="text-xl font-bold text-gray-800 font-mono tracking-wider">
+                  {showPassword ? credentials.password : '•'.repeat(credentials.password.length)}
                 </span>
-                <div className="flex space-x-2">
+                <div className="flex items-center space-x-2">
                   <button
                     onClick={() => setShowPassword(!showPassword)}
-                    className="p-2 hover:bg-gray-200 rounded-lg transition-colors"
+                    className="p-2.5 hover:bg-gray-200 rounded-lg transition-all duration-200 hover:scale-105 active:scale-95"
+                    title={showPassword ? 'Hide password' : 'Show password'}
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
                   >
-                    <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      {showPassword ? (
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21" />
-                      ) : (
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                      )}
-                    </svg>
+                    {showPassword ? (
+                      <svg className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21" />
+                      </svg>
+                    ) : (
+                      <svg className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 9a3 3 0 100 6 3 3 0 000-6z" />
+                      </svg>
+                    )}
                   </button>
                   <button
-                    onClick={() => copyToClipboard(credentials.password)}
-                    className="p-2 hover:bg-gray-200 rounded-lg transition-colors"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      copyToClipboard(credentials.password, 'Password');
+                    }}
+                    className="p-2.5 hover:bg-gray-200 rounded-lg transition-all duration-200 hover:scale-105 active:scale-95"
+                    title="Copy password"
+                    aria-label="Copy password to clipboard"
                   >
-                    <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                    <svg className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
                     </svg>
                   </button>
                 </div>
               </div>
+            </div>
+          </div>
+
+          {/* Email Notification - Blue background with email icon */}
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4">
+            <div className="flex items-start">
+              <svg className="w-5 h-5 text-blue-600 mr-2 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+              </svg>
+              <p className="text-sm text-blue-800">
+                These trading credentials have been sent to your email address for future reference.
+              </p>
             </div>
           </div>
 

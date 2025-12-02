@@ -26,9 +26,13 @@ export class AuthService {
       const { email, password } = step1Data;
 
       // Create user in Supabase Auth
+      // Note: Supabase automatically sends email verification by default
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
         password,
+        options: {
+          emailRedirectTo: `${typeof window !== 'undefined' ? window.location.origin : ''}/signin`,
+        },
       });
 
       if (authError) {
@@ -114,7 +118,7 @@ export class AuthService {
             first_name: step2Data.first_name,
             middle_name: step2Data.middle_name ?? null,
             last_name: step2Data.last_name,
-            phone_no: step2Data.phone_no,
+            phone_number: step2Data.phone_number,
             updated_at: nowIso,
           })
           .eq('user_uuid', userUuid);
@@ -133,7 +137,7 @@ export class AuthService {
             first_name: step2Data.first_name,
             middle_name: step2Data.middle_name ?? null,
             last_name: step2Data.last_name,
-            phone_no: step2Data.phone_no,
+            phone_number: step2Data.phone_number,
             created_at: nowIso,
             updated_at: nowIso,
           });
@@ -447,7 +451,7 @@ export class AuthService {
         first_name: (step2Data.first_name as string) || '',
         last_name: (step2Data.last_name as string) || '',
         middle_name: (step2Data.middle_name as string) || '',
-        phone_no: (step2Data.phone_no as string) || '',
+        phone_number: (step2Data.phone_number as string) || '',
         dob: (step3Data.dob as string) || '',
         gender: (step3Data.gender as string) || '',
         country_of_birth: (step4Data.country_of_birth as string) || '',
@@ -566,22 +570,52 @@ export class AuthService {
   // KYC: Step 4, 5, 6 helpers (kyc_documents)
   // ==========================================
 
+  /**
+   * Upload KYC file to Supabase Storage and return public URL
+   * @param file - File to upload
+   * @param userUuid - User UUID for organizing files
+   * @param bucketName - Storage bucket name (kyc-documents, secondary-ID, bank-statement, face-verification)
+   * @param keyPrefix - Prefix for the file name
+   * @returns Public URL of the uploaded file
+   */
   private static async uploadKycFile(
     file: File,
     userUuid: string,
+    bucketName: string,
     keyPrefix: string
-  ): Promise<{ path: string }> {
+  ): Promise<{ url: string; path: string }> {
     const fileExt = file.name.split('.').pop() || 'bin';
     const safeName = file.name.replace(/[^a-zA-Z0-9_.-]/g, '_');
     const filePath = `${userUuid}/${keyPrefix}-${Date.now()}-${safeName}`;
 
-    const { error } = await supabase
+    // Upload file to the specified bucket
+    const { data: uploadData, error: uploadError } = await supabase
       .storage
-      .from('kyc-documents')
-      .upload(filePath, file, { upsert: true, contentType: file.type || undefined });
+      .from(bucketName)
+      .upload(filePath, file, { 
+        upsert: true, 
+        contentType: file.type || undefined 
+      });
 
-    if (error) throw error;
-    return { path: filePath };
+    if (uploadError) {
+      console.error(`Error uploading to ${bucketName}:`, uploadError);
+      throw uploadError;
+    }
+
+    // Get public URL for the uploaded file
+    const { data: urlData } = supabase
+      .storage
+      .from(bucketName)
+      .getPublicUrl(filePath);
+
+    if (!urlData?.publicUrl) {
+      throw new Error(`Failed to get public URL for uploaded file in ${bucketName}`);
+    }
+
+    return { 
+      url: urlData.publicUrl,
+      path: filePath 
+    };
   }
 
   static async saveKycDocuments(params: {
@@ -597,10 +631,10 @@ export class AuthService {
         return { success: false, message: 'Missing signup context. Please complete previous steps.' };
       }
 
-      // Upload both documents
+      // Upload both documents to their respective buckets
       const [primaryRes, secondaryRes] = await Promise.all([
-        this.uploadKycFile(params.primaryDocument, userUuid, 'primary-id'),
-        this.uploadKycFile(params.secondaryDocument, userUuid, 'secondary-id'),
+        this.uploadKycFile(params.primaryDocument, userUuid, 'kyc-documents', 'primary-id'),
+        this.uploadKycFile(params.secondaryDocument, userUuid, 'secondary-ID', 'secondary-id'),
       ]);
 
       // Upsert into kyc_documents keyed by user_id
@@ -621,9 +655,10 @@ export class AuthService {
           .from('kyc_documents')
           .update({
             id_document_type: params.primaryDocumentType,
-            id_document_url: primaryRes.path,
-            "secondaryID_type": params.secondaryDocumentType,
-            "secondaryID_document": secondaryRes.path,
+            id_document_url: primaryRes.url, // Store public URL instead of path
+            secondaryID_type: params.secondaryDocumentType,
+            secondaryID_document_url: secondaryRes.url, // Store public URL instead of path
+            submitted_at: nowIso,
           })
           .eq('user_id', userUuid);
         if (updErr) {
@@ -637,10 +672,11 @@ export class AuthService {
             user_id: userUuid,
             created_at: nowIso,
             id_document_type: params.primaryDocumentType,
-            id_document_url: primaryRes.path,
-            "secondaryID_type": params.secondaryDocumentType,
-            "secondaryID_document": secondaryRes.path,
-            status: 'in_progress',
+            id_document_url: primaryRes.url, // Store public URL instead of path
+            secondaryID_type: params.secondaryDocumentType,
+            secondaryID_document_url: secondaryRes.url, // Store public URL instead of path
+            status: 'pending',
+            submitted_at: nowIso,
           });
         if (insErr) {
           console.error('Insert kyc_documents (step4) error:', insErr);
@@ -669,7 +705,8 @@ export class AuthService {
       }
 
       const nowIso = new Date().toISOString();
-      const uploaded = await this.uploadKycFile(params.bankDocument, userUuid, 'bank-doc');
+      // Upload bank statement to bank-statement bucket
+      const uploaded = await this.uploadKycFile(params.bankDocument, userUuid, 'bank-statement', 'bank-statement');
 
       const { data: existing, error: selErr } = await supabase
         .from('kyc_documents')
@@ -688,8 +725,7 @@ export class AuthService {
             bank_name: params.bankName,
             bank_account_number: params.accountNumber,
             ifsc_code: params.ifscCode,
-            bank_statement_url: uploaded.path,
-            updated_at: nowIso,
+            bank_statement_url: uploaded.url, // Store public URL instead of path
           })
           .eq('user_id', userUuid);
         if (updErr) {
@@ -705,8 +741,8 @@ export class AuthService {
             bank_name: params.bankName,
             bank_account_number: params.accountNumber,
             ifsc_code: params.ifscCode,
-            bank_statement_url: uploaded.path,
-            status: 'in_progress',
+            bank_statement_url: uploaded.url, // Store public URL instead of path
+            status: 'pending',
           });
         if (insErr) {
           console.error('Insert kyc_documents (step5) error:', insErr);
@@ -718,6 +754,63 @@ export class AuthService {
     } catch (error) {
       console.error('Unexpected error saving bank details:', error);
       return { success: false, message: 'Unexpected error saving bank details.' };
+    }
+  }
+
+  static async saveFaceImage(faceImage: File): Promise<SignUpResult> {
+    try {
+      const userUuid = sessionStorage.getItem('signup_user_uuid');
+      const email = sessionStorage.getItem('signup_email');
+      if (!userUuid || !email) {
+        return { success: false, message: 'Missing signup context. Please complete previous steps.' };
+      }
+
+      // Upload face image to face-verification bucket
+      const uploaded = await this.uploadKycFile(faceImage, userUuid, 'face-verification', 'face-image');
+
+      // Update kyc_documents with face image URL
+      const { data: existing, error: selErr } = await supabase
+        .from('kyc_documents')
+        .select('id')
+        .eq('user_id', userUuid)
+        .maybeSingle();
+
+      if (selErr) {
+        console.error('Select kyc_documents (face image) error:', selErr);
+        return { success: false, message: selErr.message || 'Failed to load KYC record.' };
+      }
+
+      if (existing) {
+        const { error: updErr } = await supabase
+          .from('kyc_documents')
+          .update({
+            face_image_url: uploaded.url, // Store public URL
+          })
+          .eq('user_id', userUuid);
+        if (updErr) {
+          console.error('Update kyc_documents (face image) error:', updErr);
+          return { success: false, message: updErr.message || 'Failed to save face image.' };
+        }
+      } else {
+        const nowIso = new Date().toISOString();
+        const { error: insErr } = await supabase
+          .from('kyc_documents')
+          .insert({
+            user_id: userUuid,
+            created_at: nowIso,
+            face_image_url: uploaded.url, // Store public URL
+            status: 'pending',
+          });
+        if (insErr) {
+          console.error('Insert kyc_documents (face image) error:', insErr);
+          return { success: false, message: insErr.message || 'Failed to save face image.' };
+        }
+      }
+
+      return { success: true, message: 'Face image saved.', userUuid };
+    } catch (error) {
+      console.error('Unexpected error saving face image:', error);
+      return { success: false, message: 'Unexpected error saving face image.' };
     }
   }
 
@@ -740,7 +833,7 @@ export class AuthService {
       if (existing) {
         const { error: updErr } = await supabase
           .from('kyc_documents')
-          .update({ status: 'submitted', submitted_at: nowIso, updated_at: nowIso })
+          .update({ status: 'pending', submitted_at: nowIso })
           .eq('user_id', userUuid);
         if (updErr) {
           console.error('Update kyc_documents (submit) error:', updErr);
@@ -749,7 +842,7 @@ export class AuthService {
       } else {
         const { error: insErr } = await supabase
           .from('kyc_documents')
-          .insert({ user_id: userUuid, created_at: nowIso, status: 'submitted', submitted_at: nowIso });
+          .insert({ user_id: userUuid, created_at: nowIso, status: 'pending', submitted_at: nowIso });
         if (insErr) {
           console.error('Insert kyc_documents (submit) error:', insErr);
           return { success: false, message: insErr.message || 'Failed to submit KYC.' };

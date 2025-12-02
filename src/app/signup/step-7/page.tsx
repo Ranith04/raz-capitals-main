@@ -1,11 +1,16 @@
-import SignUpSuccess from '@/components/SignUpSuccess';
+import AuthShell from '@/components/AuthShell';
+import SignUpStepSix from '@/components/SignUpStepSix';
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Registration Complete - RAZ CAPITALS',
-  description: 'Your RAZ CAPITALS registration is complete. Save your trading credentials and proceed to login.',
+  title: 'Sign Up - Step 7 - RAZ CAPITALS',
+  description: 'Complete your RAZ CAPITALS account registration with digital signature.',
 };
 
-export default function StepSevenPage() {
-  return <SignUpSuccess />;
+export default function SignUpStepSevenPage() {
+  return (
+    <AuthShell>
+      <SignUpStepSix />
+    </AuthShell>
+  );
 }

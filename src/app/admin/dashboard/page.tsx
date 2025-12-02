@@ -32,6 +32,11 @@ function AdminDashboardContent() {
     setIsMobileSidebarOpen(false);
   };
 
+  // Navigation handlers for KPI cards
+  const handleCardClick = (route: string) => {
+    router.push(route);
+  };
+
   // Loading state
   if (loading) {
     return (
@@ -123,77 +128,95 @@ function AdminDashboardContent() {
         <div className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5 lg:gap-6 max-w-7xl mx-auto">
             {/* Today Registration */}
-            <div className="bg-white rounded-xl shadow-md hover:shadow-lg transition-shadow duration-200 border border-gray-100 p-5 flex items-center justify-between">
+            <div 
+              onClick={() => handleCardClick('/admin/client-operations/new-client-list')}
+              className="bg-white rounded-xl shadow-md hover:shadow-lg hover:bg-gray-50 transition-all duration-200 border border-gray-100 p-5 flex items-center justify-between cursor-pointer active:scale-[0.98]"
+            >
               <span className="text-gray-700 font-medium text-sm sm:text-base">Today Registration</span>
               <span className="text-[#0A2E1D] font-bold text-xl sm:text-2xl">{metrics.todayRegistration}</span>
             </div>
 
             {/* Total Registration */}
-            <div className="bg-white rounded-xl shadow-md hover:shadow-lg transition-shadow duration-200 border border-gray-100 p-5 flex items-center justify-between">
+            <div 
+              onClick={() => handleCardClick('/admin/client-operations/client-list')}
+              className="bg-white rounded-xl shadow-md hover:shadow-lg hover:bg-gray-50 transition-all duration-200 border border-gray-100 p-5 flex items-center justify-between cursor-pointer active:scale-[0.98]"
+            >
               <span className="text-gray-700 font-medium text-sm sm:text-base">Total Registration</span>
               <span className="text-[#0A2E1D] font-bold text-xl sm:text-2xl">{metrics.totalRegistration}</span>
             </div>
 
             {/* KYC Pending */}
-            <div className="bg-white rounded-xl shadow-md hover:shadow-lg transition-shadow duration-200 border border-gray-100 p-5 flex items-center justify-between">
+            <div 
+              onClick={() => handleCardClick('/admin/client-operations/client-list')}
+              className="bg-white rounded-xl shadow-md hover:shadow-lg hover:bg-gray-50 transition-all duration-200 border border-gray-100 p-5 flex items-center justify-between cursor-pointer active:scale-[0.98]"
+            >
               <span className="text-gray-700 font-medium text-sm sm:text-base">KYC Pending</span>
               <span className="text-[#0A2E1D] font-bold text-xl sm:text-2xl">{metrics.kycPending}</span>
             </div>
 
             {/* Total Live Accounts */}
-            <div className="bg-white rounded-xl shadow-md hover:shadow-lg transition-shadow duration-200 border border-gray-100 p-5 flex items-center justify-between">
+            <div 
+              onClick={() => handleCardClick('/admin/trade-accounts/live-accounts')}
+              className="bg-white rounded-xl shadow-md hover:shadow-lg hover:bg-gray-50 transition-all duration-200 border border-gray-100 p-5 flex items-center justify-between cursor-pointer active:scale-[0.98]"
+            >
               <span className="text-gray-700 font-medium text-sm sm:text-base">Total Live Accounts</span>
               <span className="text-[#0A2E1D] font-bold text-xl sm:text-2xl">{metrics.totalLiveAccounts}</span>
             </div>
 
             {/* Total Demo Accounts */}
-            <div className="bg-white rounded-xl shadow-md hover:shadow-lg transition-shadow duration-200 border border-gray-100 p-5 flex items-center justify-between">
+            <div 
+              onClick={() => handleCardClick('/admin/trade-accounts/demo-accounts')}
+              className="bg-white rounded-xl shadow-md hover:shadow-lg hover:bg-gray-50 transition-all duration-200 border border-gray-100 p-5 flex items-center justify-between cursor-pointer active:scale-[0.98]"
+            >
               <span className="text-gray-700 font-medium text-sm sm:text-base">Total Demo Accounts</span>
               <span className="text-[#0A2E1D] font-bold text-xl sm:text-2xl">{metrics.totalDemoAccounts}</span>
             </div>
 
             {/* Total Today Deposits */}
-            <div className="bg-white rounded-xl shadow-md hover:shadow-lg transition-shadow duration-200 border border-gray-100 p-5 flex items-center justify-between">
+            <div 
+              onClick={() => handleCardClick('/admin/fund-operations/deposit-fund')}
+              className="bg-white rounded-xl shadow-md hover:shadow-lg hover:bg-gray-50 transition-all duration-200 border border-gray-100 p-5 flex items-center justify-between cursor-pointer active:scale-[0.98]"
+            >
               <span className="text-gray-700 font-medium text-sm sm:text-base">Total Today Deposits</span>
               <span className="text-[#0A2E1D] font-bold text-xl sm:text-2xl">{metrics.totalTodayDeposits}</span>
             </div>
 
             {/* Total Today Withdrawal */}
-            <div className="bg-white rounded-xl shadow-md hover:shadow-lg transition-shadow duration-200 border border-gray-100 p-5 flex items-center justify-between">
+            <div 
+              onClick={() => handleCardClick('/admin/fund-operations/withdraw-fund')}
+              className="bg-white rounded-xl shadow-md hover:shadow-lg hover:bg-gray-50 transition-all duration-200 border border-gray-100 p-5 flex items-center justify-between cursor-pointer active:scale-[0.98]"
+            >
               <span className="text-gray-700 font-medium text-sm sm:text-base">Total Today Withdrawal</span>
               <span className="text-[#0A2E1D] font-bold text-xl sm:text-2xl">{metrics.totalTodayWithdrawals}</span>
             </div>
 
             {/* This Month Deposit */}
-            <div className="bg-white rounded-xl shadow-md hover:shadow-lg transition-shadow duration-200 border border-gray-100 p-5 flex items-center justify-between">
+            <div 
+              onClick={() => handleCardClick('/admin/fund-operations/deposit-fund')}
+              className="bg-white rounded-xl shadow-md hover:shadow-lg hover:bg-gray-50 transition-all duration-200 border border-gray-100 p-5 flex items-center justify-between cursor-pointer active:scale-[0.98]"
+            >
               <span className="text-gray-700 font-medium text-sm sm:text-base">This Month Deposit</span>
               <span className="text-[#0A2E1D] font-bold text-xl sm:text-2xl">{metrics.thisMonthDeposits}</span>
             </div>
 
             {/* This Month Withdrawal */}
-            <div className="bg-white rounded-xl shadow-md hover:shadow-lg transition-shadow duration-200 border border-gray-100 p-5 flex items-center justify-between">
+            <div 
+              onClick={() => handleCardClick('/admin/fund-operations/withdraw-fund')}
+              className="bg-white rounded-xl shadow-md hover:shadow-lg hover:bg-gray-50 transition-all duration-200 border border-gray-100 p-5 flex items-center justify-between cursor-pointer active:scale-[0.98]"
+            >
               <span className="text-gray-700 font-medium text-sm sm:text-base">This Month Withdrawal</span>
               <span className="text-[#0A2E1D] font-bold text-xl sm:text-2xl">{metrics.thisMonthWithdrawals}</span>
             </div>
 
             {/* Total IB Clients */}
-            <div className="bg-white rounded-xl shadow-md hover:shadow-lg transition-shadow duration-200 border border-gray-100 p-5 flex items-center justify-between">
+            <div 
+              onClick={() => handleCardClick('/admin/client-operations/client-list')}
+              className="bg-white rounded-xl shadow-md hover:shadow-lg hover:bg-gray-50 transition-all duration-200 border border-gray-100 p-5 flex items-center justify-between cursor-pointer active:scale-[0.98]"
+            >
               <span className="text-gray-700 font-medium text-sm sm:text-base">Total IB Clients</span>
               <span className="text-[#0A2E1D] font-bold text-xl sm:text-2xl">{metrics.totalIBClients}</span>
             </div>
           </div>
-        </div>
-
-        {/* Scroll to Top Button */}
-        <div className="absolute bottom-6 right-6">
-          <button 
-            className="w-12 h-12 bg-[#0A2E1D] rounded-full flex items-center justify-center text-white hover:bg-[#1a3a28] transition-colors"
-            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
-            </svg>
-          </button>
         </div>
       </div>
     </div>

@@ -237,6 +237,8 @@ function WithdrawFundContent() {
             refreshing={loading}
             showRefreshButton={true}
             refreshButtonText="Refresh Data"
+            showBackButton={true}
+            backUrl="/admin/dashboard"
             onMobileMenuToggle={toggleMobileSidebar}
           />
           <div className="flex-1 flex items-center justify-center">
@@ -266,6 +268,8 @@ function WithdrawFundContent() {
             refreshing={false}
             showRefreshButton={true}
             refreshButtonText="Refresh Data"
+            showBackButton={true}
+            backUrl="/admin/dashboard"
             onMobileMenuToggle={toggleMobileSidebar}
           />
           <div className="flex-1 flex items-center justify-center">
@@ -303,6 +307,8 @@ function WithdrawFundContent() {
           refreshing={loading}
           showRefreshButton={true}
           refreshButtonText="Refresh Data"
+          showBackButton={true}
+          backUrl="/admin/dashboard"
           onMobileMenuToggle={toggleMobileSidebar}
         />
 

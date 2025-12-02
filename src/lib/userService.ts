@@ -33,61 +33,63 @@ export class UserService {
    */
   static async getAllUsers(): Promise<ClientUser[]> {
     try {
-      // First get all users with user_uuid
-      const { data: users, error: usersError } = await supabase
-        .from('users')
-        .select(`
-          id,
-          user_uuid,
-          first_name,
-          last_name,
-          email,
-          created_at,
-          phone_number,
-          country_of_birth,
-          dob,
-          middle_name,
-          residential_address
-        `)
-        .order('created_at', { ascending: false });
+      // Fetch users, KYC docs, and trading accounts in parallel for better performance
+      const [usersResult, kycResult, tradingResult] = await Promise.all([
+        supabase
+          .from('users')
+          .select(`
+            id,
+            user_uuid,
+            first_name,
+            last_name,
+            email,
+            created_at,
+            phone_number,
+            country_of_birth,
+            dob,
+            middle_name,
+            residential_address
+          `)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('kyc_documents')
+          .select(`
+            id,
+            user_id,
+            status
+          `),
+        supabase
+          .from('tradingAccounts')
+          .select(`
+            id,
+            user_id,
+            status,
+            account_type
+          `)
+      ]);
+
+      const { data: users, error: usersError } = usersResult;
+      const { data: kycDocs, error: kycError } = kycResult;
+      const { data: tradingAccounts, error: tradingError } = tradingResult;
 
       if (usersError) {
         console.error('Error fetching users:', usersError);
         throw usersError;
       }
 
-      if (!users || users.length === 0) {
-        return [];
-      }
-
-      // Get KYC documents for all users
-      const { data: kycDocs, error: kycError } = await supabase
-        .from('kyc_documents')
-        .select(`
-          id,
-          user_id,
-          status
-        `);
-
       if (kycError) {
         console.error('Error fetching KYC documents:', kycError);
       }
-
-      // Get trading accounts for all users
-      const { data: tradingAccounts, error: tradingError } = await supabase
-        .from('tradingAccounts')
-        .select(`
-          id,
-          user_id,
-          status,
-          account_type
-        `);
 
       if (tradingError) {
         console.error('Error fetching trading accounts:', tradingError);
       }
 
-            // Combine the data
+      if (!users || users.length === 0) {
+        return [];
+      }
+
+      // Combine the data
       const usersWithDetails = users.map(user => {
         // Find KYC status for this user - using user_uuid to match with user_id in kyc_documents
         const kycDoc = kycDocs?.find(doc => doc.user_id === user.user_uuid);
@@ -576,32 +578,35 @@ export class UserService {
 
   /**
    * Get client metrics for dashboard by combining data from multiple tables
+   * Optimized to fetch all data in parallel for better performance
    */
   static async getClientMetrics(): Promise<ClientMetrics> {
     try {
-      // Get total users count
-      const { count: totalUsers, error: usersError } = await supabase
-        .from('users')
-        .select('count', { count: 'exact', head: true });
+      // Fetch all metrics in parallel for 2-3x faster loading
+      const [usersResult, kycResult, tradingResult] = await Promise.all([
+        supabase
+          .from('users')
+          .select('count', { count: 'exact', head: true }),
+        supabase
+          .from('kyc_documents')
+          .select('status'),
+        supabase
+          .from('tradingAccounts')
+          .select('status, account_type')
+      ]);
+
+      const { count: totalUsers, error: usersError } = usersResult;
+      const { data: kycDocs, error: kycError } = kycResult;
+      const { data: tradingAccounts, error: tradingError } = tradingResult;
 
       if (usersError) {
         console.error('Error fetching users count:', usersError);
         throw usersError;
       }
 
-      // Get KYC status counts
-      const { data: kycDocs, error: kycError } = await supabase
-        .from('kyc_documents')
-        .select('status');
-
       if (kycError) {
         console.error('Error fetching KYC documents:', kycError);
       }
-
-      // Get trading account counts
-      const { data: tradingAccounts, error: tradingError } = await supabase
-        .from('tradingAccounts')
-        .select('status, account_type');
 
       if (tradingError) {
         console.error('Error fetching trading accounts:', tradingError);

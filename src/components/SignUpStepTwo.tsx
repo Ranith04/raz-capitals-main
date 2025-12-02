@@ -97,7 +97,7 @@ export default function SignUpStepTwo() {
         first_name: firstName.trim(),
         middle_name: middleName.trim() || undefined,
         last_name: lastName.trim(),
-        phone_no: `${countryCode}${phoneNumber.trim()}`,
+        phone_number: `${countryCode}${phoneNumber.trim()}`,
         country_code: countryCode
       });
 

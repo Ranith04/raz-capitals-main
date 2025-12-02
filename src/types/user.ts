@@ -19,7 +19,7 @@ export interface UserProfile {
   last_name?: string;
   dob?: string; // Date of birth
   middle_name?: string;
-  phone_no?: string;
+  phone_number?: string;
   country_of_birth?: string;
   gender?: string;
   residential_address?: string;
@@ -32,7 +32,7 @@ export interface SignUpData {
   last_name?: string;
   dob?: string;
   middle_name?: string;
-  phone_no?: string;
+  phone_number?: string;
   country_of_birth?: string;
   gender?: string;
   residential_address?: string;
@@ -47,7 +47,7 @@ export interface SignUpStep2Data {
   first_name: string;
   middle_name?: string;
   last_name: string;
-  phone_no: string;
+  phone_number: string;
   country_code: string;
 }
 

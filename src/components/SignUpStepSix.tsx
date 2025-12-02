@@ -99,8 +99,8 @@ export default function SignUpStepSix() {
       const result = await AuthService.submitKyc();
 
       if (result.success) {
-        // Navigate to step 7
-        router.push('/signup/step-7');
+        // Navigate to step 8 (success page)
+        router.push('/signup/step-8');
       } else {
         alert(result.message);
       }
@@ -111,7 +111,7 @@ export default function SignUpStepSix() {
   };
 
   const handleBack = () => {
-    router.push('/signup/step-5');
+    router.push('/signup/step-6');
   };
 
   return (
@@ -130,6 +130,7 @@ export default function SignUpStepSix() {
       {/* Progress Dots */}
       <div className="flex justify-center mb-6">
         <div className="flex space-x-2">
+          <div className="w-2.5 h-2.5 rounded-full bg-gray-300"></div>
           <div className="w-2.5 h-2.5 rounded-full bg-gray-300"></div>
           <div className="w-2.5 h-2.5 rounded-full bg-gray-300"></div>
           <div className="w-2.5 h-2.5 rounded-full bg-gray-300"></div>

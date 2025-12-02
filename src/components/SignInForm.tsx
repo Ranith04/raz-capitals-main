@@ -1,6 +1,8 @@
 'use client';
 
 import { supabase } from '@/lib/supabaseClient';
+import { checkKYCStatus } from '@/lib/kycService';
+import KYCStatusDialog from '@/components/KYCStatusDialog';
 import { LoginCredentials } from '@/types';
 import { authenticateUser, getRedirectPath, storeUserSession } from '@/utils/auth';
 import { useRouter } from 'next/navigation';
@@ -15,6 +17,8 @@ export default function SignInForm() {
   const [errors, setErrors] = useState({ email: '', tradingId: '', password: '' });
   const [isLoading, setIsLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
+  const [showKYCDialog, setShowKYCDialog] = useState(false);
+  const [kycStatus, setKycStatus] = useState<'pending' | 'rejected' | 'verified' | null>(null);
   const router = useRouter();
 
   const togglePasswordVisibility = () => {
@@ -150,7 +154,25 @@ export default function SignInForm() {
       console.log('🔐 Final authResponse:', authResponse);
       
       if (authResponse && authResponse.success && authResponse.user && authResponse.token) {
-        // Store user session
+        // Check KYC status for regular users (not admins) BEFORE storing session
+        if (authResponse.user.role === 'user') {
+          console.log('🔍 Checking KYC status for user:', authResponse.user.id);
+          const kycStatusResult = await checkKYCStatus(authResponse.user.id);
+          
+          console.log('📋 KYC Status Result:', kycStatusResult);
+          
+          // Only allow login if KYC is verified
+          if (kycStatusResult && kycStatusResult !== 'verified') {
+            // Show KYC status dialog without storing session
+            setKycStatus(kycStatusResult);
+            setShowKYCDialog(true);
+            // Clear any success message
+            setSuccessMessage('');
+            return; // Don't store session or redirect, wait for user to close dialog
+          }
+        }
+        
+        // Store user session only if KYC is verified (or admin)
         console.log('💾 Storing user session:', {
           id: authResponse.user.id,
           name: authResponse.user.name,
@@ -230,8 +252,41 @@ export default function SignInForm() {
     }
   };
 
+  const handleKYCDialogClose = () => {
+    setShowKYCDialog(false);
+    setSuccessMessage(''); // Clear any success message
+    
+    // If KYC status is pending or rejected, redirect back to login page
+    // Session was never stored, so just redirect
+    if (kycStatus === 'pending' || kycStatus === 'rejected') {
+      router.push('/signin');
+    } else {
+      // If verified, proceed to dashboard (shouldn't reach here, but just in case)
+      const storedUser = sessionStorage.getItem('user');
+      if (storedUser) {
+        try {
+          const user = JSON.parse(storedUser);
+          const redirectPath = getRedirectPath(user);
+          router.push(redirectPath);
+        } catch (error) {
+          console.error('Error parsing user data:', error);
+          router.push('/dashboard');
+        }
+      } else {
+        router.push('/dashboard');
+      }
+    }
+  };
+
   return (
-    <div className="bg-white rounded-2xl shadow-xl p-8">
+    <>
+      {showKYCDialog && kycStatus && (
+        <KYCStatusDialog 
+          status={kycStatus} 
+          onClose={handleKYCDialogClose} 
+        />
+      )}
+      <div className="bg-white rounded-2xl shadow-xl p-8">
       {/* Header with icon */}
       <div className="text-center mb-8">
         <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-4" style={{ backgroundColor: '#A0C8A9' }}>
@@ -471,5 +526,6 @@ export default function SignInForm() {
       </div>
 
     </div>
+    </>
   );
 }

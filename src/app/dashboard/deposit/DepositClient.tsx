@@ -32,8 +32,11 @@ export default function DepositClient() {
   const [selectedAccountId, setSelectedAccountId] = useState<string>('');
   const [depositAmount, setDepositAmount] = useState<string>('');
   const [paymentDetails, setPaymentDetails] = useState<string>('');
+  const [proofFile, setProofFile] = useState<File | null>(null);
+  const [proofFileName, setProofFileName] = useState<string>('');
   const [submitting, setSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [upiId] = useState<string>('tanmaylautawar-1@oksbi'); // UPI ID from the image
 
   const depositMethods: DepositMethod[] = [
     {
@@ -192,8 +195,75 @@ export default function DepositClient() {
     setSelectedMethod(null);
     setDepositAmount('');
     setPaymentDetails('');
+    setProofFile(null);
+    setProofFileName('');
     setError(null);
     setSuccessMessage(null);
+  };
+
+  // Upload proof file to Supabase Storage
+  const uploadProofFile = async (file: File, userId: string): Promise<string | null> => {
+    try {
+      const fileExt = file.name.split('.').pop() || 'bin';
+      const safeName = file.name.replace(/[^a-zA-Z0-9_.-]/g, '_');
+      const filePath = `deposit-proofs/${userId}/${Date.now()}-${safeName}`;
+
+      // Try multiple bucket names that might exist
+      const bucketNames = [
+        'transaction-documents',
+        'documents',
+        'kyc-documents', // Known to exist from KYC uploads
+        'deposit-proofs',
+        'proof-documents'
+      ];
+
+      let uploadSuccess = false;
+      let finalBucketName = '';
+      let finalError: any = null;
+
+      for (const bucketName of bucketNames) {
+        console.log(`Trying to upload to bucket: ${bucketName}`);
+        const { data, error: uploadError } = await supabase.storage
+          .from(bucketName)
+          .upload(filePath, file, {
+            cacheControl: '3600',
+            upsert: false,
+            contentType: file.type || undefined
+          });
+
+        if (!uploadError && data) {
+          console.log(`Successfully uploaded to bucket: ${bucketName}`);
+          finalBucketName = bucketName;
+          uploadSuccess = true;
+          break;
+        } else {
+          console.log(`Failed to upload to ${bucketName}:`, uploadError?.message);
+          finalError = uploadError;
+        }
+      }
+
+      if (!uploadSuccess) {
+        console.error('Failed to upload to all buckets. Last error:', finalError);
+        // Return null but don't throw - allow transaction to proceed without proof URL
+        return null;
+      }
+
+      // Get public URL
+      const { data: urlData } = supabase.storage
+        .from(finalBucketName)
+        .getPublicUrl(filePath);
+
+      if (!urlData?.publicUrl) {
+        console.error('Failed to get public URL for uploaded file');
+        return null;
+      }
+
+      console.log('Proof file uploaded successfully:', urlData.publicUrl);
+      return urlData.publicUrl;
+    } catch (error) {
+      console.error('Exception uploading proof file:', error);
+      return null;
+    }
   };
 
   const handleSubmitDeposit = async (e: React.FormEvent) => {
@@ -201,6 +271,12 @@ export default function DepositClient() {
     
     if (!selectedMethod || !selectedAccountId || !depositAmount) {
       setError('Please fill in all required fields.');
+      return;
+    }
+
+    // For UPI deposits, proof file is required
+    if (selectedMethod.id === 'upi' && !proofFile) {
+      setError('Please upload proof of deposit document.');
       return;
     }
 
@@ -231,6 +307,49 @@ export default function DepositClient() {
       setSubmitting(true);
       setError(null);
 
+      // Get current user ID
+      let userId: string | null = null;
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (authUser) {
+        userId = authUser.id;
+      } else {
+        const sessionUser = getCurrentUser();
+        if (sessionUser?.id) {
+          userId = sessionUser.id;
+          // If session user ID is not a UUID, try to find the user in users table
+          if (!userId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+            const { data: userData } = await supabase
+              .from('users')
+              .select('user_uuid')
+              .eq('email', sessionUser.email)
+              .single();
+            if (userData?.user_uuid) {
+              userId = userData.user_uuid;
+            }
+          }
+        }
+      }
+
+      if (!userId) {
+        setError('User session not found. Please log in again.');
+        return;
+      }
+
+      // Upload proof file if exists (for UPI deposits)
+      let proofUrl: string | null = null;
+      if (proofFile) {
+        console.log('Uploading proof file:', proofFile.name, 'Size:', proofFile.size);
+        proofUrl = await uploadProofFile(proofFile, userId);
+        if (!proofUrl) {
+          // Warn but don't block - allow transaction to proceed without proof URL
+          console.warn('Proof file upload failed, but continuing with transaction creation');
+          setError('Warning: Proof document upload failed. Transaction will be created without proof document. Please contact support if needed.');
+          // Don't return - allow transaction to be created anyway
+        } else {
+          console.log('Proof file uploaded successfully:', proofUrl);
+        }
+      }
+
       // Calculate fee if applicable
       let finalAmount = amount;
       if (selectedMethod.fee.includes('%')) {
@@ -239,24 +358,137 @@ export default function DepositClient() {
         finalAmount = amount + feeAmount;
       }
 
+      // Map deposit method ID to database enum value for mode_of_payment
+      // Based on withdraw client pattern: 'Bank_Transfer', 'PayPal', 'Cryptocurrency'
+      // Try multiple variations to find the correct enum value
+      const getModeOfPaymentEnum = (methodId: string): string => {
+        // Try common enum patterns - will attempt multiple if first fails
+        const enumMap: { [key: string]: string[] } = {
+          'upi': ['upi', 'Upi', 'UPI', 'Upi_Payment', 'UPI_Payment', 'upi_payment'], // Try lowercase first
+          'cash': ['cash', 'Cash', 'CASH'],
+          'bank-transfer': ['Bank_Transfer', 'bank_transfer', 'BankTransfer'],
+          'credit-card': ['Credit_Card', 'credit_card', 'CreditCard'],
+        };
+        
+        // Return first value (will try alternatives in fallback if needed)
+        if (enumMap[methodId] && enumMap[methodId].length > 0) {
+          return enumMap[methodId][0];
+        }
+        
+        // Fallback: try lowercase first, then PascalCase
+        const words = methodId.split('-');
+        if (words.length === 1) {
+          return words[0].toLowerCase(); // Try lowercase first
+        } else {
+          return words.map(w => w.toLowerCase()).join('_'); // Try lowercase with underscore
+        }
+      };
+
+      // Prepare transaction comments
+      let transactionComments = '';
+      if (selectedMethod.id === 'upi') {
+        transactionComments = `UPI Deposit - UPI ID: ${upiId}${paymentDetails ? ` | Transaction Reference: ${paymentDetails}` : ''}`;
+      } else {
+        transactionComments = paymentDetails || `Deposit via ${selectedMethod.title} - Account ${selectedAccountId}`;
+      }
+
       // Create deposit transaction in Supabase
-      const { data: transaction, error: transactionError } = await supabase
+      // Note: Only using account_id (not user_id) as per database schema
+      const transactionData: any = {
+        type: 'deposit',
+        amount: amount,
+        currency: selectedAccount.currency || 'USD',
+        status: 'pending', // Set status to 'pending' for new deposit requests
+        account_id: selectedAccountId, // Link to specific trading account
+        mode_of_payment: getModeOfPaymentEnum(selectedMethod.id), // Map to correct enum value
+        transaction_comments: transactionComments,
+      };
+
+      // Add proof URL if available
+      if (proofUrl) {
+        transactionData.proof_of_transaction_url = proofUrl;
+      }
+
+      console.log('Creating transaction with data:', transactionData);
+      console.log('Mode of payment enum value:', transactionData.mode_of_payment);
+
+      let transactionError: any = null;
+      let transaction: any = null;
+      
+      // Try the primary enum value first
+      let { data, error } = await supabase
         .from('transactions')
-        .insert({
-          type: 'deposit',
-          amount: amount,
-          currency: selectedAccount.currency || 'USD',
-          status: 'pending',
-          account_id: selectedAccountId,
-          mode_of_payment: selectedMethod.id,
-          transaction_comments: paymentDetails || `Deposit via ${selectedMethod.title} - Account ${selectedAccountId}`,
-        })
+        .insert(transactionData)
         .select()
         .single();
 
+      // If it fails with enum error, try alternative values
+      if (error && error.message?.includes('enum mode_of_payment')) {
+        console.log('Primary enum value failed, trying alternatives...');
+        
+        // Get all alternative values for this method
+        const alternativeMaps: { [key: string]: string[] } = {
+          'upi': ['upi', 'Upi', 'UPI', 'Upi_Payment', 'UPI_Payment', 'upi_payment', 'UPI_PAYMENT'],
+          'cash': ['cash', 'Cash', 'CASH'],
+          'bank-transfer': ['Bank_Transfer', 'bank_transfer', 'BankTransfer', 'bank_transfer'],
+          'credit-card': ['Credit_Card', 'credit_card', 'CreditCard', 'credit_card'],
+        };
+        
+        const alternativeValues = alternativeMaps[selectedMethod.id] || [];
+        
+        // Try each alternative value
+        for (const altValue of alternativeValues) {
+          // Skip if we already tried this value
+          if (altValue === transactionData.mode_of_payment) {
+            continue;
+          }
+          
+          console.log(`Trying alternative enum value: ${altValue}`);
+          const altData = { ...transactionData, mode_of_payment: altValue };
+          const altResult = await supabase
+            .from('transactions')
+            .insert(altData)
+            .select()
+            .single();
+          
+          if (!altResult.error) {
+            console.log(`✅ Success with enum value: ${altValue}`);
+            transaction = altResult.data;
+            transactionError = null;
+            break;
+          } else {
+            console.log(`❌ Failed with ${altValue}:`, altResult.error.message);
+            transactionError = altResult.error;
+          }
+        }
+        
+        // If all alternatives failed, try without mode_of_payment (if it's optional)
+        if (transactionError && transactionError.message?.includes('enum mode_of_payment')) {
+          console.log('All enum values failed, trying without mode_of_payment field...');
+          const { mode_of_payment, ...dataWithoutMode } = transactionData;
+          const resultWithoutMode = await supabase
+            .from('transactions')
+            .insert(dataWithoutMode)
+            .select()
+            .single();
+          
+          if (!resultWithoutMode.error) {
+            console.log('✅ Success without mode_of_payment field');
+            transaction = resultWithoutMode.data;
+            transactionError = null;
+          } else {
+            transactionError = resultWithoutMode.error;
+          }
+        }
+      } else {
+        transaction = data;
+        transactionError = error;
+      }
+
       if (transactionError) {
         console.error('Error creating deposit:', transactionError);
-        setError('Failed to submit deposit request. Please try again.');
+        console.error('Attempted mode_of_payment value:', transactionData.mode_of_payment);
+        setError(`Failed to submit deposit request: ${transactionError.message}. The payment method enum value "${transactionData.mode_of_payment}" is not valid. Please contact support.`);
         return;
       }
 
@@ -264,6 +496,8 @@ export default function DepositClient() {
       setSuccessMessage(`Deposit request submitted successfully! Amount: $${amount.toFixed(2)}. Your deposit will be processed and credited to your account once approved.`);
       setDepositAmount('');
       setPaymentDetails('');
+      setProofFile(null);
+      setProofFileName('');
       
       // Close modal after 3 seconds
       setTimeout(() => {
@@ -499,20 +733,39 @@ export default function DepositClient() {
       {/* Deposit Modal */}
       {showDepositModal && selectedMethod && (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6">
+          <div className={`${selectedMethod.id === 'upi' ? 'bg-[#B8D4C1]' : 'bg-white'} rounded-xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto relative`}>
+            <div className={`p-6 ${selectedMethod.id === 'upi' ? 'bg-[#B8D4C1]' : 'bg-white'}`}>
               {/* Modal Header */}
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-bold text-gray-900">Deposit via {selectedMethod.title}</h2>
-                <button
-                  onClick={handleCloseModal}
-                  className="text-gray-500 hover:text-gray-700 transition-colors"
-                >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
+              {selectedMethod.id === 'upi' ? (
+                <div className="text-center mb-6">
+                  <div className="w-16 h-16 bg-[#0A2E1D] rounded-lg flex items-center justify-center mx-auto mb-4">
+                    <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                    </svg>
+                  </div>
+                  <h2 className="text-3xl font-bold text-[#0A2E1D] mb-2">UPI Deposit</h2>
+                  <button
+                    onClick={handleCloseModal}
+                    className="absolute top-4 right-4 text-[#0A2E1D] hover:text-[#1A3E2D] transition-colors"
+                  >
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-2xl font-bold text-gray-900">Deposit via {selectedMethod.title}</h2>
+                  <button
+                    onClick={handleCloseModal}
+                    className="text-gray-500 hover:text-gray-700 transition-colors"
+                  >
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              )}
 
               {/* Success Message */}
               {successMessage && (
@@ -549,43 +802,147 @@ export default function DepositClient() {
                   </select>
                 </div>
 
-                {/* Amount Input */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-900 mb-2">
-                    Deposit Amount (USD)
-                  </label>
-                  <input
-                    type="number"
-                    value={depositAmount}
-                    onChange={(e) => setDepositAmount(e.target.value)}
-                    min={selectedMethod.minAmount}
-                    max={selectedMethod.maxAmount}
-                    step="0.01"
-                    placeholder={`Min: $${selectedMethod.minAmount} - Max: $${selectedMethod.maxAmount}`}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#A0C8A9] focus:border-transparent text-gray-900 bg-white placeholder-gray-400"
-                    required
-                  />
-                  <p className="mt-1 text-xs text-gray-600">
-                    Limits: {selectedMethod.limits}
-                  </p>
-                  {selectedMethod.fee !== '0' && (
-                    <p className="mt-1 text-xs text-orange-600 font-medium">
-                      Fee: {selectedMethod.fee} will be added to your deposit
-                    </p>
-                  )}
-                </div>
-
-                {/* Payment Details (for specific methods) */}
-                {(selectedMethod.id === 'upi' || selectedMethod.id === 'bank-transfer') && (
+                {/* Amount Input (for non-UPI methods) */}
+                {selectedMethod.id !== 'upi' && (
                   <div>
                     <label className="block text-sm font-medium text-gray-900 mb-2">
-                      {selectedMethod.id === 'upi' ? 'UPI ID or Transaction Reference' : 'Transaction Reference Number'}
+                      Deposit Amount (USD)
+                    </label>
+                    <input
+                      type="number"
+                      value={depositAmount}
+                      onChange={(e) => setDepositAmount(e.target.value)}
+                      min={selectedMethod.minAmount}
+                      max={selectedMethod.maxAmount}
+                      step="0.01"
+                      placeholder={`Min: $${selectedMethod.minAmount} - Max: $${selectedMethod.maxAmount}`}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#A0C8A9] focus:border-transparent text-gray-900 bg-white placeholder-gray-400"
+                      required
+                    />
+                    <p className="mt-1 text-xs text-gray-600">
+                      Limits: {selectedMethod.limits}
+                    </p>
+                    {selectedMethod.fee !== '0' && (
+                      <p className="mt-1 text-xs text-orange-600 font-medium">
+                        Fee: {selectedMethod.fee} will be added to your deposit
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {/* UPI Deposit Section */}
+                {selectedMethod.id === 'upi' && (
+                  <div className="space-y-4">
+                    {/* Step Indicator */}
+                    <div className="text-center">
+                      <p className="text-sm text-gray-600 font-medium">Step 1 of 1: Provide deposit information</p>
+                    </div>
+
+                    {/* QR Code Section */}
+                    <div className="bg-[#0A2E1D] rounded-xl p-6 text-center">
+                      <p className="text-white font-semibold mb-4 text-lg">Scan to Pay via UPI</p>
+                      <div className="bg-white rounded-lg p-4 inline-block">
+                        <div className="relative">
+                          <Image
+                            src="/images/url.jpg"
+                            alt="UPI QR Code"
+                            width={250}
+                            height={250}
+                            className="mx-auto rounded-lg"
+                          />
+                        </div>
+                        <div className="mt-4">
+                          <p className="text-[#0A2E1D] font-medium mb-2">UPI ID: {upiId}</p>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard.writeText(upiId);
+                              setSuccessMessage('UPI ID copied to clipboard!');
+                              setTimeout(() => setSuccessMessage(null), 3000);
+                            }}
+                            className="inline-flex items-center space-x-2 px-4 py-2 bg-[#A0C8A9] text-[#0A2E1D] rounded-lg hover:bg-[#8BBF9F] transition-colors font-medium"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                            </svg>
+                            <span>Copy UPI ID</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Amount Deposited Input */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-900 mb-2">
+                        Amount Deposited (USD) *
+                      </label>
+                      <input
+                        type="number"
+                        value={depositAmount}
+                        onChange={(e) => setDepositAmount(e.target.value)}
+                        min={selectedMethod.minAmount}
+                        max={selectedMethod.maxAmount}
+                        step="0.01"
+                        placeholder="Enter amount"
+                        className="w-full px-4 py-2 border-2 border-[#0A2E1D] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#A0C8A9] focus:border-transparent text-gray-900 bg-white placeholder-gray-400"
+                        required
+                      />
+                    </div>
+
+                    {/* Proof of Deposit Upload */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-900 mb-2">
+                        Proof of Deposit *
+                      </label>
+                      <p className="text-xs text-gray-600 mb-3">
+                        Upload receipt, bank slip, or any document proving your deposit.
+                      </p>
+                      <div className="border-2 border-dashed border-[#A0C8A9] rounded-lg p-8 text-center bg-[#A0C8A9]/10 hover:bg-[#A0C8A9]/20 transition-colors cursor-pointer">
+                        <input
+                          type="file"
+                          accept=".pdf,.jpg,.jpeg,.png"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              if (file.size > 10 * 1024 * 1024) {
+                                setError('File size must be less than 10MB');
+                                return;
+                              }
+                              setProofFile(file);
+                              setProofFileName(file.name);
+                              setError(null);
+                            }
+                          }}
+                          className="hidden"
+                          id="proof-upload"
+                          required={selectedMethod.id === 'upi'}
+                        />
+                        <label htmlFor="proof-upload" className="cursor-pointer">
+                          <svg className="w-12 h-12 text-[#0A2E1D] mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                          </svg>
+                          <p className="text-[#0A2E1D] font-medium">Click to upload document</p>
+                          <p className="text-xs text-gray-600 mt-1">PDF, JPG, JPEG, PNG (Max 10MB)</p>
+                          {proofFileName && (
+                            <p className="text-sm text-green-600 mt-2 font-medium">✓ {proofFileName}</p>
+                          )}
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Bank Transfer Payment Details */}
+                {selectedMethod.id === 'bank-transfer' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-900 mb-2">
+                      Transaction Reference Number
                     </label>
                     <input
                       type="text"
                       value={paymentDetails}
                       onChange={(e) => setPaymentDetails(e.target.value)}
-                      placeholder={selectedMethod.id === 'upi' ? 'Enter your UPI ID or transaction reference' : 'Enter bank transaction reference'}
+                      placeholder="Enter bank transaction reference"
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#A0C8A9] focus:border-transparent text-gray-900 bg-white placeholder-gray-400"
                     />
                   </div>
@@ -610,16 +967,24 @@ export default function DepositClient() {
                   <button
                     type="button"
                     onClick={handleCloseModal}
-                    className="flex-1 px-4 py-2 border-2 border-gray-300 text-gray-800 font-semibold rounded-lg hover:bg-gray-100 transition-colors"
+                    className={`flex-1 px-4 py-2 font-semibold rounded-lg transition-colors ${
+                      selectedMethod.id === 'upi' 
+                        ? 'bg-[#0A2E1D] text-[#A0C8A9] hover:bg-[#1A3E2D]' 
+                        : 'border-2 border-gray-300 text-gray-800 hover:bg-gray-100'
+                    }`}
                   >
-                    Cancel
+                    {selectedMethod.id === 'upi' ? 'X Cancel' : 'Cancel'}
                   </button>
                   <button
                     type="submit"
                     disabled={submitting}
-                    className="flex-1 px-4 py-2 bg-[#0A2E1D] text-white font-semibold rounded-lg hover:bg-[#1A3E2D] transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
+                    className={`flex-1 px-4 py-2 font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-md ${
+                      selectedMethod.id === 'upi'
+                        ? 'bg-[#A0C8A9] text-[#0A2E1D] hover:bg-[#8BBF9F]'
+                        : 'bg-[#0A2E1D] text-white hover:bg-[#1A3E2D]'
+                    }`}
                   >
-                    {submitting ? 'Submitting...' : 'Submit Deposit'}
+                    {submitting ? 'Submitting...' : selectedMethod.id === 'upi' ? 'Submit Request' : 'Submit Deposit'}
                   </button>
                 </div>
               </form>

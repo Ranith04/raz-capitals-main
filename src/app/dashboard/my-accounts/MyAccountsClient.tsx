@@ -72,7 +72,7 @@ export default function MyAccountsClient() {
       }
 
       // Fetch trading accounts for this user
-      const { data: tradingAccounts, error: accountsError } = await supabase
+      let { data: tradingAccounts, error: accountsError } = await supabase
         .from('tradingAccounts')
         .select('*')
         .eq('user_id', userId)
@@ -86,6 +86,48 @@ export default function MyAccountsClient() {
       }
 
       if (tradingAccounts && tradingAccounts.length > 0) {
+        // Fix accounts that were incorrectly created as demo during signup
+        // These should be standard accounts with 0 balance
+        const accountsToFix = tradingAccounts.filter((acc: any) => 
+          acc.account_type === 'demo' && acc.balance === 10000
+        );
+        
+        if (accountsToFix.length > 0) {
+          console.log(`🔧 Fixing ${accountsToFix.length} incorrectly created demo accounts...`);
+          for (const account of accountsToFix) {
+            try {
+              const { error: updateError } = await supabase
+                .from('tradingAccounts')
+                 .update({
+                   account_type: 'real',
+                   balance: 0.0,
+                   free_margin: 0.0,
+                   equity: 0.0
+                 })
+                .eq('id', account.id);
+              
+              if (updateError) {
+                console.error(`Error fixing account ${account.id}:`, updateError);
+              } else {
+                console.log(`✅ Fixed account ${account.account_uid} (ID: ${account.id})`);
+              }
+            } catch (fixError) {
+              console.error(`Exception fixing account ${account.id}:`, fixError);
+            }
+          }
+          
+          // Refetch accounts after fixing
+          const { data: updatedAccounts, error: refetchError } = await supabase
+            .from('tradingAccounts')
+            .select('*')
+            .eq('user_id', userId)
+            .order('created_at', { ascending: false });
+          
+          if (!refetchError && updatedAccounts) {
+            tradingAccounts = updatedAccounts;
+          }
+        }
+        
         // Transform and set accounts
         const transformedAccounts: TradingAccount[] = tradingAccounts.map((account: any) => ({
           id: account.id,
@@ -101,7 +143,7 @@ export default function MyAccountsClient() {
           user_id: account.user_id,
           margin: account.margin || 0,
           watchlist: account.watchlist || [],
-          account_type: account.account_type || 'standard',
+          account_type: account.account_type || 'real',
         }));
 
         setAccounts(transformedAccounts);
@@ -151,6 +193,7 @@ export default function MyAccountsClient() {
 
   const formatAccountType = (type: string): string => {
     const typeMap: { [key: string]: string } = {
+      'real': 'Real Trading Account',
       'standard': 'Standard Trading Account',
       'premium': 'Premium Trading Account',
       'vip': 'VIP Trading Account',

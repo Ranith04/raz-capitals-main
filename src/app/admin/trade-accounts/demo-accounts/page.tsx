@@ -2,6 +2,7 @@
 
 import AdminHeader from '@/components/AdminHeader';
 import AdminSidebar from '@/components/AdminSidebar';
+import AdminPageSkeleton from '@/components/AdminPageSkeleton';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { useDemoAccounts } from '@/hooks/useDemoAccounts';
 import { TradingAccountWithUser } from '@/types';
@@ -161,34 +162,8 @@ function DemoAccountsContent() {
   const averageVirtualBalance = filteredAccounts.length > 0 ? totalVirtualBalance / filteredAccounts.length : 0;
   const activeDemos = filteredAccounts.filter(account => account.status === 'active').length;
 
-  // Loading state
-  if (loading) {
-    return (
-      <div className="flex h-screen bg-[#9BC5A2] overflow-hidden">
-        <AdminSidebar 
-          currentPage="demo-accounts" 
-          isMobileOpen={isMobileSidebarOpen}
-          onMobileClose={closeMobileSidebar}
-        />
-        <div className="flex-1 flex flex-col">
-          <AdminHeader 
-            title="Demo Trading Accounts"
-            onRefresh={refreshAccounts}
-            refreshing={loading}
-            showRefreshButton={true}
-            refreshButtonText="Refresh Data"
-            onMobileMenuToggle={toggleMobileSidebar}
-          />
-          <div className="flex-1 flex items-center justify-center">
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#0A2E1D] mx-auto mb-4"></div>
-              <p className="text-[#0A2E1D] text-lg">Loading demo accounts...</p>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  // Show skeleton immediately for better UX - don't block the entire UI
+  const showSkeleton = loading && accounts.length === 0;
 
   // Error state
   if (error) {
@@ -206,6 +181,8 @@ function DemoAccountsContent() {
             refreshing={false}
             showRefreshButton={true}
             refreshButtonText="Refresh Data"
+            showBackButton={true}
+            backUrl="/admin/dashboard"
             onMobileMenuToggle={toggleMobileSidebar}
           />
           <div className="flex-1 flex items-center justify-center">
@@ -243,11 +220,17 @@ function DemoAccountsContent() {
           refreshing={loading}
           showRefreshButton={true}
           refreshButtonText="Refresh Data"
+          showBackButton={true}
+          backUrl="/admin/dashboard"
           onMobileMenuToggle={toggleMobileSidebar}
         />
 
-        {/* Demo Accounts Content */}
-        <div className="flex-1 p-2 xs:p-3 sm:p-4 md:p-6 lg:p-8 overflow-y-auto">
+        {/* Show skeleton for initial load, content otherwise */}
+        {showSkeleton ? (
+          <AdminPageSkeleton />
+        ) : (
+          /* Demo Accounts Content */
+          <div className="flex-1 p-2 xs:p-3 sm:p-4 md:p-6 lg:p-8 overflow-y-auto">
           {/* Action Buttons */}
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 sm:mb-6 lg:mb-8 gap-3">
             <h1 className="text-[#0A2E1D] text-2xl sm:text-3xl font-bold">Demo Trading Accounts</h1>
@@ -475,6 +458,7 @@ function DemoAccountsContent() {
             </div>
           </div>
         </div>
+        )}
       </div>
     </div>
   );

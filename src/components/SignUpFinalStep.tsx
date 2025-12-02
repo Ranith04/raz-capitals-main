@@ -47,7 +47,7 @@ export default function SignUpFinalStep() {
       if (result.success) {
         alert(result.message);
         // Redirect to success page
-        router.push('/signup/step-7');
+        router.push('/signup/step-8');
       } else {
         alert(result.message);
       }
@@ -114,7 +114,7 @@ export default function SignUpFinalStep() {
           <div className="bg-white p-4 rounded-lg border">
             <h4 className="font-medium text-gray-900 mb-2">Basic Profile</h4>
             <p className="text-sm text-gray-600">Name: {stepData.step2?.first_name} {stepData.step2?.middle_name} {stepData.step2?.last_name}</p>
-            <p className="text-sm text-gray-600">Phone: {stepData.step2?.phone_no}</p>
+            <p className="text-sm text-gray-600">Phone: {stepData.step2?.phone_number}</p>
           </div>
 
           {/* Step 3: Personal Details */}

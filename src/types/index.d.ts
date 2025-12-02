@@ -119,7 +119,7 @@ export interface TradingAccount {
   user_id: string;
   margin: number;
   watchlist: string[];
-  account_type: 'standard' | 'premium' | 'vip' | 'demo' | 'demo_30' | 'demo_60' | 'demo_90' | 'demo_unlimited';
+  account_type: 'real' | 'standard' | 'premium' | 'vip' | 'demo' | 'demo_30' | 'demo_60' | 'demo_90' | 'demo_unlimited';
 }
 
 export interface TradingAccountWithUser extends TradingAccount {

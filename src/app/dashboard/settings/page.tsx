@@ -14,7 +14,7 @@ interface UserProfile {
   first_name: string;
   last_name?: string;
   email: string;
-  phone_no?: string;
+  phone_number?: string;
   dob?: string;
   gender?: string;
   country_of_birth?: string;
@@ -537,8 +537,8 @@ function SettingsPageContent() {
                             </div>
                             <input 
                               type="tel" 
-                              name="phone_no"
-                              defaultValue={userProfile?.phone_no || ''}
+                              name="phone_number"
+                              defaultValue={userProfile?.phone_number || ''}
                               className="flex-1 px-3 py-2 border border-gray-300 rounded-r-md focus:outline-none focus:ring-2 focus:ring-[#A0C8A9] focus:border-transparent"
                             />
                           </div>

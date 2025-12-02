@@ -2,6 +2,7 @@
 
 import AdminHeader from '@/components/AdminHeader';
 import AdminSidebar from '@/components/AdminSidebar';
+import AdminPageSkeleton from '@/components/AdminPageSkeleton';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { ClientUser, UserService } from '@/lib/userService';
 import { useRouter } from 'next/navigation';
@@ -78,11 +79,50 @@ function ClientListContent() {
       // Status filter
       const matchesStatus = selectedStatus === 'All Status' || client.account_status === selectedStatus;
 
-      // KYC Status filter
-      const matchesKycStatus = selectedKycStatus === 'All KYC' || client.kyc_status === selectedKycStatus;
+      // KYC Status filter - map UI values to database values
+      let matchesKycStatus = true;
+      if (selectedKycStatus !== 'All KYC') {
+        // Map UI dropdown values to database values
+        const statusMap: { [key: string]: string } = {
+          'Pending': 'pending',
+          'Approved': 'verified',
+          'Rejected': 'rejected'
+        };
+        const dbStatus = statusMap[selectedKycStatus] || selectedKycStatus.toLowerCase();
+        // Compare case-insensitively
+        matchesKycStatus = (client.kyc_status || 'pending').toLowerCase() === dbStatus.toLowerCase();
+      }
 
-      // Account Type filter
-      const matchesAccountType = selectedAccountType === 'All Types' || client.account_type === selectedAccountType;
+      // Account Type filter - map UI values to database values
+      let matchesAccountType = true;
+      if (selectedAccountType !== 'All Types') {
+        // Normalize client account_type to 'Live' or 'Demo'
+        // Database has: 'standard', 'premium', 'vip', 'live', 'real' (live) and 'demo', 'demo_30', etc. (demo)
+        const normalizeAccountType = (accountType: string | undefined): string => {
+          if (!accountType) return 'Demo';
+          const normalized = accountType.toLowerCase();
+          // Live account types: standard, premium, vip, live, real
+          if (normalized === 'standard' || normalized === 'premium' || normalized === 'vip' || 
+              normalized === 'live' || normalized === 'real') {
+            return 'Live';
+          }
+          // Demo account types: demo, demo_30, demo_60, demo_90, demo_unlimited
+          if (normalized.startsWith('demo')) {
+            return 'Demo';
+          }
+          // Default fallback - if unknown, treat as Demo
+          return 'Demo';
+        };
+        
+        const clientAccountType = normalizeAccountType(client.account_type);
+        // Map UI "Real" to "Live" for comparison
+        const uiToDbMap: { [key: string]: string } = {
+          'Real': 'Live',
+          'Demo': 'Demo'
+        };
+        const expectedType = uiToDbMap[selectedAccountType] || selectedAccountType;
+        matchesAccountType = clientAccountType === expectedType;
+      }
 
       return matchesSearch && matchesStatus && matchesKycStatus && matchesAccountType;
     });
@@ -105,6 +145,23 @@ function ClientListContent() {
     } catch {
       return 'N/A';
     }
+  };
+
+  // Format account type for display - normalize database values and map "Live" to "Real"
+  const formatAccountType = (accountType: string | undefined) => {
+    if (!accountType) return 'Demo';
+    const normalized = accountType.toLowerCase();
+    // Live account types: standard, premium, vip, live, real
+    if (normalized === 'standard' || normalized === 'premium' || normalized === 'vip' || 
+        normalized === 'live' || normalized === 'real') {
+      return 'Real';
+    }
+    // Demo account types: demo, demo_30, demo_60, demo_90, demo_unlimited
+    if (normalized.startsWith('demo')) {
+      return 'Demo';
+    }
+    // Fallback: if it's already "Live", map to "Real"
+    return accountType === 'Live' ? 'Real' : accountType;
   };
 
   // Get status badge styling
@@ -142,32 +199,8 @@ function ClientListContent() {
     setIsMobileSidebarOpen(false);
   };
 
-  if (loading) {
-    return (
-      <div className="flex h-screen bg-[#9BC5A2] overflow-hidden">
-        <AdminSidebar 
-          currentPage="client-list" 
-          isMobileOpen={isMobileSidebarOpen}
-          onMobileClose={closeMobileSidebar}
-        />
-        <div className="flex-1 flex flex-col">
-          <AdminHeader 
-            title="Client List"
-            onRefresh={() => fetchClients(true)}
-            refreshing={refreshing}
-            showBackButton={true}
-            backUrl="/admin/dashboard"
-            showRefreshButton={true}
-            refreshButtonText="Refresh"
-            onMobileMenuToggle={toggleMobileSidebar}
-          />
-          <div className="flex-1 flex items-center justify-center">
-            <div className="text-[#0A2E1D] text-xl">Loading clients...</div>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  // Show skeleton immediately for better UX - don't block the entire UI
+  const showSkeleton = loading && clients.length === 0;
 
   return (
     <div className="flex h-screen bg-[#9BC5A2] overflow-hidden">
@@ -192,8 +225,12 @@ function ClientListContent() {
           onMobileMenuToggle={toggleMobileSidebar}
         />
 
-        {/* Client List Content */}
-        <div className="flex-1 p-2 xs:p-3 sm:p-4 md:p-6 lg:p-8 overflow-y-auto">
+        {/* Show skeleton for initial load, content otherwise */}
+        {showSkeleton ? (
+          <AdminPageSkeleton />
+        ) : (
+          /* Client List Content */
+          <div className="flex-1 p-2 xs:p-3 sm:p-4 md:p-6 lg:p-8 overflow-y-auto">
           <h1 className="text-[#0A2E1D] text-xl xs:text-2xl sm:text-2xl md:text-3xl lg:text-3xl font-bold mb-4 xs:mb-5 sm:mb-6 md:mb-7 lg:mb-8">Client List</h1>
 
           {/* Statistics Cards */}
@@ -219,7 +256,7 @@ function ClientListContent() {
           {/* Additional Metrics Row */}
           <div className="grid grid-cols-2 gap-2 xs:gap-3 sm:gap-3 md:gap-4 lg:gap-6 mb-4 xs:mb-5 sm:mb-6 md:mb-7 lg:mb-8">
             <div className="bg-[#2D4A32] rounded-2xl p-2 xs:p-3 sm:p-3 md:p-4 lg:p-6 text-center">
-              <h3 className="text-[#9BC5A2] text-xs xs:text-xs sm:text-xs md:text-sm lg:text-sm font-medium mb-1 xs:mb-1.5 sm:mb-2">Live Accounts</h3>
+              <h3 className="text-[#9BC5A2] text-xs xs:text-xs sm:text-xs md:text-sm lg:text-sm font-medium mb-1 xs:mb-1.5 sm:mb-2">Real Accounts</h3>
               <p className="text-white text-base xs:text-lg sm:text-lg md:text-xl lg:text-2xl font-bold">{metrics.liveAccounts}</p>
             </div>
             <div className="bg-[#2D4A32] rounded-2xl p-2 xs:p-3 sm:p-3 md:p-4 lg:p-6 text-center">
@@ -275,7 +312,7 @@ function ClientListContent() {
                   className="w-full bg-[#4A6741] text-white px-2 xs:px-3 sm:px-3 md:px-3 lg:px-4 py-1.5 xs:py-2 sm:py-2 md:py-2 lg:py-2 rounded-lg border border-[#9BC5A9]/30 focus:border-[#9BC5A9] focus:outline-none text-xs xs:text-sm sm:text-sm md:text-sm lg:text-base"
                 >
                   <option>All Types</option>
-                  <option>Live</option>
+                  <option>Real</option>
                   <option>Demo</option>
                 </select>
               </div>
@@ -319,7 +356,7 @@ function ClientListContent() {
                       <div className="font-medium">{`${client.first_name || ''} ${client.last_name || ''}`.trim() || 'N/A'}</div>
                       <div className="text-[#9BC5A9]">{client.email}</div>
                       <div className="text-[#9BC5A9]">Registered: {formatDate(client.created_at)}</div>
-                      <div className="text-[#9BC5A9]">Type: {client.account_type || 'Demo'}</div>
+                      <div className="text-[#9BC5A9]">Type: {formatAccountType(client.account_type)}</div>
                     </div>
                     <div className="flex flex-wrap gap-1.5 xs:gap-2 sm:gap-2 pt-1.5 xs:pt-2 sm:pt-2">
                       <button 
@@ -377,7 +414,7 @@ function ClientListContent() {
                         </td>
                         <td className="py-4">
                           <span className="text-white text-sm">
-                            {client.account_type || 'Demo'}
+                            {formatAccountType(client.account_type)}
                           </span>
                         </td>
                         <td className="py-4">
@@ -407,6 +444,7 @@ function ClientListContent() {
             </div>
           </div>
         </div>
+        )}
       </div>
     </div>
   );
