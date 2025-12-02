@@ -2,7 +2,8 @@
 
 import UserHeader from '@/components/UserHeader';
 import Image from 'next/image';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import { getCurrentUser } from '@/utils/auth';
 import { TradingAccount } from '@/types';
@@ -25,7 +26,8 @@ interface UserProfile {
   account_status?: string;
 }
 
-export default function SettingsPage() {
+function SettingsPageContent() {
+  const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState('profile');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [darkMode, setDarkMode] = useState(true);
@@ -36,6 +38,19 @@ export default function SettingsPage() {
   const [totalBalance, setTotalBalance] = useState(0);
   const [totalEquity, setTotalEquity] = useState(0);
   const [walletBalance, setWalletBalance] = useState(0);
+
+  // Set active tab from URL parameter - check on mount and when URL changes
+  useEffect(() => {
+    const tabParam = searchParams.get('tab');
+    console.log('🔍 Tab parameter from URL:', tabParam);
+    if (tabParam && ['profile', 'withdraw-accounts', 'security', 'kyc', 'agreements', 'tools'].includes(tabParam)) {
+      console.log('✅ Setting active tab to:', tabParam);
+      setActiveTab(tabParam);
+    } else if (!tabParam) {
+      // If no tab param, default to profile
+      setActiveTab('profile');
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     fetchUserData();
@@ -1008,5 +1023,20 @@ export default function SettingsPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function SettingsPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex h-screen items-center justify-center bg-[#0A2E1D]">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-[#A0C8A9]"></div>
+          <p className="mt-2 text-[#A0C8A9]">Loading settings...</p>
+        </div>
+      </div>
+    }>
+      <SettingsPageContent />
+    </Suspense>
   );
 }

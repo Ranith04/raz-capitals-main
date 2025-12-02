@@ -1,4 +1,5 @@
 import { authenticateAdmin } from '@/lib/adminAuth';
+import { supabase } from '@/lib/supabaseClient';
 import { AuthResponse, LoginCredentials, User } from '@/types';
 
 // Mock user database - In a real app, this would be your backend API
@@ -95,14 +96,9 @@ export async function authenticateUser(credentials: LoginCredentials): Promise<A
     }
   }
 
-  console.log('👤 Regular user email detected, using mock authentication...');
+  console.log('👤 Regular user email detected, validating credentials against Supabase...');
 
-  // For non-admin users, use the existing mock authentication logic
-  // Simulate API delay
-  console.log('⏳ Simulating API delay...');
-  await new Promise(resolve => setTimeout(resolve, 1000));
-
-  // Accept any email and password combination for testing
+  // Validate input fields
   if (!email.trim()) {
     console.log('❌ Email validation failed: empty email');
     return {
@@ -121,35 +117,66 @@ export async function authenticateUser(credentials: LoginCredentials): Promise<A
 
   console.log('✅ Email and password validation passed');
 
-  // For testing purposes, accept ANY email and password combination
-  // Determine role based on email pattern
-  const role = isAdminEmail(email) ? 'admin' : 'user';
-  
-  console.log('🎭 User role determined:', role);
-  
-  // Create user object for any email
-  const updatedUser: User = {
-    id: `user-${Date.now()}`,
-    email: email,
-    name: email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
-    role: role,
-    createdAt: new Date().toISOString(),
-    lastLogin: new Date().toISOString()
-  };
+  try {
+    // Query users table for email and password match
+    console.log('📊 Querying users table for email:', email);
+    
+    const { data: userProfile, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('email', email.toLowerCase().trim())
+      .eq('password', password)
+      .single();
 
-  console.log('👤 Mock user created:', {
-    id: updatedUser.id,
-    name: updatedUser.name,
-    email: updatedUser.email,
-    role: updatedUser.role
-  });
+    console.log('📊 User query result:', { 
+      found: !!userProfile, 
+      error: error?.message || 'No error',
+      userId: userProfile?.user_uuid,
+      email: userProfile?.email
+    });
 
-  return {
-    success: true,
-    user: updatedUser,
-    token: `mock-token-${updatedUser.id}-${Date.now()}`,
-    message: 'Authentication successful'
-  };
+    if (error || !userProfile) {
+      console.error('❌ Invalid credentials:', error?.message || 'User not found');
+      return {
+        success: false,
+        message: 'Invalid email or password. Please check your credentials and try again.'
+      };
+    }
+
+    console.log('✅ User credentials validated successfully');
+
+    // Create user object from database profile
+    const authenticatedUser: User = {
+      id: userProfile.user_uuid || `user-${Date.now()}`,
+      email: userProfile.email,
+      name: userProfile.first_name && userProfile.last_name
+        ? `${userProfile.first_name} ${userProfile.last_name}`
+        : userProfile.first_name || userProfile.email?.split('@')[0] || 'User',
+      role: 'user',
+      createdAt: userProfile.created_at || new Date().toISOString(),
+      lastLogin: new Date().toISOString()
+    };
+
+    console.log('👤 User authenticated:', {
+      id: authenticatedUser.id,
+      name: authenticatedUser.name,
+      email: authenticatedUser.email,
+      role: authenticatedUser.role
+    });
+
+    return {
+      success: true,
+      user: authenticatedUser,
+      token: `user-token-${authenticatedUser.id}-${Date.now()}`,
+      message: 'Authentication successful'
+    };
+  } catch (error) {
+    console.error('❌ Authentication error:', error);
+    return {
+      success: false,
+      message: 'An error occurred during authentication. Please try again.'
+    };
+  }
 }
 
 // Helper function to determine redirect path based on user role
