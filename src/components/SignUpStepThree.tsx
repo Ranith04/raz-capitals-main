@@ -13,6 +13,7 @@ export default function SignUpStepThree() {
   const [errors, setErrors] = useState({ dateOfBirth: '', countryOfBirth: '', residentialAddress: '' });
   const router = useRouter();
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const dateInputRef = useRef<HTMLInputElement>(null);
 
   const countries = [
     'India', 'United States', 'Canada', 'United Kingdom', 'Australia', 'Germany', 'France', 'Italy', 'Spain',
@@ -35,6 +36,13 @@ export default function SignUpStepThree() {
     };
   }, []);
 
+  // Update border color when error state changes
+  useEffect(() => {
+    if (dateInputRef.current) {
+      dateInputRef.current.style.borderColor = errors.dateOfBirth ? '#EF4444' : '#d1d5db';
+    }
+  }, [errors.dateOfBirth]);
+
   const toggleCountryDropdown = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -46,6 +54,74 @@ export default function SignUpStepThree() {
     setShowCountryDropdown(false);
   };
 
+  // Calculate age from date of birth
+  const calculateAge = (dateOfBirth: string): number => {
+    const birthDate = new Date(dateOfBirth);
+    const today = new Date();
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+    
+    return age;
+  };
+
+  // Get maximum date (18 years ago from today)
+  const getMaxDate = (): string => {
+    const today = new Date();
+    const maxDate = new Date(today.getFullYear() - 18, today.getMonth(), today.getDate());
+    return maxDate.toISOString().split('T')[0];
+  };
+
+  // Validate date of birth
+  const validateDateOfBirth = (dob: string): string => {
+    if (!dob.trim()) {
+      return 'Please enter your date of birth.';
+    }
+    
+    const age = calculateAge(dob);
+    if (age < 18) {
+      return 'You must be at least 18 years old to sign up.';
+    }
+    
+    // Check if date is in the future
+    const birthDate = new Date(dob);
+    const today = new Date();
+    if (birthDate > today) {
+      return 'Date of birth cannot be in the future.';
+    }
+    
+    return '';
+  };
+
+  const handleDateOfBirthChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setDateOfBirth(value);
+    
+    // Clear error when user starts typing
+    if (errors.dateOfBirth) {
+      setErrors(prev => ({ ...prev, dateOfBirth: '' }));
+    }
+  };
+
+  const handleDateOfBirthBlur = (e?: React.FocusEvent<HTMLInputElement>) => {
+    if (dateOfBirth) {
+      const error = validateDateOfBirth(dateOfBirth);
+      setErrors(prev => ({ ...prev, dateOfBirth: error }));
+      
+      // Update border color based on error
+      if (e) {
+        e.target.style.borderColor = error ? '#EF4444' : '#d1d5db';
+        e.target.style.boxShadow = 'none';
+      }
+    } else if (e) {
+      e.target.style.borderColor = '#d1d5db';
+      e.target.style.boxShadow = 'none';
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -55,8 +131,10 @@ export default function SignUpStepThree() {
     // Validate fields
     const newErrors = { dateOfBirth: '', countryOfBirth: '', residentialAddress: '' };
     
-    if (!dateOfBirth.trim()) {
-      newErrors.dateOfBirth = 'Please enter your date of birth.';
+    // Validate date of birth (including age check)
+    const dobError = validateDateOfBirth(dateOfBirth);
+    if (dobError) {
+      newErrors.dateOfBirth = dobError;
     }
     
     if (!countryOfBirth.trim()) {
@@ -125,22 +203,22 @@ export default function SignUpStepThree() {
           </label>
           <div className="relative">
             <input
+              ref={dateInputRef}
               type="date"
               id="dateOfBirth"
               value={dateOfBirth}
-              onChange={(e) => setDateOfBirth(e.target.value)}
+              onChange={handleDateOfBirthChange}
+              onBlur={handleDateOfBirthBlur}
+              max={getMaxDate()}
               className="w-full px-3 py-2.5 pr-10 border border-gray-300 rounded-lg focus:ring-2 transition-colors duration-200 text-gray-900 bg-white placeholder-gray-500 text-sm"
               style={{ 
                 color: '#111827', 
-                backgroundColor: '#ffffff'
+                backgroundColor: '#ffffff',
+                borderColor: errors.dateOfBirth ? '#EF4444' : '#d1d5db'
               }}
               onFocus={(e) => {
                 e.target.style.borderColor = '#A0C8A9';
                 e.target.style.boxShadow = '0 0 0 2px rgba(160, 200, 169, 0.3)';
-              }}
-              onBlur={(e) => {
-                e.target.style.borderColor = '#d1d5db';
-                e.target.style.boxShadow = 'none';
               }}
               required
             />

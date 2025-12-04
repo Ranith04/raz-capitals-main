@@ -2,9 +2,12 @@
 
 import AdminHeader from '@/components/AdminHeader';
 import AdminSidebar from '@/components/AdminSidebar';
+import DocumentViewer from '@/components/DocumentViewer';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { supabase } from '@/lib/supabaseClient';
+import { UserService } from '@/lib/userService';
 import { updateBalanceForDeposit } from '@/utils/tradingBalanceManager';
+import { sendDepositApprovalEmail } from '@/lib/emailService';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
@@ -23,6 +26,7 @@ interface Transaction {
   user_email?: string;
   payment_method?: string;
   transaction_document?: string;
+  customer_name?: string;
 }
 
 function DepositFundContent() {
@@ -38,6 +42,8 @@ function DepositFundContent() {
   const [proofModalOpen, setProofModalOpen] = useState(false);
   const [selectedProofUrl, setSelectedProofUrl] = useState<string>('');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [sortField, setSortField] = useState<'date' | 'amount' | 'status' | 'customer' | 'account_id'>('date');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   
   useEffect(() => {
     document.title = 'Deposit Fund - RAZ CAPITALS';
@@ -71,22 +77,60 @@ function DepositFundContent() {
       }
 
       if (data) {
+        // Fetch all unique account IDs
+        const accountIds = [...new Set(data.map((tx: any) => tx.account_id).filter(Boolean))];
+        
+        // Fetch user names from tradingAccounts table
+        const customerNameMap: Record<string, string> = {};
+        if (accountIds.length > 0) {
+          const { data: tradingAccounts, error: tradingError } = await supabase
+            .from('tradingAccounts')
+            .select(`
+              account_uid,
+              user:users!tradingAccounts_user_id_fkey(
+                first_name,
+                last_name
+              )
+            `)
+            .in('account_uid', accountIds);
+
+          if (!tradingError && tradingAccounts) {
+            tradingAccounts.forEach((account: any) => {
+              if (account.user) {
+                const fullName = `${account.user.first_name || ''} ${account.user.last_name || ''}`.trim();
+                if (fullName) {
+                  customerNameMap[account.account_uid] = fullName;
+                }
+              }
+            });
+          }
+        }
+
         // Transform the data to match our interface
-        const transformedTransactions = data.map((tx: any) => ({
-          id: tx.id,
-          type: tx.type,
-          amount: tx.amount,
-          currency: tx.currency,
-          status: tx.status,
-          created_at: tx.created_at,
-          account_id: tx.account_id,
-          transaction_comments: tx.transaction_comments,
-          // Extract user information from account_id or related tables
-          user_name: tx.account_id || 'Unknown User',
-          user_email: tx.account_id ? `${tx.account_id}@example.com` : 'No email',
-          payment_method: (tx.mode_of_payment || 'Unknown Method').replace(/_/g, ' ').trim(),
-          transaction_document: tx.proof_of_transaction_url || '-'
-        }));
+        const transformedTransactions = await Promise.all(
+          data.map(async (tx: any) => {
+            const customerName = customerNameMap[tx.account_id] || 'Unknown User';
+            
+            // Store the original document path/URL (don't pre-process signed URLs as they expire)
+            const documentUrl = tx.proof_of_transaction_url || '-';
+
+            return {
+              id: tx.id,
+              type: tx.type,
+              amount: tx.amount,
+              currency: tx.currency,
+              status: tx.status,
+              created_at: tx.created_at,
+              account_id: tx.account_id,
+              transaction_comments: tx.transaction_comments,
+              user_name: customerName,
+              user_email: tx.account_id ? `${tx.account_id}@example.com` : 'No email',
+              payment_method: (tx.mode_of_payment || 'Unknown Method').replace(/_/g, ' ').trim(),
+              transaction_document: documentUrl,
+              customer_name: customerName
+            };
+          })
+        );
         
         setTransactions(transformedTransactions);
       }
@@ -112,9 +156,57 @@ function DepositFundContent() {
     setTransactionComments('');
   };
 
-  const handleProofClick = (proofUrl: string) => {
-    setSelectedProofUrl(proofUrl);
-    setProofModalOpen(true);
+  const handleProofClick = async (proofUrl: string) => {
+    if (!proofUrl || proofUrl === '-' || proofUrl === '') {
+      alert('No proof document available');
+      return;
+    }
+
+    try {
+      let documentUrl: string | null = null;
+      
+      // If it's already a full URL (http/https), try to extract and regenerate
+      if (proofUrl.startsWith('http://') || proofUrl.startsWith('https://')) {
+        // Extract bucket and path from the URL
+        const urlMatch = proofUrl.match(/\/storage\/v1\/object\/(?:public|sign|authenticated)\/([^\/]+)\/(.+?)(?:\?|$)/);
+        if (urlMatch && urlMatch[1] && urlMatch[2]) {
+          const extractedBucket = urlMatch[1];
+          const extractedPath = decodeURIComponent(urlMatch[2]);
+          console.log('Extracted from URL:', { bucket: extractedBucket, path: extractedPath });
+          
+          // Generate signed URL using extracted bucket and path
+          documentUrl = await UserService.getSignedUrlForDocument(extractedPath, 'transaction', extractedBucket);
+        } else {
+          // If we can't extract, try using the URL as-is
+          documentUrl = proofUrl;
+        }
+      } else {
+        // It's a file path - clean it and use transactions bucket
+        let cleanPath = proofUrl.startsWith('/') ? proofUrl.slice(1) : proofUrl;
+        
+        // Remove bucket name if it's at the start of the path
+        if (cleanPath.startsWith('transactions/')) {
+          cleanPath = cleanPath.slice('transactions/'.length);
+        }
+        
+        console.log('Processing file path:', { original: proofUrl, cleanPath, bucket: 'transactions' });
+        
+        // Generate signed URL from transactions bucket
+        documentUrl = await UserService.getSignedUrlForDocument(cleanPath, 'transaction', 'transactions');
+      }
+      
+      if (!documentUrl) {
+        alert('Failed to load proof document. Please check if the file exists in the transactions bucket.');
+        return;
+      }
+      
+      console.log('Final document URL:', documentUrl);
+      setSelectedProofUrl(documentUrl);
+      setProofModalOpen(true);
+    } catch (error) {
+      console.error('Error loading proof document:', error);
+      alert(`Error loading proof document: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   };
 
   const handleCloseProofModal = () => {
@@ -125,10 +217,39 @@ function DepositFundContent() {
   const handleSubmit = async () => {
     if (!selectedTransaction) return;
     
+    // Prevent updates if transaction is already completed or failed
+    if (selectedTransaction.status === 'completed' || selectedTransaction.status === 'failed') {
+      alert('Cannot update transaction. Transaction status is already finalized.');
+      return;
+    }
+    
     setIsSubmitting(true);
     
     try {
-      // Update the transaction status in Supabase
+      // Fetch the existing transaction from database to get the actual old_status
+      const { data: existingTransaction, error: fetchError } = await supabase
+        .from('transactions')
+        .select('status')
+        .eq('id', selectedTransaction.id)
+        .single();
+
+      if (fetchError) {
+        console.error('Error fetching transaction:', fetchError);
+        alert('Error fetching transaction details. Please try again.');
+        setIsSubmitting(false);
+        return;
+      }
+
+      if (!existingTransaction) {
+        alert('Transaction not found. Please refresh and try again.');
+        setIsSubmitting(false);
+        return;
+      }
+
+      const oldStatus = existingTransaction.status;
+      const shouldUpdateBalance = oldStatus !== 'completed' && newStatus === 'completed';
+
+      // Update the transaction status in Supabase (always update status)
       const { error: updateError } = await supabase
         .from('transactions')
         .update({ 
@@ -140,11 +261,12 @@ function DepositFundContent() {
       if (updateError) {
         console.error('Error updating transaction:', updateError);
         alert('Error updating transaction. Please try again.');
+        setIsSubmitting(false);
         return;
       }
 
-      // If status is 'completed', update the trading account balance
-      if (newStatus === 'completed' && selectedTransaction.account_id) {
+      // Only update balance if transitioning from non-Completed to Completed
+      if (shouldUpdateBalance && selectedTransaction.account_id) {
         const balanceResult = await updateBalanceForDeposit(
           selectedTransaction.account_id, 
           selectedTransaction.amount
@@ -155,10 +277,39 @@ function DepositFundContent() {
         } else {
           console.log(`Balance update successful: ${balanceResult.message}`);
         }
+
+        // Send deposit approval email only when completing the transaction
+        try {
+          // Get user email from trading account
+          const { data: tradingAccount } = await supabase
+            .from('tradingAccounts')
+            .select('user_id')
+            .eq('account_uid', selectedTransaction.account_id)
+            .single();
+
+          if (tradingAccount?.user_id) {
+            const user = await UserService.getUserByUuid(tradingAccount.user_id);
+            if (user && user.email) {
+              const userName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Valued Customer';
+              await sendDepositApprovalEmail(
+                user.email,
+                userName,
+                selectedTransaction.amount,
+                selectedTransaction.currency,
+                selectedTransaction.account_id,
+                selectedTransaction.id
+              );
+              console.log('Deposit approval email sent to:', user.email);
+            }
+          }
+        } catch (emailError) {
+          console.error('Failed to send deposit approval email:', emailError);
+          // Don't block the transaction if email fails
+        }
       }
       
       // Show success message
-      const balanceMessage = (newStatus === 'completed' && selectedTransaction.account_id) 
+      const balanceMessage = shouldUpdateBalance && selectedTransaction.account_id
         ? ` Balance has been updated for account ${selectedTransaction.account_id}.`
         : '';
       alert(`Transaction ${selectedTransaction.id} updated successfully! Status: ${newStatus}.${balanceMessage}`);
@@ -219,6 +370,53 @@ function DepositFundContent() {
 
   const formatAmount = (amount: number, currency: string) => {
     return `${amount.toFixed(2)} ${currency.toUpperCase()}`;
+  };
+
+  // Sort transactions based on selected field and direction
+  const getSortedTransactions = (): Transaction[] => {
+    const sorted = [...transactions];
+    
+    sorted.sort((a, b) => {
+      let comparison = 0;
+      
+      switch (sortField) {
+        case 'date':
+          comparison = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+          break;
+        case 'amount':
+          comparison = a.amount - b.amount;
+          break;
+        case 'status':
+          const statusOrder = { 'completed': 1, 'pending': 2, 'failed': 3, 'null': 4 };
+          comparison = (statusOrder[a.status] || 99) - (statusOrder[b.status] || 99);
+          break;
+        case 'customer':
+          const nameA = (a.customer_name || '').toLowerCase();
+          const nameB = (b.customer_name || '').toLowerCase();
+          comparison = nameA.localeCompare(nameB);
+          break;
+        case 'account_id':
+          comparison = (a.account_id || '').localeCompare(b.account_id || '');
+          break;
+        default:
+          return 0;
+      }
+      
+      return sortDirection === 'asc' ? comparison : -comparison;
+    });
+    
+    return sorted;
+  };
+
+  const handleSortChange = (field: 'date' | 'amount' | 'status' | 'customer' | 'account_id') => {
+    if (sortField === field) {
+      // Toggle direction if same field
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      // Set new field with default descending
+      setSortField(field);
+      setSortDirection('desc');
+    }
   };
 
   // Loading state
@@ -324,22 +522,52 @@ function DepositFundContent() {
                   </p>
                 )}
               </div>
-              <button
-                onClick={fetchTransactions}
-                disabled={loading}
-                className="w-full sm:w-auto px-4 py-2 bg-[#0A2E1D] text-white rounded-lg hover:bg-[#2D4A32] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2 text-sm sm:text-base"
-              >
-                {loading ? (
-                  <svg className="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                  </svg>
-                ) : (
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                  </svg>
-                )}
-                <span>{loading ? 'Refreshing...' : 'Refresh'}</span>
-              </button>
+              <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                {/* Sort Dropdown */}
+                <div className="relative">
+                  <select
+                    value={`${sortField}_${sortDirection}`}
+                    onChange={(e) => {
+                      const [field, direction] = e.target.value.split('_');
+                      setSortField(field as 'date' | 'amount' | 'status' | 'customer' | 'account_id');
+                      setSortDirection(direction as 'asc' | 'desc');
+                    }}
+                    className="w-full sm:w-auto px-4 py-2 bg-white border border-gray-300 rounded-lg text-[#0A2E1D] text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-[#0A2E1D] cursor-pointer appearance-none pr-8"
+                  >
+                    <option value="date_desc">Sort by: Date (Newest First)</option>
+                    <option value="date_asc">Sort by: Date (Oldest First)</option>
+                    <option value="amount_desc">Sort by: Amount (High to Low)</option>
+                    <option value="amount_asc">Sort by: Amount (Low to High)</option>
+                    <option value="status_asc">Sort by: Status (A-Z)</option>
+                    <option value="status_desc">Sort by: Status (Z-A)</option>
+                    <option value="customer_asc">Sort by: Customer Name (A-Z)</option>
+                    <option value="customer_desc">Sort by: Customer Name (Z-A)</option>
+                    <option value="account_id_asc">Sort by: Account ID (A-Z)</option>
+                    <option value="account_id_desc">Sort by: Account ID (Z-A)</option>
+                  </select>
+                  <div className="absolute right-2 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                    <svg className="w-4 h-4 text-[#0A2E1D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </div>
+                </div>
+                <button
+                  onClick={fetchTransactions}
+                  disabled={loading}
+                  className="w-full sm:w-auto px-4 py-2 bg-[#0A2E1D] text-white rounded-lg hover:bg-[#2D4A32] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2 text-sm sm:text-base"
+                >
+                  {loading ? (
+                    <svg className="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                  ) : (
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                  )}
+                  <span>{loading ? 'Refreshing...' : 'Refresh'}</span>
+                </button>
+              </div>
             </div>
 
             {/* Mobile Card View */}
@@ -351,7 +579,7 @@ function DepositFundContent() {
               ) : transactions.length === 0 ? (
                 <div className="text-center text-gray-500 py-8">No deposit transactions found.</div>
               ) : (
-                transactions.map((row) => (
+                getSortedTransactions().map((row) => (
                   <div key={row.id} className="bg-white rounded-lg p-4 space-y-3 border border-gray-200">
                     <div className="flex justify-between items-start">
                       <div className="flex-1">
@@ -367,6 +595,10 @@ function DepositFundContent() {
                       <div>
                         <div className="text-[#0A2E1D] text-xs font-medium">Account ID</div>
                         <div className="text-[#0A2E1D] font-mono text-xs">{row.account_id || 'N/A'}</div>
+                      </div>
+                      <div>
+                        <div className="text-[#0A2E1D] text-xs font-medium">Customer Name</div>
+                        <div className="text-[#0A2E1D] text-xs">{row.customer_name || 'Unknown User'}</div>
                       </div>
                       <div>
                         <div className="text-[#0A2E1D] text-xs font-medium">Payment Method</div>
@@ -421,6 +653,7 @@ function DepositFundContent() {
                     <th className="py-3 pr-4 text-[#0A2E1D] font-bold">Type</th>
                     <th className="py-3 pr-4 text-[#0A2E1D] font-bold">Date</th>
                     <th className="py-3 pr-4 text-[#0A2E1D] font-bold">Account ID</th>
+                    <th className="py-3 pr-4 text-[#0A2E1D] font-bold">Customer Name</th>
                     <th className="py-3 pr-4 text-[#0A2E1D] font-bold">Payment Method</th>
                     <th className="py-3 pr-4 text-[#0A2E1D] font-bold">Amount</th>
                     <th className="py-3 pr-4 text-[#0A2E1D] font-bold">Currency</th>
@@ -432,18 +665,18 @@ function DepositFundContent() {
                 <tbody className="text-[#0A2E1D]">
                   {loading ? (
                     <tr>
-                      <td colSpan={10} className="py-8 text-center text-gray-500">Loading...</td>
+                      <td colSpan={11} className="py-8 text-center text-gray-500">Loading...</td>
                     </tr>
                   ) : error ? (
                     <tr>
-                      <td colSpan={10} className="py-8 text-center text-red-500">{error}</td>
+                      <td colSpan={11} className="py-8 text-center text-red-500">{error}</td>
                     </tr>
                   ) : transactions.length === 0 ? (
                     <tr>
-                      <td colSpan={10} className="py-8 text-center text-gray-500">No deposit transactions found.</td>
+                      <td colSpan={11} className="py-8 text-center text-gray-500">No deposit transactions found.</td>
                     </tr>
                   ) : (
-                    transactions.map((row) => (
+                    getSortedTransactions().map((row) => (
                       <tr key={row.id} className="border-b border-black/10 last:border-b-0">
                         <td className="py-4 pr-4">{row.id}</td>
                         <td className="py-4 pr-4">
@@ -453,6 +686,7 @@ function DepositFundContent() {
                         </td>
                         <td className="py-4 pr-4">{formatDate(row.created_at)}</td>
                         <td className="py-4 pr-4 font-mono text-sm">{row.account_id || 'N/A'}</td>
+                        <td className="py-4 pr-4">{row.customer_name || 'Unknown User'}</td>
                         <td className="py-4 pr-4">{row.payment_method}</td>
                         <td className="py-4 pr-4 font-semibold">{formatAmount(row.amount, row.currency)}</td>
                         <td className="py-4 pr-4">{row.currency.toUpperCase()}</td>
@@ -587,7 +821,12 @@ function DepositFundContent() {
                 <select
                   value={newStatus}
                   onChange={(e) => setNewStatus(e.target.value as 'null' | 'pending' | 'completed' | 'failed')}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0A2E1D] focus:border-transparent text-gray-900 bg-white text-sm"
+                  disabled={selectedTransaction.status === 'completed' || selectedTransaction.status === 'failed'}
+                  className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0A2E1D] focus:border-transparent text-gray-900 bg-white text-sm ${
+                    selectedTransaction.status === 'completed' || selectedTransaction.status === 'failed'
+                      ? 'bg-gray-100 cursor-not-allowed opacity-60'
+                      : ''
+                  }`}
                 >
                   <option value="null">Select Status</option>
                   <option value="pending">Pending</option>
@@ -606,7 +845,12 @@ function DepositFundContent() {
                     value={transactionComments}
                     onChange={(e) => setTransactionComments(e.target.value)}
                     placeholder="Please provide transaction comments..."
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0A2E1D] focus:border-transparent resize-none text-gray-900 bg-white text-sm"
+                    disabled={selectedTransaction.status === 'completed' || selectedTransaction.status === 'failed'}
+                    className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0A2E1D] focus:border-transparent resize-none text-gray-900 bg-white text-sm ${
+                      selectedTransaction.status === 'completed' || selectedTransaction.status === 'failed'
+                        ? 'bg-gray-100 cursor-not-allowed opacity-60'
+                        : ''
+                    }`}
                     rows={3}
                   />
                 </div>
@@ -622,9 +866,9 @@ function DepositFundContent() {
                 </button>
                 <button
                   onClick={handleSubmit}
-                  disabled={!canSubmit || isSubmitting}
+                  disabled={!canSubmit || isSubmitting || selectedTransaction.status === 'completed' || selectedTransaction.status === 'failed'}
                   className={`w-full sm:w-auto px-6 py-2 rounded-lg font-medium transition-colors text-sm ${
-                    canSubmit && !isSubmitting
+                    canSubmit && !isSubmitting && selectedTransaction.status !== 'completed' && selectedTransaction.status !== 'failed'
                       ? newStatus === 'completed'
                         ? 'bg-[#16a34a] text-white hover:bg-[#15803d]'
                         : newStatus === 'failed'
@@ -643,54 +887,13 @@ function DepositFundContent() {
 
       {/* Proof Document Modal */}
       {proofModalOpen && selectedProofUrl && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-            {/* Modal Header */}
-            <div className="bg-[#0A2E1D] text-white p-4 sm:p-6 rounded-t-xl">
-              <div className="flex justify-between items-center">
-                <h3 className="text-lg sm:text-xl font-semibold">Proof Document</h3>
-                <button
-                  onClick={handleCloseProofModal}
-                  className="text-white hover:text-gray-300 transition-colors"
-                >
-                  <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-
-            {/* Modal Body */}
-            <div className="p-4 sm:p-6">
-              <div className="w-full h-64 sm:h-96 bg-gray-100 rounded-lg flex items-center justify-center">
-                {selectedProofUrl.endsWith('.pdf') ? (
-                  <iframe
-                    src={selectedProofUrl}
-                    className="w-full h-full rounded-lg"
-                    title="Proof Document"
-                  />
-                ) : (
-                  <img
-                    src={selectedProofUrl}
-                    alt="Proof Document"
-                    className="max-w-full max-h-full object-contain rounded-lg"
-                  />
-                )}
-              </div>
-              
-              <div className="mt-4 text-center">
-                <a
-                  href={selectedProofUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-600 hover:text-blue-800 underline text-sm"
-                >
-                  Open in New Tab
-                </a>
-              </div>
-            </div>
-          </div>
-        </div>
+        <DocumentViewer
+          isOpen={proofModalOpen}
+          onClose={handleCloseProofModal}
+          documentUrl={selectedProofUrl}
+          documentName="Proof Document"
+          documentType="Transaction Proof"
+        />
       )}
     </div>
   );

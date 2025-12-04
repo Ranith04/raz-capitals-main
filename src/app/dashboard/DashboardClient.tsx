@@ -3,6 +3,7 @@
 
 import ErrorBoundary from '@/components/ErrorBoundary';
 import UserBalanceDetails from '@/components/UserBalanceDetails';
+import TradingID from '@/components/TradingID';
 import UserHeader from '@/components/UserHeader';
 import { useDashboardMetrics } from '@/hooks/useDashboardMetrics';
 import { useUserTradingAccountCounts } from '@/hooks/useUserTradingAccountCounts';
@@ -56,12 +57,7 @@ export default function DashboardClient() {
               <span className="font-medium">Dashboard</span>
             </a>
             
-            <a href="/dashboard/wallets" className={`flex items-center space-x-3 px-4 py-3 ${darkMode ? 'text-[#A0C8A9]/70 hover:text-white hover:bg-[#A0C8A9]/10' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'} rounded-lg transition-colors`}>
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-              </svg>
-              <span>Wallets</span>
-            </a>
+            {/* Wallets menu item temporarily removed */}
             
             <a href="/dashboard/my-accounts" className={`flex items-center space-x-3 px-4 py-3 ${darkMode ? 'text-[#A0C8A9]/70 hover:text-white hover:bg-[#A0C8A9]/10' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'} rounded-lg transition-colors`}>
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -70,25 +66,13 @@ export default function DashboardClient() {
               <span>My Accounts</span>
             </a>
             
-            <a href="/dashboard/new-account" className={`flex items-center space-x-3 px-4 py-3 ${darkMode ? 'text-[#A0C8A9]/70 hover:text-white hover:bg-[#A0C8A9]/10' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'} rounded-lg transition-colors`}>
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-              </svg>
-              <span>New Account</span>
-            </a>
+            {/* New Account menu item temporarily removed */}
             
             <a href="/dashboard/deposit" className={`flex items-center space-x-3 px-4 py-3 ${darkMode ? 'text-[#A0C8A9]/70 hover:text-white hover:bg-[#A0C8A9]/10' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'} rounded-lg transition-colors`}>
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
               </svg>
               <span>Deposit</span>
-            </a>
-            
-            <a href="/dashboard/transfer" className={`flex items-center space-x-3 px-4 py-3 ${darkMode ? 'text-[#A0C8A9]/70 hover:text-white hover:bg-[#A0C8A9]/10' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'} rounded-lg transition-colors`}>
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-              </svg>
-              <span>Transfer</span>
             </a>
             
             <a href="/dashboard/withdraw" className={`flex items-center space-x-3 px-4 py-3 ${darkMode ? 'text-[#A0C8A9]/70 hover:text-white hover:bg-[#A0C8A9]/10' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'} rounded-lg transition-colors`}>
@@ -133,9 +117,14 @@ export default function DashboardClient() {
         <div className={`flex-1 p-4 sm:p-6 space-y-4 sm:space-y-6 overflow-y-auto ${darkMode ? 'bg-[#B8D4C1]' : 'bg-gray-50'}`}>
           <ErrorBoundary>
             {/* Balance Cards - Dynamic from Supabase */}
-            <UserBalanceDetails />
-
-
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
+              <div className="lg:col-span-2">
+                <UserBalanceDetails />
+              </div>
+              <div className="lg:col-span-1">
+                <TradingID variant="card" showLabel={true} />
+              </div>
+            </div>
 
           {/* Action Buttons */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
@@ -197,11 +186,6 @@ export default function DashboardClient() {
                 </svg>
               </div>
               <span className="text-xs sm:text-sm font-medium">Verification</span>
-              {metrics.kycPending > 0 && (
-                <div className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 rounded-full text-xs flex items-center justify-center text-white font-semibold">
-                  {metrics.kycPending}
-                </div>
-              )}
             </button>
           </div>
 
@@ -226,8 +210,8 @@ export default function DashboardClient() {
                   </div>
                   <div className="flex justify-between items-center">
                     <span className={`text-xl sm:text-2xl font-bold ${darkMode ? 'text-[#1E2E23]' : 'text-gray-900'}`}>{userAccLoading ? '—' : liveAccounts}</span>
-                    <a href="/dashboard/new-account" className={`${darkMode ? 'bg-[#2D4A35] text-white hover:bg-[#3A5642]' : 'bg-blue-600 text-white hover:bg-blue-700'} px-2 sm:px-3 py-1 rounded text-xs font-medium transition-colors`}>
-                      Create Account
+                    <a href="/dashboard/my-accounts" className={`${darkMode ? 'bg-[#2D4A35] text-white hover:bg-[#3A5642]' : 'bg-blue-600 text-white hover:bg-blue-700'} px-2 sm:px-3 py-1 rounded text-xs font-medium transition-colors`}>
+                      View Accounts
                     </a>
                   </div>
                 </div>
@@ -239,8 +223,8 @@ export default function DashboardClient() {
                   </div>
                   <div className="flex justify-between items-center">
                     <span className={`text-xl sm:text-2xl font-bold ${darkMode ? 'text-[#1E2E23]' : 'text-gray-900'}`}>{userAccLoading ? '—' : demoAccounts}</span>
-                    <a href="/dashboard/new-account" className={`${darkMode ? 'bg-[#2D4A35] text-white hover:bg-[#3A5642]' : 'bg-blue-600 text-white hover:bg-blue-700'} px-2 sm:px-3 py-1 rounded text-xs font-medium transition-colors`}>
-                      Create Account
+                    <a href="/dashboard/my-accounts" className={`${darkMode ? 'bg-[#2D4A35] text-white hover:bg-[#3A5642]' : 'bg-blue-600 text-white hover:bg-blue-700'} px-2 sm:px-3 py-1 rounded text-xs font-medium transition-colors`}>
+                      View Accounts
                     </a>
                   </div>
                 </div>

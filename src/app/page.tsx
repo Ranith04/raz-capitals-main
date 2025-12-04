@@ -4,7 +4,6 @@ import AnalyticsSection from '@/components/AnalyticsSection';
 import FeatureCards from '@/components/FeatureCards';
 import HeroSection from '@/components/HeroSection';
 import Navbar from '@/components/Navbar';
-import TradingAccounts from '@/components/TradingAccounts';
 
 export default function HomePage() {
   return (
@@ -425,9 +424,6 @@ export default function HomePage() {
       </section>
 
       <FeatureCards />
-      
-      {/* Trading Accounts We Offer */}
-      <TradingAccounts />
 
       {/* Footer Section */}
       <section className="bg-[#0A2E1D] text-white py-16">

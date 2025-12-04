@@ -154,33 +154,15 @@ function TradeAccountDetailsContent() {
       {/* Main Content */}
       <div className="flex-1 flex flex-col">
         {/* Header */}
-        <div className="bg-[#0A2E1D] p-4 flex justify-between items-center">
-          <div
-            className="w-12 h-12 bg-[#2D4A32] rounded-lg flex items-center justify-center cursor-pointer hover:bg-[#3A5A3F] transition-all duration-300 hover:scale-110 hover:shadow-lg transform"
-            onClick={() => router.push('/admin/trade-accounts/live-accounts')}
-          >
-            <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-          </div>
-
-          <div className="flex items-center space-x-1">
-            <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center">
-              <span className="text-[#0A2E1D] font-bold text-sm">A</span>
-            </div>
-            <span className="text-white font-medium">Admin</span>
-            <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-            </svg>
-          </div>
-        </div>
+        <AdminHeader 
+          title={`Trade Account Details #${account.account_uid}`}
+          showBackButton={true}
+          backUrl="/admin/trade-accounts/live-accounts"
+          showRefreshButton={false}
+        />
 
         {/* Content */}
         <div className="flex-1 p-6 overflow-y-auto">
-          <h2 className="text-[#0A2E1D] text-3xl font-semibold mb-3">
-            Trade Account Details #{account.account_uid}
-          </h2>
-
           <div className="grid grid-cols-1 lg:grid-cols-3 lg:grid-rows-2 gap-2">
             {/* Account Details (left, tall) */}
             <div className="bg-[#0B2417] text-white rounded-lg lg:row-span-2">
@@ -296,17 +278,6 @@ function TradeAccountDetailsContent() {
                 </div>
               </div>
           </div>
-
-          {/* Scroll to top button */}
-          <button
-            aria-label="Scroll to top"
-            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-            className="fixed bottom-6 right-6 h-14 w-14 rounded-full bg-[#0A2E1D] text-white flex items-center justify-center shadow-md"
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-            </svg>
-          </button>
         </div>
       </div>
     </div>

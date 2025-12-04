@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { getCurrentUser } from '@/utils/auth';
+import { useActiveAccount } from '@/contexts/ActiveAccountContext';
 import { TradingAccount } from '@/types';
 
 interface DepositMethod {
@@ -20,6 +21,7 @@ interface DepositMethod {
 }
 
 export default function DepositClient() {
+  const { activeAccount, accounts: contextAccounts } = useActiveAccount();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [darkMode, setDarkMode] = useState(true);
   const [accounts, setAccounts] = useState<TradingAccount[]>([]);
@@ -119,6 +121,13 @@ export default function DepositClient() {
     fetchUserAccounts();
   }, []);
 
+  // Update selected account when active account changes
+  useEffect(() => {
+    if (activeAccount) {
+      setSelectedAccountId(activeAccount.account_uid);
+    }
+  }, [activeAccount]);
+
   const fetchUserAccounts = async () => {
     try {
       setLoading(true);
@@ -167,7 +176,10 @@ export default function DepositClient() {
         setError('Failed to load trading accounts.');
       } else if (tradingAccounts) {
         setAccounts(tradingAccounts);
-        if (tradingAccounts.length > 0) {
+        // Use active account from context, or fallback to first account
+        if (activeAccount) {
+          setSelectedAccountId(activeAccount.account_uid);
+        } else if (tradingAccounts.length > 0) {
           setSelectedAccountId(tradingAccounts[0].account_uid);
         }
       }
@@ -571,35 +583,19 @@ export default function DepositClient() {
               </svg>
               <span>Dashboard</span>
             </a>
-            <a href="/dashboard/wallets" className={`flex items-center space-x-3 px-4 py-3 ${darkMode ? 'text-[#A0C8A9]/70 hover:text-white hover:bg-[#A0C8A9]/10' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'} rounded-lg transition-colors`}>
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-              </svg>
-              <span>Wallets</span>
-            </a>
+            {/* Wallets menu item temporarily removed */}
             <a href="/dashboard/my-accounts" className={`flex items-center space-x-3 px-4 py-3 ${darkMode ? 'text-[#A0C8A9]/70 hover:text-white hover:bg-[#A0C8A9]/10' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'} rounded-lg transition-colors`}>
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
               </svg>
               <span>My Accounts</span>
             </a>
-            <a href="/dashboard/new-account" className={`flex items-center space-x-3 px-4 py-3 ${darkMode ? 'text-[#A0C8A9]/70 hover:text-white hover:bg-[#A0C8A9]/10' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'} rounded-lg transition-colors`}>
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-              </svg>
-              <span>New Account</span>
-            </a>
+            {/* New Account menu item temporarily removed */}
             <a href="/dashboard/deposit" className={`flex items-center space-x-3 px-4 py-3 ${darkMode ? 'text-white bg-[#A0C8A9]/10 border-[#A0C8A9]' : 'text-gray-900 bg-blue-50 border-blue-500'} rounded-lg border-l-4`}>
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
               </svg>
               <span className="font-medium">Deposit</span>
-            </a>
-            <a href="/dashboard/transfer" className={`flex items-center space-x-3 px-4 py-3 ${darkMode ? 'text-[#A0C8A9]/70 hover:text-white hover:bg-[#A0C8A9]/10' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'} rounded-lg transition-colors`}>
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-              </svg>
-              <span>Transfer</span>
             </a>
             <a href="/dashboard/withdraw" className={`flex items-center space-x-3 px-4 py-3 ${darkMode ? 'text-[#A0C8A9]/70 hover:text-white hover:bg-[#A0C8A9]/10' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'} rounded-lg transition-colors`}>
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -721,8 +717,8 @@ export default function DepositClient() {
             <div className="max-w-4xl mx-auto mt-6">
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 text-center">
                 <p className="text-yellow-800 mb-4">You need to create a trading account before making a deposit.</p>
-                <a href="/dashboard/new-account" className="inline-block px-6 py-2 bg-[#0A2E1D] text-white rounded-lg hover:bg-[#1A3E2D] transition-colors">
-                  Create Account
+                <a href="/dashboard/my-accounts" className="inline-block px-6 py-2 bg-[#0A2E1D] text-white rounded-lg hover:bg-[#1A3E2D] transition-colors">
+                  View Accounts
                 </a>
               </div>
             </div>

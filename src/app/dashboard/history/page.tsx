@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { getCurrentUser } from '@/utils/auth';
+import { useActiveAccount } from '@/contexts/ActiveAccountContext';
 import { TradingAccount } from '@/types';
 
 interface TransactionHistoryItem {
@@ -21,6 +22,7 @@ interface TransactionHistoryItem {
 }
 
 export default function HistoryPage() {
+  const { activeAccount } = useActiveAccount();
   const [activeTab, setActiveTab] = useState('transactions');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [darkMode, setDarkMode] = useState(true);
@@ -29,7 +31,7 @@ export default function HistoryPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
-  // Filters
+  // Filters - default to active account if available
   const [daysFilter, setDaysFilter] = useState<string>('all');
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -38,6 +40,16 @@ export default function HistoryPage() {
   useEffect(() => {
     fetchUserData();
   }, []);
+
+  // Update account filter when active account changes
+  useEffect(() => {
+    if (activeAccount && accountFilter === 'all') {
+      // Refetch transactions when active account changes
+      if (accounts.length > 0) {
+        fetchTransactions();
+      }
+    }
+  }, [activeAccount]);
 
   useEffect(() => {
     if (accounts.length > 0) {
@@ -150,9 +162,10 @@ export default function HistoryPage() {
       }
 
       // Determine which account UIDs to use for filtering
+      // Default to active account if no filter is set and active account exists
       const filteredAccountUids = accountFilter !== 'all' 
         ? [accountFilter] 
-        : accountUids;
+        : (activeAccount ? [activeAccount.account_uid] : accountUids);
 
       // Fetch transactions (only if typeFilter allows it)
       let allTransactions: TransactionHistoryItem[] = [];
@@ -455,35 +468,19 @@ export default function HistoryPage() {
               </svg>
               <span>Dashboard</span>
             </a>
-            <a href="/dashboard/wallets" className={`flex items-center space-x-3 px-4 py-3 ${darkMode ? 'text-[#A0C8A9]/70 hover:text-white hover:bg-[#A0C8A9]/10' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'} rounded-lg transition-colors`}>
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-              </svg>
-              <span>Wallets</span>
-            </a>
+            {/* Wallets menu item temporarily removed */}
             <a href="/dashboard/my-accounts" className={`flex items-center space-x-3 px-4 py-3 ${darkMode ? 'text-[#A0C8A9]/70 hover:text-white hover:bg-[#A0C8A9]/10' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'} rounded-lg transition-colors`}>
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
               </svg>
               <span>My Accounts</span>
             </a>
-            <a href="/dashboard/new-account" className={`flex items-center space-x-3 px-4 py-3 ${darkMode ? 'text-[#A0C8A9]/70 hover:text-white hover:bg-[#A0C8A9]/10' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'} rounded-lg transition-colors`}>
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-              </svg>
-              <span>New Account</span>
-            </a>
+            {/* New Account menu item temporarily removed */}
             <a href="/dashboard/deposit" className={`flex items-center space-x-3 px-4 py-3 ${darkMode ? 'text-[#A0C8A9]/70 hover:text-white hover:bg-[#A0C8A9]/10' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'} rounded-lg transition-colors`}>
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
               </svg>
               <span>Deposit</span>
-            </a>
-            <a href="/dashboard/transfer" className={`flex items-center space-x-3 px-4 py-3 ${darkMode ? 'text-[#A0C8A9]/70 hover:text-white hover:bg-[#A0C8A9]/10' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'} rounded-lg transition-colors`}>
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-              </svg>
-              <span>Transfer</span>
             </a>
             <a href="/dashboard/withdraw" className={`flex items-center space-x-3 px-4 py-3 ${darkMode ? 'text-[#A0C8A9]/70 hover:text-white hover:bg-[#A0C8A9]/10' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'} rounded-lg transition-colors`}>
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -696,8 +693,8 @@ export default function HistoryPage() {
                   </svg>
                   <p className="text-white font-medium mb-2">No accounts found</p>
                   <p className="text-[#A0C8A9] text-sm mb-4">You don't have any trading accounts yet.</p>
-                  <a href="/dashboard/new-account" className="inline-block bg-[#A0C8A9] text-[#1E2E23] px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#8FB89A] transition-colors">
-                    Create New Account
+                  <a href="/dashboard/my-accounts" className="inline-block bg-[#A0C8A9] text-[#1E2E23] px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#8FB89A] transition-colors">
+                    View Accounts
                   </a>
                 </div>
               ) : (

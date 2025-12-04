@@ -2,10 +2,11 @@
 
 import AdminHeader from '@/components/AdminHeader';
 import AdminSidebar from '@/components/AdminSidebar';
+import DocumentViewer from '@/components/DocumentViewer';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { supabase } from '@/lib/supabaseClient';
 import { UserService } from '@/lib/userService';
-import { EnhancedClientUser } from '@/types';
+import { EnhancedClientUser, KYCDocument } from '@/types';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
@@ -19,7 +20,26 @@ function DocumentKYCContent() {
   const [user, setUser] = useState<EnhancedClientUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedDocument, setSelectedDocument] = useState<string | null>(null);
+  const [kycDocuments, setKycDocuments] = useState<Array<{
+    id: string;
+    type: string;
+    name: string;
+    url: string | null;
+    documentType?: string;
+    dateAdded: string;
+    filePath?: string;
+    bucketName?: string | undefined;
+  }>>([]);
+  const [selectedDocument, setSelectedDocument] = useState<{
+    id: string;
+    type: string;
+    name: string;
+    url: string | null;
+    documentType?: string;
+    filePath?: string;
+    bucketName?: string | undefined;
+  } | null>(null);
+  const [isViewerOpen, setIsViewerOpen] = useState(false);
   
   // State for KYC status dialog
   const [showKycDialog, setShowKycDialog] = useState(false);
@@ -60,6 +80,12 @@ function DocumentKYCContent() {
       if (userData) {
         console.log('User data fetched successfully:', userData);
         setUser(userData);
+        
+        // Fetch KYC documents - returns array of document objects from kyc_documents table
+        const documents = await UserService.getKYCDocuments(userData.user_uuid);
+        console.log('KYC documents fetched:', documents);
+        
+        setKycDocuments(documents);
       } else {
         setError('User not found');
       }
@@ -71,15 +97,62 @@ function DocumentKYCContent() {
     }
   };
 
-  // Handle document click to view
-  const handleDocumentClick = (documentUrl: string, documentName: string) => {
-    if (documentUrl && documentUrl !== '#') {
-      // Open document in new tab
-      window.open(documentUrl, '_blank');
-    } else {
-      // If no URL, show alert
-      alert(`Document: ${documentName}\nFile path: ${documentUrl || 'Not available'}`);
+  // Handle document view
+  const handleViewDocument = async (document: {
+    id: string;
+    type: string;
+    name: string;
+    url: string | null;
+    documentType?: string;
+    filePath?: string;
+    bucketName?: string | undefined;
+  }) => {
+    try {
+      // Always generate a fresh signed URL using the correct bucket
+      const pathToUse = document.filePath || document.url;
+      
+      if (!pathToUse || pathToUse === '' || pathToUse === '#') {
+        alert(`Document: ${document.name}\nFile URL: Not available. Please ensure the document has been uploaded.`);
+        return;
+      }
+      
+      // Use the bucket name from document if available, otherwise let it be determined by document type
+      const bucketToUse = document.bucketName || undefined;
+      const signedUrl = await UserService.getSignedUrlForDocument(pathToUse, document.type, bucketToUse);
+      
+      if (signedUrl) {
+        // Update the document in state with the new URL
+        setKycDocuments(prev => prev.map(doc => 
+          doc.id === document.id ? { ...doc, url: signedUrl } : doc
+        ));
+        
+        setSelectedDocument({ ...document, url: signedUrl });
+        setIsViewerOpen(true);
+      } else {
+        // Fallback to existing URL if signed URL generation fails
+        if (document.url && document.url !== '' && document.url !== '#') {
+          setSelectedDocument(document);
+          setIsViewerOpen(true);
+        } else {
+          alert(`Document: ${document.name}\nFailed to load document URL. Please try again or contact support.`);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching document URL:', error);
+      // Fallback to existing URL if available
+      if (document.url && document.url !== '' && document.url !== '#') {
+        setSelectedDocument(document);
+        setIsViewerOpen(true);
+      } else {
+        alert(`Document: ${document.name}\nError loading document. Please try again.`);
+      }
     }
+  };
+
+  // Close document viewer
+  const handleCloseViewer = () => {
+    setIsViewerOpen(false);
+    setSelectedDocument(null);
   };
 
   // Handle document status update
@@ -109,14 +182,14 @@ function DocumentKYCContent() {
   // Format document type for display
   const formatDocumentType = (docType: string) => {
     switch (docType) {
-      case 'id_proof':
-        return 'ID Proof';
-      case 'address_proof':
-        return 'Address Proof';
-      case 'income_proof':
-        return 'Income Proof';
+      case 'id_document':
+        return 'ID Document';
+      case 'secondary_id':
+        return 'Secondary ID';
       case 'bank_statement':
         return 'Bank Statement';
+      case 'face_image':
+        return 'Face Verification';
       default:
         return docType.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
     }
@@ -315,10 +388,9 @@ function DocumentKYCContent() {
             </div>
           </div>
 
-          {/* User Information and Address Section */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 lg:gap-8 mb-6 sm:mb-8">
-            {/* Left: User Information */}
-            <div className="bg-black rounded-2xl p-3 sm:p-4 md:p-6">
+          {/* User Information Section */}
+          <div className="mb-6 sm:mb-8">
+            <div className="bg-black rounded-2xl p-3 sm:p-4 md:p-6 max-w-md">
               <div className="flex flex-col sm:flex-row sm:items-center space-y-3 sm:space-y-0 sm:space-x-4">
                 <div className="w-12 h-12 sm:w-16 sm:h-16 bg-[#9BC5A2] rounded-full flex items-center justify-center mx-auto sm:mx-0">
                   <svg className="w-6 h-6 sm:w-8 sm:h-8 text-[#0A2E1D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -341,154 +413,77 @@ function DocumentKYCContent() {
                 </div>
               </div>
             </div>
-
-            {/* Right: Address Section */}
-            <div className="bg-black rounded-2xl p-3 sm:p-4 md:p-6">
-              <h3 className="text-white text-base sm:text-lg font-medium mb-3 sm:mb-4">Address</h3>
-              <div className="space-y-2 sm:space-y-3">
-                <div className="flex flex-col sm:flex-row sm:justify-between">
-                  <span className="text-[#9BC5A2] text-sm">Country:</span>
-                  <span className="text-white text-sm">{user.country_of_birth || 'N/A'}</span>
-                </div>
-                <div className="flex flex-col sm:flex-row sm:justify-between">
-                  <span className="text-[#9BC5A2] text-sm">Residential Address:</span>
-                  <span className="text-white text-sm">{user.residential_address || 'N/A'}</span>
-                </div>
-              </div>
-            </div>
           </div>
 
-          {/* Address Proof Verification / Documents Section */}
+          {/* KYC Documents Section */}
           <div className="bg-black rounded-2xl p-3 sm:p-4 md:p-6">
             <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 sm:mb-6 space-y-3 sm:space-y-0">
-              <h2 className="text-white text-lg sm:text-xl font-bold">Address Proof Verification</h2>
-              <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
-                {(!user.status || user.status === 'pending') && (
-                  <button 
-                    onClick={async () => {
-                      try {
-                        const success = await UserService.createKYCDocuments(userId, user.user_uuid);
-                        if (success) {
-                          alert('KYC documents created successfully! Refreshing data...');
-                          await fetchUserData();
-                        } else {
-                          alert('Failed to create KYC documents');
-                        }
-                      } catch (error) {
-                        console.error('Error creating KYC documents:', error);
-                        alert('Error creating KYC documents');
-                      }
-                    }}
-                    className="px-3 sm:px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center sm:justify-start space-x-2 text-sm sm:text-base"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                    </svg>
-                    <span>Create KYC Documents</span>
-                  </button>
-                )}
-                <button 
-                  onClick={fetchUserData}
-                  className="px-3 sm:px-4 py-2 bg-[#4A6741] text-white rounded-lg hover:bg-[#3A5A3F] transition-colors flex items-center justify-center sm:justify-start space-x-2 text-sm sm:text-base"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                  </svg>
-                  <span>Refresh Data</span>
-                </button>
-              </div>
+              <h2 className="text-white text-lg sm:text-xl font-bold">KYC Documents</h2>
+              <button 
+                onClick={fetchUserData}
+                className="px-3 sm:px-4 py-2 bg-[#4A6741] text-white rounded-lg hover:bg-[#3A5A3F] transition-colors flex items-center justify-center sm:justify-start space-x-2 text-sm sm:text-base"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                <span>Refresh Data</span>
+              </button>
             </div>
             
             {/* Mobile Card View */}
             <div className="lg:hidden space-y-3">
-              {user.status && user.status !== 'pending' ? (
-                // Show verified/rejected status
-                <div className="bg-[#2D4A32] rounded-lg p-3 space-y-2">
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1">
-                      <div className="text-white font-medium text-sm">KYC Status</div>
-                      <div className="text-[#9BC5A2] text-xs">Overall Status</div>
+              {kycDocuments.length > 0 ? (
+                kycDocuments.map((doc) => (
+                  <div key={doc.id} className="bg-[#2D4A32] rounded-lg p-3 space-y-3">
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <div className="text-white font-medium text-sm">{doc.documentType || doc.name}</div>
+                        <div className="text-[#9BC5A2] text-xs">{doc.name}</div>
+                      </div>
+                      <span className={`px-2 py-1 rounded-full text-xs ${
+                        user.status === 'verified' 
+                          ? 'bg-green-500/20 text-green-400'
+                          : user.status === 'pending'
+                          ? 'bg-yellow-500/20 text-yellow-400'
+                          : 'bg-red-500/20 text-red-400'
+                      }`}>
+                        {user.status || 'pending'}
+                      </span>
                     </div>
-                    <span className={`px-2 py-1 rounded-full text-xs ${
-                      user.status === 'verified' 
-                        ? 'bg-green-500/20 text-green-400'
-                        : user.status === 'rejected'
-                        ? 'bg-red-500/20 text-red-400'
-                        : 'bg-yellow-500/20 text-yellow-400'
-                    }`}>
-                      {user.status === 'verified' ? 'Verified' : user.status === 'rejected' ? 'Rejected' : 'Pending'}
-                    </span>
+                    
+                    <div className="grid grid-cols-2 gap-2 text-xs pt-2 border-t border-[#4A6741]">
+                      <div>
+                        <div className="text-[#9BC5A2]">Date Added</div>
+                        <div className="text-white">{formatDate(doc.dateAdded)}</div>
+                      </div>
+                      <div>
+                        <div className="text-[#9BC5A2]">Document Type</div>
+                        <div className="text-white">{doc.documentType || doc.name}</div>
+                      </div>
+                    </div>
+                    
+                    {doc.url && doc.url !== '' && doc.url !== '#' ? (
+                      <button
+                        onClick={() => handleViewDocument(doc)}
+                        className="w-full mt-2 px-3 py-2 bg-[#4A6741] text-white rounded-lg hover:bg-[#3A5A3F] transition-colors flex items-center justify-center space-x-2 text-sm"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
+                        <span>View Document</span>
+                      </button>
+                    ) : (
+                      <div className="w-full mt-2 px-3 py-2 bg-[#2D4A32] text-[#9BC5A2] rounded-lg text-sm text-center">
+                        No document available
+                      </div>
+                    )}
                   </div>
-                  <div className="grid grid-cols-2 gap-2 text-xs">
-                    <div>
-                      <div className="text-[#9BC5A2]">Upload Date</div>
-                      <div className="text-white">{formatDate(user.created_at)}</div>
-                    </div>
-                    <div>
-                      <div className="text-[#9BC5A2]">Status</div>
-                      <div className="text-[#9BC5A2] text-xs">Status Updated</div>
-                    </div>
-                  </div>
-                </div>
+                ))
               ) : (
-                // Fallback to default documents if no KYC documents found
-                <>
-                  <div className="bg-[#2D4A32] rounded-lg p-3 space-y-2">
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                        <div className="text-white font-medium text-sm">Id proof</div>
-                        <div className="text-[#9BC5A2] text-xs">ID Proof</div>
-                      </div>
-                      <span className={`px-2 py-1 rounded-full text-xs ${
-                        user.status === 'verified' 
-                          ? 'bg-green-500/20 text-green-400'
-                          : user.status === 'pending'
-                          ? 'bg-yellow-500/20 text-yellow-400'
-                          : 'bg-red-500/20 text-red-400'
-                      }`}>
-                        {user.status || 'pending'}
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2 text-xs">
-                      <div>
-                        <div className="text-[#9BC5A2]">Upload Date</div>
-                        <div className="text-white">{formatDate(user.created_at)}</div>
-                      </div>
-                      <div>
-                        <div className="text-[#9BC5A2]">Actions</div>
-                        <div className="text-[#9BC5A2] text-xs">No actions available</div>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="bg-[#2D4A32] rounded-lg p-3 space-y-2">
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                        <div className="text-white font-medium text-sm">Id proof</div>
-                        <div className="text-[#9BC5A2] text-xs">Address Proof</div>
-                      </div>
-                      <span className={`px-2 py-1 rounded-full text-xs ${
-                        user.status === 'verified' 
-                          ? 'bg-green-500/20 text-green-400'
-                          : user.status === 'pending'
-                          ? 'bg-yellow-500/20 text-yellow-400'
-                          : 'bg-red-500/20 text-red-400'
-                      }`}>
-                        {user.status || 'pending'}
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2 text-xs">
-                      <div>
-                        <div className="text-[#9BC5A2]">Upload Date</div>
-                        <div className="text-white">{formatDate(user.created_at)}</div>
-                      </div>
-                      <div>
-                        <div className="text-[#9BC5A2]">Actions</div>
-                        <div className="text-[#9BC5A2] text-xs">No actions available</div>
-                      </div>
-                    </div>
-                  </div>
-                </>
+                <div className="bg-[#2D4A32] rounded-lg p-4 text-center text-[#9BC5A2]">
+                  No KYC documents uploaded yet
+                </div>
               )}
             </div>
 
@@ -497,100 +492,56 @@ function DocumentKYCContent() {
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-[#4A6741]">
-                    <th className="text-left text-[#9BC5A2] font-medium py-3">Proof Type</th>
-                    <th className="text-left text-[#9BC5A2] font-medium py-3">Document Type</th>
-                    <th className="text-left text-[#9BC5A2] font-medium py-3">Document</th>
-                    <th className="text-left text-[#9BC5A2] font-medium py-3">Upload Date</th>
+                    <th className="text-left text-[#9BC5A2] font-medium py-3">ID Type</th>
+                    <th className="text-left text-[#9BC5A2] font-medium py-3">Document Name</th>
+                    <th className="text-left text-[#9BC5A2] font-medium py-3">Date Added</th>
                     <th className="text-left text-[#9BC5A2] font-medium py-3">Status</th>
                     <th className="text-left text-[#9BC5A2] font-medium py-3">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {user.status && user.status !== 'pending' ? (
-                    // Show verified/rejected status
-                    <tr className="border-b border-[#4A6741]/50">
-                      <td className="text-white py-3">KYC Status</td>
-                      <td className="text-white py-3">Overall Status</td>
-                      <td className="py-3">
-                        <div className="w-16 h-12 bg-[#2D4A32] rounded border border-[#9BC5A2] flex items-center justify-center">
-                          <svg className="w-6 h-6 text-[#9BC5A2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                          </svg>
-                        </div>
-                      </td>
-                      <td className="text-white py-3">{formatDate(user.created_at)}</td>
-                      <td className="py-3">
-                        <span className={`px-2 py-1 rounded-full text-sm ${
-                          user.status === 'verified' 
-                            ? 'bg-green-500/20 text-green-400'
-                            : user.status === 'rejected'
-                            ? 'bg-red-500/20 text-red-400'
-                            : 'bg-yellow-500/20 text-yellow-400'
-                        }`}>
-                          {user.status === 'verified' ? 'Verified' : user.status === 'rejected' ? 'Rejected' : 'Pending'}
-                        </span>
-                      </td>
-                      <td className="text-white py-3">
-                        <span className="text-[#9BC5A2] text-sm">Status Updated</span>
+                  {kycDocuments.length > 0 ? (
+                    kycDocuments.map((doc) => (
+                      <tr key={doc.id} className="border-b border-[#4A6741]/50">
+                        <td className="text-white py-3">{doc.documentType || doc.name}</td>
+                        <td className="text-white py-3">{doc.name}</td>
+                        <td className="text-white py-3">{formatDate(doc.dateAdded)}</td>
+                        <td className="py-3">
+                          <span className={`px-2 py-1 rounded-full text-sm ${
+                            user.status === 'verified' 
+                              ? 'bg-green-500/20 text-green-400'
+                              : user.status === 'pending'
+                              ? 'bg-yellow-500/20 text-yellow-400'
+                              : 'bg-red-500/20 text-red-400'
+                          }`}>
+                            {user.status || 'pending'}
+                          </span>
+                        </td>
+                        <td className="text-white py-3">
+                          {doc.url && doc.url !== '' && doc.url !== '#' ? (
+                            <button
+                              onClick={() => handleViewDocument(doc)}
+                              className="px-3 py-1.5 bg-[#4A6741] text-white rounded-lg hover:bg-[#3A5A3F] active:scale-95 transition-all text-sm flex items-center space-x-1"
+                              title="View document"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                              </svg>
+                              <span>View</span>
+                            </button>
+                          ) : (
+                            <span className="text-[#9BC5A2] text-sm">No document</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={5} className="text-center text-[#9BC5A2] py-8">
+                        No KYC documents uploaded yet
                       </td>
                     </tr>
-                  ) : (
-                    // Fallback to default documents if no KYC documents found
-                    <>
-                      <tr className="border-b border-[#4A6741]/50">
-                        <td className="text-white py-3">Id proof</td>
-                        <td className="text-white py-3">ID Proof</td>
-                        <td className="py-3">
-                          <div className="w-16 h-12 bg-[#2D4A32] rounded border border-[#9BC5A2] flex items-center justify-center">
-                            <svg className="w-6 h-6 text-[#9BC5A2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                            </svg>
-                          </div>
-                        </td>
-                        <td className="text-white py-3">{formatDate(user.created_at)}</td>
-                        <td className="py-3">
-                          <span className={`px-2 py-1 rounded-full text-sm ${
-                            user.status === 'verified' 
-                              ? 'bg-green-500/20 text-green-400'
-                              : user.status === 'pending'
-                              ? 'bg-yellow-500/20 text-yellow-400'
-                              : 'bg-red-500/20 text-red-400'
-                          }`}>
-                            {user.status || 'pending'}
-                          </span>
-                        </td>
-                        <td className="text-white py-3">
-                          <span className="text-[#9BC5A2] text-sm">No actions available</span>
-                        </td>
-                      </tr>
-                      
-                      <tr>
-                        <td className="text-white py-3">Id proof</td>
-                        <td className="text-white py-3">Address Proof</td>
-                        <td className="py-3">
-                          <div className="w-16 h-12 bg-[#2D4A32] rounded border border-[#9BC5A2] flex items-center justify-center">
-                            <svg className="w-6 h-6 text-[#9BC5A2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                            </svg>
-                          </div>
-                        </td>
-                        <td className="text-white py-3">{formatDate(user.created_at)}</td>
-                        <td className="py-3">
-                          <span className={`px-2 py-1 rounded-full text-sm ${
-                            user.status === 'verified' 
-                              ? 'bg-green-500/20 text-green-400'
-                              : user.status === 'pending'
-                              ? 'bg-yellow-500/20 text-yellow-400'
-                              : 'bg-red-500/20 text-red-400'
-                          }`}>
-                            {user.status || 'pending'}
-                          </span>
-                        </td>
-                        <td className="text-white py-3">
-                          <span className="text-[#9BC5A2] text-sm">No actions available</span>
-                        </td>
-                      </tr>
-                    </>
                   )}
                 </tbody>
               </table>
@@ -668,6 +619,17 @@ function DocumentKYCContent() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Document Viewer Modal */}
+      {selectedDocument && (
+        <DocumentViewer
+          isOpen={isViewerOpen}
+          onClose={handleCloseViewer}
+          documentUrl={selectedDocument.url || null}
+          documentName={selectedDocument.name}
+          documentType={selectedDocument.documentType || selectedDocument.name}
+        />
       )}
     </div>
   );

@@ -1,7 +1,6 @@
 'use client';
 
-import { supabase } from '@/lib/supabaseClient';
-import { getCurrentUser } from '@/utils/auth';
+import { useActiveAccount } from '@/contexts/ActiveAccountContext';
 import { useEffect, useState } from 'react';
 
 interface BalanceDetails {
@@ -12,179 +11,64 @@ interface BalanceDetails {
 }
 
 export default function UserBalanceDetails() {
+  const { activeAccount, loading: accountLoading } = useActiveAccount();
   const [balanceDetails, setBalanceDetails] = useState<BalanceDetails | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [currentUser, setCurrentUser] = useState<any>(null);
 
   useEffect(() => {
-    fetchUserBalance();
-  }, []);
-
-  const fetchUserBalance = async () => {
-    try {
+    if (accountLoading) {
       setIsLoading(true);
-      setError(null);
+      return;
+    }
 
-      // Get current logged-in user
-      const user = getCurrentUser();
-      if (!user) {
-        setError('No user session found. Please log in again.');
-        setIsLoading(false);
-        return;
-      }
+    if (!activeAccount) {
+      setError('No trading account found. Please create an account.');
+      setIsLoading(false);
+      return;
+    }
 
-      setCurrentUser(user);
-      if (process.env.NODE_ENV === 'development') {
-        console.log('🔍 Fetching balance for user:', user);
-      }
-
-      // For trading credentials login, we need to find the trading account
-      let tradingAccount = null;
-      
-      if (user.id && user.id !== 'trading-auth-token') {
-        // Try to find trading account by user_id
-        if (process.env.NODE_ENV === 'development') {
-          console.log('📊 Looking for trading account with user_id:', user.id);
-        }
-        
-        const { data: accounts, error: accountsError } = await supabase
-          .from('tradingAccounts')
-          .select('*')
-          .eq('user_id', user.id);
-
-        if (accountsError) {
-          if (process.env.NODE_ENV === 'development') {
-            console.warn('⚠️ Could not fetch trading accounts:', accountsError.message);
-          }
-        } else if (accounts && accounts.length > 0) {
-          tradingAccount = accounts[0]; // Use the first account
-          if (process.env.NODE_ENV === 'development') {
-            console.log('✅ Found trading account:', tradingAccount);
-          }
-        }
-      }
-
-      // If no trading account found, try to get from session storage (for trading credentials)
-      if (!tradingAccount) {
-        const tradingCredentials = sessionStorage.getItem('trading_credentials');
-        if (tradingCredentials) {
-          const { tradingId } = JSON.parse(tradingCredentials);
-          if (process.env.NODE_ENV === 'development') {
-            console.log('📊 Looking for trading account with trading ID:', tradingId);
-          }
-          
-          const { data: account, error: accountError } = await supabase
-            .from('tradingAccounts')
-            .select('*')
-            .eq('account_uid', tradingId)
-            .single();
-
-          if (accountError) {
-            if (process.env.NODE_ENV === 'development') {
-              console.warn('⚠️ Could not fetch trading account by ID:', accountError.message);
-            }
-          } else if (account) {
-            tradingAccount = account;
-            if (process.env.NODE_ENV === 'development') {
-              console.log('✅ Found trading account by ID:', tradingAccount);
-            }
-          }
-        }
-      }
-
-      if (!tradingAccount) {
-        // Try to get any account for this user from the users table
-        if (process.env.NODE_ENV === 'development') {
-          console.log('📊 Looking for user in users table...');
-        }
-        const { data: userProfile, error: userError } = await supabase
-          .from('users')
-          .select('*')
-          .eq('user_uuid', user.id)
-          .single();
-
-        if (userError) {
-          if (process.env.NODE_ENV === 'development') {
-            console.warn('⚠️ Could not fetch user profile:', userError.message);
-          }
-        } else if (userProfile) {
-          if (process.env.NODE_ENV === 'development') {
-            console.log('✅ Found user profile:', userProfile);
-          }
-        }
-      }
-
-      // Calculate balance details
-      let totalBalance = 0;
-      let currentBalance = 0;
-      let walletBalance = 0;
-      let currency = 'USD';
-
-      if (tradingAccount) {
-        // Use trading account balance
-        totalBalance = tradingAccount.balance || 0;
-        currentBalance = tradingAccount.balance || 0;
-        walletBalance = tradingAccount.balance || 0;
-        currency = tradingAccount.currency || 'USD';
-        
-        if (process.env.NODE_ENV === 'development') {
-          console.log('💰 Balance from trading account:', {
-            totalBalance,
-            currentBalance,
-            walletBalance,
-            currency
-          });
-        }
-      } else {
-        // Mock balance for demo purposes
-        totalBalance = 52648.00;
-        currentBalance = 30648.00;
-        walletBalance = 30648.00;
-        currency = 'USD';
-        
-        if (process.env.NODE_ENV === 'development') {
-          console.log('💰 Using mock balance for demo:', {
-            totalBalance,
-            currentBalance,
-            walletBalance,
-            currency
-          });
-        }
-      }
-
-      setBalanceDetails({
-        totalBalance,
-        currentBalance,
-        walletBalance,
+    // Use balance from active account
+    const balance = activeAccount.balance || 0;
+    const currency = activeAccount.currency || 'USD';
+    
+    if (process.env.NODE_ENV === 'development') {
+      console.log('💰 Balance from active account:', {
+        account_uid: activeAccount.account_uid,
+        balance,
         currency
       });
-
-    } catch (error) {
-      if (process.env.NODE_ENV === 'development') {
-        console.error('❌ Error fetching user balance:', error);
-      }
-      setError(error instanceof Error ? error.message : 'Failed to fetch balance details');
-    } finally {
-      setIsLoading(false);
     }
-  };
+
+    setBalanceDetails({
+      totalBalance: balance,
+      currentBalance: balance,
+      walletBalance: balance,
+      currency
+    });
+
+    setIsLoading(false);
+    setError(null);
+  }, [activeAccount, accountLoading]);
 
   const refreshBalance = () => {
-    fetchUserBalance();
+    // Balance is automatically updated when activeAccount changes
+    // This function can trigger a refresh of the active account data
+    if (activeAccount) {
+      // The balance will update automatically via useEffect
+      window.dispatchEvent(new CustomEvent('accountChanged', { detail: { accountUid: activeAccount.account_uid } }));
+    }
   };
 
   if (isLoading) {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-        {[1, 2, 3].map((i) => (
-          <div key={i} className="bg-white rounded-lg shadow-md p-6">
-            <div className="animate-pulse">
-              <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
-              <div className="h-8 bg-gray-200 rounded w-1/2"></div>
-            </div>
+      <div className="grid grid-cols-1 gap-6 mb-6">
+        <div className="bg-white rounded-lg shadow-md p-6">
+          <div className="animate-pulse">
+            <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
+            <div className="h-8 bg-gray-200 rounded w-1/2"></div>
           </div>
-        ))}
+        </div>
       </div>
     );
   }
@@ -222,11 +106,11 @@ export default function UserBalanceDetails() {
   }
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-      {/* Total Balance */}
+    <div className="grid grid-cols-1 gap-4 sm:gap-6">
+      {/* Total Balance - Only showing this card now */}
       <div className="bg-[#2D4A35] text-white rounded-lg p-4 sm:p-6">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-sm text-[#A0C8A9]">Total Balance</h3>
+          <h3 className="text-sm text-[#A0C8A9]">Balance</h3>
           <button
             onClick={refreshBalance}
             className="text-[#A0C8A9] hover:text-white transition-colors"
@@ -246,7 +130,8 @@ export default function UserBalanceDetails() {
         <p className="text-sm text-[#A0C8A9] mt-1">{balanceDetails.currency}</p>
       </div>
 
-      {/* Current Balance */}
+      {/* Current Balance and Wallet Balance cards temporarily hidden */}
+      {/* 
       <div className="bg-[#2D4A35] text-white rounded-lg p-4 sm:p-6">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-sm text-[#A0C8A9]">Current Balance</h3>
@@ -261,7 +146,6 @@ export default function UserBalanceDetails() {
         <p className="text-sm text-[#A0C8A9] mt-1">{balanceDetails.currency}</p>
       </div>
 
-      {/* Wallet Balance */}
       <div className="bg-[#2D4A35] text-white rounded-lg p-4 sm:p-6 sm:col-span-2 lg:col-span-1">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-sm text-[#A0C8A9]">Wallet Balance</h3>
@@ -275,6 +159,7 @@ export default function UserBalanceDetails() {
         </div>
         <p className="text-sm text-[#A0C8A9] mt-1">{balanceDetails.currency}</p>
       </div>
+      */}
 
     </div>
   );

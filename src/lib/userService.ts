@@ -1,5 +1,6 @@
-import { EnhancedClientUser } from '@/types';
+import { EnhancedClientUser, KYCDocument } from '@/types';
 import { supabase } from './supabaseClient';
+import { sendKYCApprovalEmail } from './emailService';
 
 export interface ClientUser {
   id: number;
@@ -348,6 +349,356 @@ export class UserService {
   }
 
   /**
+   * Fetch KYC documents for a user with file URLs
+   * Returns an array of document objects from the single kyc_documents record
+   */
+  static async getKYCDocuments(userUuid: string): Promise<Array<{
+    id: string;
+    type: string;
+    name: string;
+    url: string | null;
+    documentType?: string;
+    dateAdded: string;
+    filePath?: string | null;
+    bucketName?: string | undefined;
+  }>> {
+    try {
+      const { data: kycRecord, error } = await supabase
+        .from('kyc_documents')
+        .select('*')
+        .eq('user_id', userUuid)
+        .single();
+
+      if (error || !kycRecord) {
+        console.error('Error fetching KYC documents:', error);
+        return [];
+      }
+
+      const documents: Array<{
+        id: string;
+        type: string;
+        name: string;
+        url: string | null;
+        documentType?: string;
+        dateAdded: string;
+        filePath?: string | null;
+        bucketName?: string | undefined;
+      }> = [];
+
+      const dateAdded = kycRecord.submitted_at || kycRecord.created_at || new Date().toISOString();
+
+      // Helper function to extract file path from URL (excluding bucket name)
+      const extractFilePath = (url: string): { url: string; filePath: string | null; bucketName: string | undefined } => {
+        if (!url) return { url: '', filePath: null, bucketName: undefined };
+        
+        // If it's already a full URL, try to extract the path and bucket
+        if (url.startsWith('http://') || url.startsWith('https://')) {
+          // Pattern: /storage/v1/object/public/bucket-name/path/to/file
+          // Pattern: /storage/v1/object/sign/bucket-name/path/to/file
+          // Pattern: /storage/v1/object/authenticated/bucket-name/path/to/file
+          const supabaseStorageMatch = url.match(/\/storage\/v1\/object\/(?:public|sign|authenticated)\/([^\/]+)\/(.+?)(?:\?|$)/);
+          if (supabaseStorageMatch && supabaseStorageMatch[1] && supabaseStorageMatch[2]) {
+            const bucketName = supabaseStorageMatch[1];
+            const filePath = decodeURIComponent(supabaseStorageMatch[2]);
+            return { url, filePath, bucketName };
+          }
+          
+          // Fallback pattern: /storage/v1/object/bucket-name/path/to/file
+          const fallbackMatch = url.match(/\/storage\/v1\/object\/([^\/]+)\/(.+?)(?:\?|$)/);
+          if (fallbackMatch && fallbackMatch[1] && fallbackMatch[2]) {
+            const bucketName = fallbackMatch[1];
+            const filePath = decodeURIComponent(fallbackMatch[2]);
+            return { url, filePath, bucketName };
+          }
+          
+          // If it's a direct URL we can't parse, return as is
+          return { url, filePath: null, bucketName: undefined };
+        }
+        
+        // If it's just a path, return it (no bucket name known)
+        return { url, filePath: url, bucketName: undefined };
+      };
+
+      // ID Document (bucket: kyc-documents)
+      if (kycRecord.id_document_url) {
+        const { url, filePath, bucketName } = extractFilePath(kycRecord.id_document_url);
+        documents.push({
+          id: 'id_document',
+          type: 'id_document',
+          name: 'ID Document',
+          url: url,
+          documentType: kycRecord.id_document_type || 'ID Document',
+          dateAdded: dateAdded,
+          filePath: filePath,
+          bucketName: bucketName
+        });
+      }
+
+      // Secondary ID Document (bucket: secondary-ID)
+      if (kycRecord.secondaryID_document_url) {
+        const { url, filePath, bucketName } = extractFilePath(kycRecord.secondaryID_document_url);
+        documents.push({
+          id: 'secondary_id',
+          type: 'secondary_id',
+          name: 'Secondary ID Document',
+          url: url,
+          documentType: kycRecord.secondaryID_type || 'Secondary ID',
+          dateAdded: dateAdded,
+          filePath: filePath,
+          bucketName: bucketName
+        });
+      }
+
+      // Bank Statement (bucket: bank-statement)
+      if (kycRecord.bank_statement_url) {
+        const { url, filePath, bucketName } = extractFilePath(kycRecord.bank_statement_url);
+        documents.push({
+          id: 'bank_statement',
+          type: 'bank_statement',
+          name: 'Bank Statement',
+          url: url,
+          documentType: 'Bank Statement',
+          dateAdded: dateAdded,
+          filePath: filePath,
+          bucketName: bucketName
+        });
+      }
+
+      // Face Image (bucket: face-verification)
+      if (kycRecord.face_image_url) {
+        const { url, filePath, bucketName } = extractFilePath(kycRecord.face_image_url);
+        documents.push({
+          id: 'face_image',
+          type: 'face_image',
+          name: 'Face Verification Image',
+          url: url,
+          documentType: 'Face Image',
+          dateAdded: dateAdded,
+          filePath: filePath,
+          bucketName: bucketName
+        });
+      }
+
+      // Process documents to get proper URLs from correct buckets
+      const processedDocuments = await Promise.all(
+        documents.map(async (doc) => {
+          // If URL is already a full URL, verify it's valid, otherwise regenerate
+          if (doc.url && (doc.url.startsWith('http://') || doc.url.startsWith('https://'))) {
+            // If we have a bucket name and file path, try to generate a fresh signed URL
+            // This ensures we use the correct bucket even if URL is already full
+            if (doc.bucketName && doc.filePath) {
+              const signedUrl = await this.getSignedUrlForDocument(doc.filePath, doc.type, doc.bucketName);
+              if (signedUrl) {
+                return { ...doc, url: signedUrl };
+              }
+            }
+            // Use existing URL if we can't generate a better one
+            return doc;
+          }
+          
+          // If we have a file path, get signed URL from the correct bucket
+          if (doc.filePath) {
+            const bucketToUse = doc.bucketName || this.getBucketNameForDocumentType(doc.type);
+            const signedUrl = await this.getSignedUrlForDocument(doc.filePath, doc.type, bucketToUse);
+            if (signedUrl) {
+              return { ...doc, url: signedUrl };
+            }
+          }
+          
+          return doc;
+        })
+      );
+
+      return processedDocuments;
+    } catch (error) {
+      console.error('Failed to fetch KYC documents:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get bucket name for a document type
+   */
+  static getBucketNameForDocumentType(documentType: string): string {
+    switch (documentType) {
+      case 'id_document':
+        return 'kyc-documents';
+      case 'secondary_id':
+        return 'secondary-ID';
+      case 'bank_statement':
+        return 'bank-statement';
+      case 'face_image':
+        return 'face-verification';
+      default:
+        return 'kyc-documents';
+    }
+  }
+
+  /**
+   * Get public URL for a file stored in Supabase Storage
+   */
+  static async getFilePublicUrl(filePath: string, bucketName: string = 'kyc-documents'): Promise<string | null> {
+    try {
+      if (!filePath) return null;
+      
+      // If file_path is already a full URL, return it
+      if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
+        return filePath;
+      }
+
+      // Try to get public URL from Supabase Storage
+      const { data } = await supabase.storage
+        .from(bucketName)
+        .getPublicUrl(filePath);
+
+      if (data?.publicUrl) {
+        return data.publicUrl;
+      }
+
+      // If public URL is not available, try signed URL (for private buckets)
+      try {
+        const { data: signedData, error: signedError } = await supabase.storage
+          .from(bucketName)
+          .createSignedUrl(filePath, 3600); // 1 hour expiry
+        
+        if (!signedError && signedData?.signedUrl) {
+          return signedData.signedUrl;
+        }
+      } catch (signedErr) {
+        console.error('Error creating signed URL:', signedErr);
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('Error getting file public URL:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get signed URL for a document (for private buckets)
+   */
+  static async getSignedUrlForDocument(filePath: string, documentType: string, bucketNameOverride?: string | undefined): Promise<string | null> {
+    try {
+      if (!filePath) return null;
+      
+      // If already a full URL, extract the path and bucket, then regenerate
+      if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
+        // Extract bucket and path from URL
+        // Pattern: /storage/v1/object/public/bucket-name/path/to/file
+        // Pattern: /storage/v1/object/sign/bucket-name/path/to/file
+        const urlMatch = filePath.match(/\/storage\/v1\/object\/(?:public|sign|authenticated)\/([^\/]+)\/(.+?)(?:\?|$)/);
+        if (urlMatch && urlMatch[1] && urlMatch[2]) {
+          let extractedBucket = urlMatch[1];
+          let extractedPath = decodeURIComponent(urlMatch[2]);
+          
+          // Normalize bucket name to lowercase (Supabase buckets are case-sensitive)
+          extractedBucket = extractedBucket.toLowerCase();
+          
+          // Remove bucket name from path if it's duplicated (case-insensitive check)
+          const bucketPrefixLower = `${extractedBucket}/`;
+          const bucketPrefixOriginal = `${urlMatch[1]}/`;
+          if (extractedPath.toLowerCase().startsWith(bucketPrefixLower) || extractedPath.startsWith(bucketPrefixOriginal)) {
+            if (extractedPath.toLowerCase().startsWith(bucketPrefixLower)) {
+              extractedPath = extractedPath.slice(bucketPrefixLower.length);
+            } else if (extractedPath.startsWith(bucketPrefixOriginal)) {
+              extractedPath = extractedPath.slice(bucketPrefixOriginal.length);
+            }
+          }
+          
+          console.log('Extracted from full URL:', { 
+            original: filePath, 
+            bucket: extractedBucket, 
+            path: extractedPath,
+            originalBucket: urlMatch[1]
+          });
+          
+          // Use extracted bucket and path to generate signed URL
+          return await this.generateSignedUrl(extractedPath, extractedBucket);
+        }
+        
+        // If URL doesn't match pattern, try to use it as-is (might be a CDN URL)
+        console.log('Could not extract bucket/path from URL, using as-is:', filePath);
+        return filePath;
+      }
+
+      // Determine bucket name: use override if provided, otherwise use document type mapping
+      let bucketName = bucketNameOverride || this.getBucketNameForDocumentType(documentType);
+      
+      // Normalize bucket name to lowercase (Supabase buckets are case-sensitive)
+      bucketName = bucketName.toLowerCase();
+      
+      // Clean the file path (remove leading slashes and ensure no bucket name included)
+      let cleanPath = filePath.startsWith('/') ? filePath.slice(1) : filePath;
+      
+      // Remove bucket name if it's at the start of the path (case-insensitive check)
+      const bucketPrefixLower = `${bucketName}/`;
+      const bucketPrefixOriginal = `${bucketNameOverride || this.getBucketNameForDocumentType(documentType)}/`;
+      if (cleanPath.toLowerCase().startsWith(bucketPrefixLower) || cleanPath.startsWith(bucketPrefixOriginal)) {
+        // Remove bucket prefix (try both lowercase and original case)
+        if (cleanPath.toLowerCase().startsWith(bucketPrefixLower)) {
+          cleanPath = cleanPath.slice(bucketPrefixLower.length);
+        } else if (cleanPath.startsWith(bucketPrefixOriginal)) {
+          cleanPath = cleanPath.slice(bucketPrefixOriginal.length);
+        }
+      }
+      
+      console.log('Generating signed URL:', { 
+        originalPath: filePath, 
+        cleanPath, 
+        bucketName, 
+        documentType,
+        bucketNameOverride
+      });
+      
+      return await this.generateSignedUrl(cleanPath, bucketName);
+    } catch (error) {
+      console.error('Error getting signed URL for document:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Generate a signed URL for a file path in a specific bucket
+   */
+  private static async generateSignedUrl(filePath: string, bucketName: string): Promise<string | null> {
+    try {
+      // Clean the file path - ensure no leading/trailing slashes
+      const cleanPath = filePath.replace(/^\/+|\/+$/g, '');
+      
+      console.log('Generating signed URL for:', { bucketName, cleanPath, originalPath: filePath });
+      
+      // Try to create a signed URL (works for both public and private buckets)
+      const { data, error } = await supabase.storage
+        .from(bucketName)
+        .createSignedUrl(cleanPath, 3600); // 1 hour expiry
+      
+      if (error) {
+        console.error('Error creating signed URL:', error, { bucketName, cleanPath });
+        
+        // If bucket not found error, try to list buckets to verify
+        if (error.message?.includes('Bucket not found') || error.message?.includes('not found')) {
+          console.error(`Bucket "${bucketName}" not found. Available buckets: transactions, secondary-ID, bank-statement, face-verification, kyc-documents`);
+        }
+        
+        // Fallback to public URL
+        const publicUrl = await this.getFilePublicUrl(cleanPath, bucketName);
+        if (publicUrl) {
+          console.log('Using public URL as fallback:', publicUrl);
+          return publicUrl;
+        }
+        return null;
+      }
+
+      console.log('Generated signed URL successfully:', data?.signedUrl);
+      return data?.signedUrl || null;
+    } catch (error) {
+      console.error('Error generating signed URL:', error);
+      return null;
+    }
+  }
+
+  /**
    * Create KYC documents for a user if they don't exist
    */
   static async createKYCDocuments(userId: string, userUuid: string): Promise<boolean> {
@@ -504,6 +855,8 @@ export class UserService {
             
             if (!altError) {
               console.log(`Successfully verified KYC in ${tableName} table`);
+              // Send approval email
+              await this.sendKYCApprovalEmailNotification(userUuid);
               return true;
             }
           } catch (tableError) {
@@ -516,10 +869,33 @@ export class UserService {
       }
 
       console.log('User KYC verified successfully');
+      
+      // Send approval email
+      await this.sendKYCApprovalEmailNotification(userUuid);
+      
       return true;
     } catch (error) {
       console.error('Failed to approve user KYC:', error);
       return false;
+    }
+  }
+
+  /**
+   * Send KYC approval email notification
+   */
+  private static async sendKYCApprovalEmailNotification(userUuid: string): Promise<void> {
+    try {
+      const user = await this.getUserByUuid(userUuid);
+      if (user && user.email) {
+        const userName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Valued Customer';
+        await sendKYCApprovalEmail(user.email, userName);
+        console.log('KYC approval email sent to:', user.email);
+      } else {
+        console.warn('Could not send KYC approval email: User email not found');
+      }
+    } catch (error) {
+      console.error('Failed to send KYC approval email:', error);
+      // Don't throw error - email failure shouldn't block KYC approval
     }
   }
 
@@ -708,6 +1084,12 @@ export class UserService {
       }
 
       console.log('✅ [KYC UPDATE] KYC status updated successfully');
+      
+      // Send approval email if status is verified
+      if (normalizedStatus === 'verified') {
+        await this.sendKYCApprovalEmailNotification(userUuid);
+      }
+      
       return true;
     } catch (error) {
       console.error('💥 [KYC UPDATE] Exception:', error);

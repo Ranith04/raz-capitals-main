@@ -6,7 +6,10 @@ import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import { getCurrentUser } from '@/utils/auth';
+import { getUserTradingId } from '@/utils/getUserTradingId';
+import { useActiveAccount } from '@/contexts/ActiveAccountContext';
 import { TradingAccount } from '@/types';
+import { getKycStatusByUserId } from '@/lib/kycService';
 
 interface UserProfile {
   id: number;
@@ -26,18 +29,61 @@ interface UserProfile {
   account_status?: string;
 }
 
+interface ProfileDetails {
+  verificationStatus: 'verified' | 'pending' | 'rejected' | 'unverified';
+  kycLevel: 'Level 1' | 'Level 2' | 'Level 3';
+  customerGroup: string | null;
+  riskProfile: string | null;
+  ibMemberStatus: string | null;
+}
+
 function SettingsPageContent() {
   const searchParams = useSearchParams();
+  const { activeAccount, loading: accountLoading } = useActiveAccount();
   const [activeTab, setActiveTab] = useState('profile');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [darkMode, setDarkMode] = useState(true);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [accounts, setAccounts] = useState<TradingAccount[]>([]);
+  const [tradingId, setTradingId] = useState<string | null>(null);
+  const [profileDetails, setProfileDetails] = useState<ProfileDetails>({
+    verificationStatus: 'unverified',
+    kycLevel: 'Level 1',
+    customerGroup: null,
+    riskProfile: null,
+    ibMemberStatus: null,
+  });
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [totalBalance, setTotalBalance] = useState(0);
   const [totalEquity, setTotalEquity] = useState(0);
   const [walletBalance, setWalletBalance] = useState(0);
+
+  // Form state for controlled inputs
+  const [formData, setFormData] = useState({
+    first_name: '',
+    last_name: '',
+    gender: '',
+    dob: '',
+    phone_number: '',
+    country_of_birth: '',
+    city: '',
+    zip: '',
+    residential_address: '',
+  });
+
+  // Security section state
+  const [editingEmail, setEditingEmail] = useState(false);
+  const [editingPassword, setEditingPassword] = useState(false);
+  const [securityFormData, setSecurityFormData] = useState({
+    email: '',
+    password: '',
+    confirmPassword: '',
+  });
+  const [updatingSecurity, setUpdatingSecurity] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   // Set active tab from URL parameter - check on mount and when URL changes
   useEffect(() => {
@@ -54,12 +100,18 @@ function SettingsPageContent() {
 
   useEffect(() => {
     fetchUserData();
-  }, []);
+  }, [activeAccount]); // Refetch when active account changes
 
   const fetchUserData = async () => {
     try {
       setLoading(true);
       setError(null);
+
+      // Wait for active account to load
+      if (accountLoading) {
+        setLoading(false);
+        return;
+      }
 
       // Get user ID
       let userId: string | null = null;
@@ -105,9 +157,27 @@ function SettingsPageContent() {
         setError('Failed to load user profile.');
       } else if (profileData) {
         setUserProfile(profileData);
+        // Initialize form data with user profile values
+        setFormData({
+          first_name: profileData.first_name || '',
+          last_name: profileData.last_name || '',
+          gender: profileData.gender || '',
+          dob: formatDOB(profileData.dob) || '',
+          phone_number: profileData.phone_number || '',
+          country_of_birth: profileData.country_of_birth || '',
+          city: profileData.city || '',
+          zip: profileData.zip || '',
+          residential_address: profileData.residential_address || '',
+        });
+        // Initialize security form data
+        setSecurityFormData({
+          email: profileData.email || '',
+          password: '',
+          confirmPassword: '',
+        });
       }
 
-      // Fetch trading accounts
+      // Fetch trading accounts (for display purposes)
       const { data: accountsData, error: accountsError } = await supabase
         .from('tradingAccounts')
         .select('*')
@@ -118,15 +188,74 @@ function SettingsPageContent() {
         console.error('Error fetching accounts:', accountsError);
       } else if (accountsData) {
         setAccounts(accountsData);
+      }
+
+      // Use active account from context
+      if (activeAccount) {
+        setTradingId(activeAccount.account_uid);
+        setTotalBalance(activeAccount.balance || 0);
+        setTotalEquity(activeAccount.equity || 0);
+        setWalletBalance(activeAccount.free_margin || 0);
+      } else {
+        // Fallback: Fetch Trading ID using the shared utility function
+        const tradingIdValue = await getUserTradingId();
+        if (tradingIdValue) {
+          setTradingId(tradingIdValue);
+          
+          // Fetch balance for the selected account only
+          const { data: selectedAccount, error: accountError } = await supabase
+            .from('tradingAccounts')
+            .select('balance, equity, free_margin, currency')
+            .eq('account_uid', tradingIdValue)
+            .single();
+
+          if (!accountError && selectedAccount) {
+            setTotalBalance(selectedAccount.balance || 0);
+            setTotalEquity(selectedAccount.equity || 0);
+            setWalletBalance(selectedAccount.free_margin || 0);
+          } else {
+            setTotalBalance(0);
+            setTotalEquity(0);
+            setWalletBalance(0);
+          }
+        } else {
+          setTotalBalance(0);
+          setTotalEquity(0);
+          setWalletBalance(0);
+        }
+      }
+
+      // Fetch KYC status using active trading account's user_id
+      if (activeAccount?.user_id) {
+        // Use the shared function to get KYC status
+        const kycStatus = await getKycStatusByUserId(activeAccount.user_id);
         
-        // Calculate totals
-        const balance = accountsData.reduce((sum, acc) => sum + (acc.balance || 0), 0);
-        const equity = accountsData.reduce((sum, acc) => sum + (acc.equity || 0), 0);
-        const freeMargin = accountsData.reduce((sum, acc) => sum + (acc.free_margin || 0), 0);
+        let verificationStatus: 'verified' | 'pending' | 'rejected' | 'unverified' = kycStatus === 'verified' ? 'verified' : 'unverified';
+        let kycLevel: 'Level 1' | 'Level 2' | 'Level 3' = kycStatus === 'verified' ? 'Level 2' : 'Level 1';
+
+        // Update profile details state
+        setProfileDetails({
+          verificationStatus,
+          kycLevel,
+          customerGroup: null, // These fields don't exist in database yet
+          riskProfile: null,
+          ibMemberStatus: null,
+        });
+      } else if (userId) {
+        // Fallback: use userId if no active account
+        const kycStatus = await getKycStatusByUserId(userId);
         
-        setTotalBalance(balance);
-        setTotalEquity(equity);
-        setWalletBalance(freeMargin);
+        let verificationStatus: 'verified' | 'pending' | 'rejected' | 'unverified' = kycStatus === 'verified' ? 'verified' : 'unverified';
+        let kycLevel: 'Level 1' | 'Level 2' | 'Level 3' = kycStatus === 'verified' ? 'Level 2' : 'Level 1';
+
+        // Update profile details state
+        setProfileDetails({
+          verificationStatus,
+          kycLevel,
+          customerGroup: null,
+          riskProfile: null,
+          ibMemberStatus: null,
+        });
       }
     } catch (err) {
       console.error('Exception while fetching user data:', err);
@@ -172,6 +301,254 @@ function SettingsPageContent() {
     }
   };
 
+  const parseDOB = (dobString: string): string | null => {
+    if (!dobString || dobString.trim() === '') return null;
+    
+    // Handle dd-mm-yyyy format
+    const parts = dobString.split('-');
+    if (parts.length === 3) {
+      const [day, month, year] = parts;
+      // Return in ISO format (yyyy-mm-dd)
+      return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+    }
+    
+    // Try to parse as date and return ISO format
+    try {
+      const date = new Date(dobString);
+      if (!isNaN(date.getTime())) {
+        return date.toISOString().split('T')[0];
+      }
+    } catch {
+      // If parsing fails, return null
+    }
+    
+    return null;
+  };
+
+  const handleSaveProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      setSaving(true);
+      setError(null);
+
+      // Get user ID
+      let userId: string | null = null;
+      
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (authUser) {
+        userId = authUser.id;
+      } else {
+        const sessionUser = getCurrentUser();
+        if (sessionUser?.id) {
+          userId = sessionUser.id;
+          
+          // If session user ID is not a UUID, try to find the user in users table
+          if (!userId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+            const { data: userData, error: userError } = await supabase
+              .from('users')
+              .select('user_uuid')
+              .eq('email', sessionUser.email)
+              .single();
+            
+            if (!userError && userData?.user_uuid) {
+              userId = userData.user_uuid;
+            }
+          }
+        }
+      }
+
+      if (!userId) {
+        setError('User not found. Please log in again.');
+        setSaving(false);
+        return;
+      }
+
+      // Extract form data from state
+      const updateData: any = {
+        first_name: formData.first_name.trim() || null,
+        last_name: formData.last_name.trim() || null,
+        gender: formData.gender.trim() || null,
+        phone_number: formData.phone_number.trim() || null,
+        country_of_birth: formData.country_of_birth.trim() || null,
+        city: formData.city.trim() || null,
+        zip: formData.zip.trim() || null,
+        residential_address: formData.residential_address.trim() || null,
+      };
+
+      // Parse and format date of birth
+      if (formData.dob.trim()) {
+        const parsedDOB = parseDOB(formData.dob.trim());
+        if (parsedDOB) {
+          updateData.dob = parsedDOB;
+        }
+      } else {
+        updateData.dob = null;
+      }
+
+      // Remove null/empty values to avoid unnecessary updates
+      Object.keys(updateData).forEach(key => {
+        if (updateData[key] === null || updateData[key] === '') {
+          delete updateData[key];
+        }
+      });
+
+      // Update user profile in database
+      const { data: updatedProfile, error: updateError } = await supabase
+        .from('users')
+        .update(updateData)
+        .eq('user_uuid', userId)
+        .select()
+        .single();
+
+      if (updateError) {
+        console.error('Error updating profile:', updateError);
+        setError('Failed to save profile. Please try again.');
+        setSaving(false);
+        return;
+      }
+
+      // Update local state with new data
+      if (updatedProfile) {
+        setUserProfile(updatedProfile);
+        // Update form data with saved values
+        setFormData({
+          first_name: updatedProfile.first_name || '',
+          last_name: updatedProfile.last_name || '',
+          gender: updatedProfile.gender || '',
+          dob: formatDOB(updatedProfile.dob) || '',
+          phone_number: updatedProfile.phone_number || '',
+          country_of_birth: updatedProfile.country_of_birth || '',
+          city: updatedProfile.city || '',
+          zip: updatedProfile.zip || '',
+          residential_address: updatedProfile.residential_address || '',
+        });
+      }
+
+      // Show success message (you can replace this with a toast notification)
+      alert('Profile updated successfully!');
+      
+    } catch (err) {
+      console.error('Exception while saving profile:', err);
+      setError('An unexpected error occurred. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleUpdateSecurity = async () => {
+    try {
+      setUpdatingSecurity(true);
+      setError(null);
+
+      // Get user ID using the same pattern as fetchUserData
+      let userId: string | null = null;
+      
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (authUser) {
+        userId = authUser.id;
+      } else {
+        const sessionUser = getCurrentUser();
+        if (sessionUser?.id) {
+          userId = sessionUser.id;
+          
+          // If session user ID is not a UUID, try to find the user in users table
+          if (!userId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+            const { data: userData, error: userError } = await supabase
+              .from('users')
+              .select('user_uuid')
+              .eq('email', sessionUser.email)
+              .single();
+            
+            if (!userError && userData?.user_uuid) {
+              userId = userData.user_uuid;
+            }
+          }
+        }
+      }
+
+      if (!userId) {
+        setError('User not found. Please log in again.');
+        setUpdatingSecurity(false);
+        return;
+      }
+
+      const updates: any = {};
+      let updateUsersTable = false;
+
+
+      // Update password if it was changed
+      if (editingPassword && securityFormData.password) {
+        if (securityFormData.password !== securityFormData.confirmPassword) {
+          setError('Passwords do not match. Please try again.');
+          setUpdatingSecurity(false);
+          return;
+        }
+
+        if (securityFormData.password.length < 6) {
+          setError('Password must be at least 6 characters long.');
+          setUpdatingSecurity(false);
+          return;
+        }
+
+        // Try to update via Supabase Auth if we have an auth user
+        if (authUser) {
+          const { error: passwordError } = await supabase.auth.updateUser({
+            password: securityFormData.password,
+          });
+
+          if (passwordError) {
+            setError(`Failed to update password: ${passwordError.message}`);
+            setUpdatingSecurity(false);
+            return;
+          }
+        } else {
+          // If no auth user, update password in users table directly
+          updates.password = securityFormData.password;
+        }
+
+        // Clear password fields after successful update
+        setSecurityFormData({
+          ...securityFormData,
+          password: '',
+          confirmPassword: '',
+        });
+      }
+
+      // Update users table if password was changed
+      if (editingPassword && securityFormData.password && !authUser) {
+        const updateData: any = {};
+        if (updates.password) updateData.password = updates.password;
+
+        if (Object.keys(updateData).length > 0) {
+          const { error: updateError } = await supabase
+            .from('users')
+            .update(updateData)
+            .eq('user_uuid', userId);
+
+          if (updateError) {
+            console.error('Error updating users table:', updateError);
+            setError(`Failed to update: ${updateError.message}`);
+            setUpdatingSecurity(false);
+            return;
+          }
+        }
+      }
+
+      // Refresh user profile data
+      await fetchUserData();
+
+      // Exit edit mode
+      setEditingPassword(false);
+
+      alert('Security settings updated successfully!');
+    } catch (err) {
+      console.error('Exception while updating security:', err);
+      setError('An unexpected error occurred. Please try again.');
+    } finally {
+      setUpdatingSecurity(false);
+    }
+  };
+
   return (
     <div className={`flex h-screen overflow-hidden ${darkMode ? 'bg-[#0A2E1D]' : 'bg-gray-100'}`}>
       {/* Mobile Sidebar Overlay */}
@@ -208,35 +585,19 @@ function SettingsPageContent() {
               </svg>
               <span>Dashboard</span>
             </a>
-            <a href="/dashboard/wallets" className={`flex items-center space-x-3 px-4 py-3 ${darkMode ? 'text-[#A0C8A9]/70 hover:text-white hover:bg-[#A0C8A9]/10' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'} rounded-lg transition-colors`}>
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-              </svg>
-              <span>Wallets</span>
-            </a>
+            {/* Wallets menu item temporarily removed */}
             <a href="/dashboard/my-accounts" className={`flex items-center space-x-3 px-4 py-3 ${darkMode ? 'text-[#A0C8A9]/70 hover:text-white hover:bg-[#A0C8A9]/10' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'} rounded-lg transition-colors`}>
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
               </svg>
               <span>My Accounts</span>
             </a>
-            <a href="/dashboard/new-account" className={`flex items-center space-x-3 px-4 py-3 ${darkMode ? 'text-[#A0C8A9]/70 hover:text-white hover:bg-[#A0C8A9]/10' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'} rounded-lg transition-colors`}>
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-              </svg>
-              <span>New Account</span>
-            </a>
+            {/* New Account menu item temporarily removed */}
             <a href="/dashboard/deposit" className={`flex items-center space-x-3 px-4 py-3 ${darkMode ? 'text-[#A0C8A9]/70 hover:text-white hover:bg-[#A0C8A9]/10' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'} rounded-lg transition-colors`}>
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
               </svg>
               <span>Deposit</span>
-            </a>
-            <a href="/dashboard/transfer" className={`flex items-center space-x-3 px-4 py-3 ${darkMode ? 'text-[#A0C8A9]/70 hover:text-white hover:bg-[#A0C8A9]/10' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'} rounded-lg transition-colors`}>
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-              </svg>
-              <span>Transfer</span>
             </a>
             <a href="/dashboard/withdraw" className={`flex items-center space-x-3 px-4 py-3 ${darkMode ? 'text-[#A0C8A9]/70 hover:text-white hover:bg-[#A0C8A9]/10' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'} rounded-lg transition-colors`}>
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -376,16 +737,26 @@ function SettingsPageContent() {
                     <>
                       <div className="text-center mb-4">
                         <h2 className="text-2xl font-bold text-gray-900 mb-2">
-                          {userProfile.first_name} {userProfile.last_name || ''}
+                          {formData.first_name || userProfile.first_name} {(formData.last_name || userProfile.last_name) || ''}
                         </h2>
                         <span className={`inline-block px-3 py-1 rounded-full text-sm mb-2 ${
-                          userProfile.kyc_status === 'verified' || userProfile.account_status === 'verified'
+                          profileDetails.verificationStatus === 'verified'
                             ? 'bg-green-100 text-green-800'
+                            : profileDetails.verificationStatus === 'pending'
+                            ? 'bg-yellow-100 text-yellow-800'
+                            : profileDetails.verificationStatus === 'rejected'
+                            ? 'bg-red-100 text-red-800'
                             : 'bg-[#0A2E1D] text-white'
                         }`}>
-                          {userProfile.kyc_status === 'verified' || userProfile.account_status === 'verified' ? 'Verified' : 'Unverified'}
+                          {profileDetails.verificationStatus === 'verified' 
+                            ? 'Verified' 
+                            : profileDetails.verificationStatus === 'pending'
+                            ? 'Pending'
+                            : profileDetails.verificationStatus === 'rejected'
+                            ? 'Rejected'
+                            : 'Unverified'}
                         </span>
-                        <p className="text-gray-600">{userProfile.country_of_birth || 'N/A'}</p>
+                        <p className="text-gray-600">{formData.country_of_birth || userProfile.country_of_birth || 'N/A'}</p>
                       </div>
                       
                       <div className="space-y-3 text-sm text-gray-600">
@@ -395,21 +766,19 @@ function SettingsPageContent() {
                         </div>
                         <div className="flex justify-between">
                           <span>Customer Group:</span>
-                          <span className="font-medium">N/A</span>
+                          <span className="font-medium">{profileDetails.customerGroup || 'N/A'}</span>
                         </div>
                         <div className="flex justify-between">
                           <span>Risk Profile:</span>
-                          <span className="font-medium">N/A</span>
+                          <span className="font-medium">{profileDetails.riskProfile || 'N/A'}</span>
                         </div>
                         <div className="flex justify-between">
                           <span>KYC Level:</span>
-                          <span className="font-medium">
-                            {userProfile.kyc_status === 'verified' ? 'Level 2' : userProfile.kyc_status || 'Level 1'}
-                          </span>
+                          <span className="font-medium">{profileDetails.kycLevel}</span>
                         </div>
                         <div className="flex justify-between">
                           <span>IB Member:</span>
-                          <span className="font-medium">Unprocessed</span>
+                          <span className="font-medium">{profileDetails.ibMemberStatus || 'Unprocessed'}</span>
                         </div>
                       </div>
                     </>
@@ -423,26 +792,12 @@ function SettingsPageContent() {
 
               {/* Right Column - Account Information */}
               <div className="lg:col-span-2 space-y-6">
-                {/* Account Balances */}
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="bg-white rounded-lg p-4 shadow">
-                    <h3 className="text-sm text-gray-600 mb-1">Balance</h3>
-                    <p className="text-xl font-bold text-gray-900">
-                      {loading ? '...' : formatCurrency(totalBalance)}
-                    </p>
-                  </div>
-                  <div className="bg-white rounded-lg p-4 shadow">
-                    <h3 className="text-sm text-gray-600 mb-1">Equity</h3>
-                    <p className="text-xl font-bold text-gray-900">
-                      {loading ? '...' : formatCurrency(totalEquity)}
-                    </p>
-                  </div>
-                  <div className="bg-white rounded-lg p-4 shadow">
-                    <h3 className="text-sm text-gray-600 mb-1">Wallet Balance</h3>
-                    <p className="text-xl font-bold text-gray-900">
-                      {loading ? '...' : formatCurrency(walletBalance)}
-                    </p>
-                  </div>
+                {/* Account Balance */}
+                <div className="bg-white rounded-lg p-4 shadow">
+                  <h3 className="text-sm text-gray-600 mb-1">Balance</h3>
+                  <p className="text-xl font-bold text-gray-900">
+                    {loading ? '...' : formatCurrency(totalBalance)}
+                  </p>
                 </div>
 
                 {/* Personal Information Form */}
@@ -454,20 +809,16 @@ function SettingsPageContent() {
                       <p className="mt-2 text-gray-600">Loading...</p>
                     </div>
                   ) : (
-                    <form onSubmit={async (e) => {
-                      e.preventDefault();
-                      const formData = new FormData(e.currentTarget);
-                      // TODO: Implement save functionality
-                      alert('Save functionality will be implemented');
-                    }}>
+                    <form onSubmit={handleSaveProfile}>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">First Name</label>
                           <input 
                             type="text" 
                             name="first_name"
-                            defaultValue={userProfile?.first_name || ''}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#A0C8A9] focus:border-transparent"
+                            value={formData.first_name}
+                            onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
+                            className="w-full px-3 py-2 bg-white text-gray-900 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#A0C8A9] focus:border-transparent placeholder:text-gray-400"
                           />
                         </div>
                         <div>
@@ -475,8 +826,9 @@ function SettingsPageContent() {
                           <input 
                             type="text" 
                             name="last_name"
-                            defaultValue={userProfile?.last_name || ''}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#A0C8A9] focus:border-transparent"
+                            value={formData.last_name}
+                            onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
+                            className="w-full px-3 py-2 bg-white text-gray-900 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#A0C8A9] focus:border-transparent placeholder:text-gray-400"
                           />
                         </div>
                         <div>
@@ -484,17 +836,57 @@ function SettingsPageContent() {
                           <input 
                             type="text" 
                             name="username"
-                            defaultValue={userProfile?.email?.split('@')[0] || ''}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#A0C8A9] focus:border-transparent"
+                            value={userProfile?.email?.split('@')[0] || ''}
+                            className="w-full px-3 py-2 bg-gray-50 text-gray-600 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#A0C8A9] focus:border-transparent cursor-not-allowed"
                             disabled
                           />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Trading ID</label>
+                          <div className="relative">
+                            {loading ? (
+                              <div className="w-full px-3 py-2 bg-gray-50 text-gray-400 border border-gray-300 rounded-md">
+                                Loading...
+                              </div>
+                            ) : (
+                              <div className="flex items-center space-x-2">
+                                <input
+                                  type="text"
+                                  value={tradingId || 'N/A'}
+                                  className="flex-1 px-3 py-2 bg-gray-50 text-gray-600 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#A0C8A9] focus:border-transparent cursor-not-allowed"
+                                  disabled
+                                  readOnly
+                                />
+                                {tradingId && (
+                                  <button
+                                    type="button"
+                                    onClick={async () => {
+                                      try {
+                                        await navigator.clipboard.writeText(tradingId);
+                                        alert('Trading ID copied to clipboard!');
+                                      } catch (error) {
+                                        console.error('Failed to copy:', error);
+                                      }
+                                    }}
+                                    className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
+                                    title="Copy Trading ID"
+                                  >
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                    </svg>
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                          </div>
                         </div>
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">Gender</label>
                           <select 
                             name="gender"
-                            defaultValue={userProfile?.gender || ''}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#A0C8A9] focus:border-transparent"
+                            value={formData.gender}
+                            onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
+                            className="w-full px-3 py-2 bg-white text-gray-900 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#A0C8A9] focus:border-transparent"
                           >
                             <option value="">Select Gender</option>
                             <option value="male">Male</option>
@@ -509,8 +901,9 @@ function SettingsPageContent() {
                               type="text" 
                               name="dob"
                               placeholder="dd-mm-yyyy"
-                              defaultValue={formatDOB(userProfile?.dob)}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#A0C8A9] focus:border-transparent pr-10"
+                              value={formData.dob}
+                              onChange={(e) => setFormData({ ...formData, dob: e.target.value })}
+                              className="w-full px-3 py-2 bg-white text-gray-900 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#A0C8A9] focus:border-transparent pr-10 placeholder:text-gray-400"
                             />
                             <svg className="absolute right-3 top-2.5 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -522,8 +915,8 @@ function SettingsPageContent() {
                           <input 
                             type="email" 
                             name="email"
-                            defaultValue={userProfile?.email || ''}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#A0C8A9] focus:border-transparent"
+                            value={userProfile?.email || ''}
+                            className="w-full px-3 py-2 bg-gray-50 text-gray-600 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#A0C8A9] focus:border-transparent cursor-not-allowed"
                             disabled
                           />
                         </div>
@@ -532,14 +925,15 @@ function SettingsPageContent() {
                           <div className="flex">
                             <div className="flex items-center px-3 py-2 border border-r-0 border-gray-300 rounded-l-md bg-gray-50">
                               <span className="text-sm text-gray-500">
-                                {userProfile?.country_of_birth === 'India' ? '🇮🇳 +91' : '📞'}
+                                {formData.country_of_birth === 'India' ? '🇮🇳 +91' : '📞'}
                               </span>
                             </div>
                             <input 
                               type="tel" 
                               name="phone_number"
-                              defaultValue={userProfile?.phone_number || ''}
-                              className="flex-1 px-3 py-2 border border-gray-300 rounded-r-md focus:outline-none focus:ring-2 focus:ring-[#A0C8A9] focus:border-transparent"
+                              value={formData.phone_number}
+                              onChange={(e) => setFormData({ ...formData, phone_number: e.target.value })}
+                              className="flex-1 px-3 py-2 bg-white text-gray-900 border border-gray-300 rounded-r-md focus:outline-none focus:ring-2 focus:ring-[#A0C8A9] focus:border-transparent placeholder:text-gray-400"
                             />
                           </div>
                         </div>
@@ -548,8 +942,9 @@ function SettingsPageContent() {
                           <input 
                             type="text" 
                             name="country_of_birth"
-                            defaultValue={userProfile?.country_of_birth || ''}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#A0C8A9] focus:border-transparent"
+                            value={formData.country_of_birth}
+                            onChange={(e) => setFormData({ ...formData, country_of_birth: e.target.value })}
+                            className="w-full px-3 py-2 bg-white text-gray-900 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#A0C8A9] focus:border-transparent placeholder:text-gray-400"
                           />
                         </div>
                         <div>
@@ -557,9 +952,10 @@ function SettingsPageContent() {
                           <input 
                             type="text" 
                             name="city"
-                            defaultValue={userProfile?.city || ''}
+                            value={formData.city}
+                            onChange={(e) => setFormData({ ...formData, city: e.target.value })}
                             placeholder="City"
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#A0C8A9] focus:border-transparent"
+                            className="w-full px-3 py-2 bg-white text-gray-900 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#A0C8A9] focus:border-transparent placeholder:text-gray-400"
                           />
                         </div>
                         <div>
@@ -567,9 +963,10 @@ function SettingsPageContent() {
                           <input 
                             type="text" 
                             name="zip"
-                            defaultValue={userProfile?.zip || ''}
+                            value={formData.zip}
+                            onChange={(e) => setFormData({ ...formData, zip: e.target.value })}
                             placeholder="Zip Code"
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#A0C8A9] focus:border-transparent"
+                            className="w-full px-3 py-2 bg-white text-gray-900 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#A0C8A9] focus:border-transparent placeholder:text-gray-400"
                           />
                         </div>
                         <div className="md:col-span-2">
@@ -578,8 +975,9 @@ function SettingsPageContent() {
                             name="residential_address"
                             placeholder="Enter your full address"
                             rows={3}
-                            defaultValue={userProfile?.residential_address || ''}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#A0C8A9] focus:border-transparent"
+                            value={formData.residential_address}
+                            onChange={(e) => setFormData({ ...formData, residential_address: e.target.value })}
+                            className="w-full px-3 py-2 bg-white text-gray-900 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#A0C8A9] focus:border-transparent placeholder:text-gray-400 resize-none"
                           />
                         </div>
                       </div>
@@ -588,9 +986,13 @@ function SettingsPageContent() {
                       <div className="flex justify-end pt-4">
                         <button 
                           type="submit"
-                          className="px-8 py-3 bg-[#0A2E1D] text-white rounded-md hover:bg-[#1A3E2D] transition-colors font-medium text-lg"
+                          disabled={saving}
+                          className="px-8 py-3 bg-[#0A2E1D] text-white rounded-md hover:bg-[#1A3E2D] transition-colors font-medium text-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
                         >
-                          Save Changes
+                          {saving && (
+                            <div className="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                          )}
+                          <span>{saving ? 'Saving...' : 'Save Changes'}</span>
                         </button>
                       </div>
                     </form>
@@ -615,8 +1017,8 @@ function SettingsPageContent() {
                 ) : accounts.length === 0 ? (
                   <div className="text-center py-8">
                     <p className="text-gray-600 mb-4">No trading accounts found.</p>
-                    <a href="/dashboard/new-account" className="text-[#0A2E1D] hover:underline font-medium">
-                      Create your first trading account
+                    <a href="/dashboard/my-accounts" className="text-[#0A2E1D] hover:underline font-medium">
+                      View your trading accounts
                     </a>
                   </div>
                 ) : (
@@ -647,12 +1049,6 @@ function SettingsPageContent() {
                     ))}
                   </div>
                 )}
-                
-                <div className="mt-6 pt-6 border-t border-gray-200">
-                  <button className="px-6 py-2 bg-[#0A2E1D] text-white rounded-md hover:bg-[#1A3E2D] transition-colors font-medium">
-                    Add Bank Account
-                  </button>
-                </div>
               </div>
             </div>
           )}
@@ -676,64 +1072,128 @@ function SettingsPageContent() {
                   <p className="text-gray-600 mb-4">Information for logging in to Raz Capitals.</p>
                   <p className="text-gray-600 mb-4">Change your password whenever you think it might have been compromised.</p>
                   
+                  {error && (
+                    <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md">
+                      <p className="text-sm text-red-800">{error}</p>
+                    </div>
+                  )}
+                  
                   <div className="space-y-4">
-                    <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                      <div>
-                        <p className="font-medium text-gray-900">{userProfile?.email || 'N/A'}</p>
-                        <p className="text-sm text-gray-500">Email address</p>
+                    {/* Email Field */}
+                    <div className="p-4 bg-gray-50 rounded-lg">
+                      <div className="mb-2">
+                        <label className="text-sm text-gray-500">Email address</label>
                       </div>
-                      <button className="px-4 py-2 bg-[#A0C8A9] text-[#0A2E1D] rounded-md hover:bg-[#8BBF9F] transition-colors font-medium">
-                        Change
-                      </button>
+                      <p className="font-medium text-gray-900">{userProfile?.email || 'N/A'}</p>
                     </div>
                     
-                    <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                      <div>
+                    {/* Password Field */}
+                    <div className="p-4 bg-gray-50 rounded-lg">
+                      <div className="flex items-center justify-between mb-2">
+                        <label className="text-sm text-gray-500">Current password</label>
+                        {!editingPassword && (
+                          <button 
+                            onClick={() => {
+                              setEditingPassword(true);
+                              setSecurityFormData({ ...securityFormData, password: '', confirmPassword: '' });
+                            }}
+                            className="px-4 py-2 bg-[#A0C8A9] text-[#0A2E1D] rounded-md hover:bg-[#8BBF9F] transition-colors font-medium text-sm"
+                          >
+                            Change
+                          </button>
+                        )}
+                      </div>
+                      {editingPassword ? (
+                        <div className="space-y-3">
+                          <div className="relative">
+                            <input
+                              type={showPassword ? "text" : "password"}
+                              value={securityFormData.password}
+                              onChange={(e) => setSecurityFormData({ ...securityFormData, password: e.target.value })}
+                              className="w-full px-3 py-2 pr-10 bg-white text-gray-900 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#A0C8A9] focus:border-transparent"
+                              placeholder="Enter new password"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowPassword(!showPassword)}
+                              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700 focus:outline-none"
+                              aria-label={showPassword ? "Hide password" : "Show password"}
+                            >
+                              {showPassword ? (
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                                </svg>
+                              ) : (
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                </svg>
+                              )}
+                            </button>
+                          </div>
+                          <div className="relative">
+                            <input
+                              type={showConfirmPassword ? "text" : "password"}
+                              value={securityFormData.confirmPassword}
+                              onChange={(e) => setSecurityFormData({ ...securityFormData, confirmPassword: e.target.value })}
+                              className="w-full px-3 py-2 pr-10 bg-white text-gray-900 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#A0C8A9] focus:border-transparent"
+                              placeholder="Confirm new password"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700 focus:outline-none"
+                              aria-label={showConfirmPassword ? "Hide password" : "Show password"}
+                            >
+                              {showConfirmPassword ? (
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                                </svg>
+                              ) : (
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                </svg>
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
                         <p className="font-medium text-gray-900">••••••••</p>
-                        <p className="text-sm text-gray-500">Current password</p>
-                      </div>
-                      <button className="px-4 py-2 bg-[#A0C8A9] text-[#0A2E1D] rounded-md hover:bg-[#8BBF9F] transition-colors font-medium">
-                        Change
-                      </button>
+                      )}
                     </div>
                   </div>
                   
-                  <div className="mt-4">
-                    <button className="px-6 py-2 bg-[#0A2E1D] text-white rounded-md hover:bg-[#1A3E2D] transition-colors font-medium">
-                      Update
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* 2-Step Verification Section */}
-              <div className="bg-white rounded-lg shadow p-6 border border-[#A0C8A9]/20">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold text-[#0A2E1D]">Security</h3>
-                </div>
-                
-                <div>
-                  <h4 className="text-md font-medium text-[#0A2E1D] mb-2">2-Step verification</h4>
-                  <p className="text-gray-600 mb-4">2-step verification ensures that all sensitive transactions are authorized by you.</p>
-                  <p className="text-gray-600 mb-4">We encourage you to enter verification codes to confirm these transactions.</p>
-                  
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                      <div>
-                        <p className="font-medium text-gray-900">Security type</p>
-                        <p className="text-sm text-gray-500">{userProfile?.email || 'N/A'}</p>
-                      </div>
-                      <button className="px-4 py-2 bg-[#A0C8A9] text-[#0A2E1D] rounded-md hover:bg-[#8BBF9F] transition-colors font-medium">
-                        Change
+                  {editingPassword && (
+                    <div className="mt-4 flex space-x-3">
+                      <button 
+                        onClick={handleUpdateSecurity}
+                        disabled={updatingSecurity}
+                        className="px-6 py-2 bg-[#0A2E1D] text-white rounded-md hover:bg-[#1A3E2D] transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+                      >
+                        {updatingSecurity && (
+                          <div className="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                        )}
+                        <span>{updatingSecurity ? 'Updating...' : 'Update'}</span>
+                      </button>
+                      <button 
+                        onClick={() => {
+                          setEditingPassword(false);
+                          setSecurityFormData({
+                            ...securityFormData,
+                            password: '',
+                            confirmPassword: '',
+                          });
+                          setShowPassword(false);
+                          setShowConfirmPassword(false);
+                          setError(null);
+                        }}
+                        className="px-6 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors font-medium"
+                      >
+                        Cancel
                       </button>
                     </div>
-                  </div>
-                  
-                  <div className="mt-4">
-                    <button className="px-6 py-2 bg-[#0A2E1D] text-white rounded-md hover:bg-[#1A3E2D] transition-colors font-medium">
-                      Update
-                    </button>
-                  </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -747,24 +1207,28 @@ function SettingsPageContent() {
                 <p className="text-gray-600">Complete your KYC steps to unlock full access including deposits, trading, and withdrawals.</p>
               </div>
 
-              {/* Step 1: Confirm Email */}
+              {/* Step 1: Confirm Trading Account */}
               <div className="bg-white rounded-lg shadow p-6 border border-[#A0C8A9]/20">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center space-x-3">
                     <div className="w-8 h-8 bg-[#A0C8A9] rounded-full flex items-center justify-center text-[#0A2E1D] font-bold">1</div>
-                    <h3 className="text-lg font-semibold text-[#0A2E1D]">Confirm Email</h3>
+                    <h3 className="text-lg font-semibold text-[#0A2E1D]">Confirm Trading Account</h3>
                   </div>
                   <span className={`px-3 py-1 text-sm font-medium rounded-full ${
-                    userProfile?.email ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
+                    profileDetails.verificationStatus === 'verified' 
+                      ? 'bg-green-100 text-green-800' 
+                      : 'bg-yellow-100 text-yellow-800'
                   }`}>
-                    {userProfile?.email ? 'Verified' : 'Pending'}
+                    {profileDetails.verificationStatus === 'verified' ? 'Verified' : 'Unverified'}
                   </span>
                 </div>
                 
                 <div className="mb-4">
-                  <p className="text-gray-900 font-medium mb-2">{userProfile?.email || 'No email found'}</p>
-                  {!userProfile?.email && (
-                    <p className="text-sm text-gray-600">Please verify your email address to continue.</p>
+                  <p className="text-gray-900 font-medium mb-2">
+                    {activeAccount?.account_uid || tradingId || 'No trading account found'}
+                  </p>
+                  {profileDetails.verificationStatus !== 'verified' && (
+                    <p className="text-sm text-yellow-600">Please complete KYC verification to unlock full access.</p>
                   )}
                 </div>
 
@@ -795,56 +1259,14 @@ function SettingsPageContent() {
                 </div>
 
                 <div className="flex items-center justify-between">
-                  <span className="px-3 py-1 bg-green-100 text-green-800 text-sm font-medium rounded-full">Completed</span>
+                  <span className={`px-3 py-1 text-sm font-medium rounded-full ${
+                    profileDetails.verificationStatus === 'verified'
+                      ? 'bg-green-100 text-green-800'
+                      : 'bg-yellow-100 text-yellow-800'
+                  }`}>
+                    {profileDetails.verificationStatus === 'verified' ? 'Completed' : 'In Progress'}
+                  </span>
                   <span className="px-3 py-1 bg-blue-100 text-blue-800 text-sm font-medium rounded-full">Automated</span>
-                </div>
-              </div>
-
-              {/* Step 2: Verify Identity */}
-              <div className="bg-white rounded-lg shadow p-6 border border-[#A0C8A9]/20">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-8 h-8 bg-[#A0C8A9] rounded-full flex items-center justify-center text-[#0A2E1D] font-bold">2</div>
-                    <h3 className="text-lg font-semibold text-[#0A2E1D]">Verify your identity using Sumsub</h3>
-                  </div>
-                  <span className="px-3 py-1 bg-blue-100 text-blue-800 text-sm font-medium rounded-full">Automated</span>
-                </div>
-                
-                <div className="mb-4">
-                  <p className="text-gray-600 mb-2">Provide a document confirming your name</p>
-                  <p className="text-gray-600">Verify your details please</p>
-                </div>
-
-                <div className="bg-gray-50 rounded-lg p-4 mb-4">
-                  <h4 className="text-md font-medium text-[#0A2E1D] mb-3">Privileges of Profile Verification</h4>
-                  <ul className="space-y-2 text-sm text-gray-600">
-                    <li className="flex items-start space-x-2">
-                      <span className="text-blue-500 mt-1">✓</span>
-                      <span>Withdraw funds from verified accounts.</span>
-                    </li>
-                    <li className="flex items-start space-x-2">
-                      <span className="text-blue-500 mt-1">✓</span>
-                      <span>Make external transfers securely.</span>
-                    </li>
-                    <li className="flex items-start space-x-2">
-                      <span className="text-blue-500 mt-1">✓</span>
-                      <span>Get approved for higher trading limits.</span>
-                    </li>
-                    <li className="flex items-start space-x-2">
-                      <span className="text-blue-500 mt-1">✓</span>
-                      <span>Unlock advanced account features.</span>
-                    </li>
-                    <li className="flex items-start space-x-2">
-                      <span className="text-blue-500 mt-1">✓</span>
-                      <span>Faster processing of requests and reviews.</span>
-                    </li>
-                  </ul>
-                </div>
-
-                <div className="flex justify-end">
-                  <button className="px-6 py-3 bg-[#0A2E1D] text-white rounded-md hover:bg-[#1A3E2D] transition-colors font-medium">
-                    Go to Sumsub
-                  </button>
                 </div>
               </div>
             </div>
@@ -888,38 +1310,6 @@ function SettingsPageContent() {
                     </div>
                   </div>
                   <h3 className="text-lg font-semibold text-[#0A2E1D] mb-2">Cookies Policy</h3>
-                  <p className="text-sm text-gray-500 font-medium">PDF</p>
-                </div>
-
-                {/* Order Execution Policy */}
-                <div className="bg-white rounded-lg shadow p-6 border border-[#A0C8A9]/20 hover:shadow-lg transition-shadow cursor-pointer group">
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="w-12 h-12 bg-[#A0C8A9]/20 rounded-lg flex items-center justify-center">
-                      <span className="text-2xl">📋</span>
-                    </div>
-                    <div className="text-[#A0C8A9] group-hover:translate-x-1 transition-transform">
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                      </svg>
-                    </div>
-                  </div>
-                  <h3 className="text-lg font-semibold text-[#0A2E1D] mb-2">Order Execution Policy</h3>
-                  <p className="text-sm text-gray-500 font-medium">PDF</p>
-                </div>
-
-                {/* Bonus Policy */}
-                <div className="bg-white rounded-lg shadow p-6 border border-[#A0C8A9]/20 hover:shadow-lg transition-shadow cursor-pointer group">
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="w-12 h-12 bg-[#A0C8A9]/20 rounded-lg flex items-center justify-center">
-                      <span className="text-2xl">🎁</span>
-                    </div>
-                    <div className="text-[#A0C8A9] group-hover:translate-x-1 transition-transform">
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                      </svg>
-                    </div>
-                  </div>
-                  <h3 className="text-lg font-semibold text-[#0A2E1D] mb-2">Bonus Policy</h3>
                   <p className="text-sm text-gray-500 font-medium">PDF</p>
                 </div>
 

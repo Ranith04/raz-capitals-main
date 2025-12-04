@@ -4,7 +4,9 @@ import AdminHeader from '@/components/AdminHeader';
 import AdminSidebar from '@/components/AdminSidebar';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { supabase } from '@/lib/supabaseClient';
+import { UserService } from '@/lib/userService';
 import { updateBalanceForWithdrawal } from '@/utils/tradingBalanceManager';
+import { sendWithdrawalApprovalEmail } from '@/lib/emailService';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
@@ -23,6 +25,7 @@ interface Transaction {
   user_email?: string;
   payment_method?: string;
   transaction_document?: string;
+  customer_name?: string;
 }
 
 function WithdrawFundContent() {
@@ -38,6 +41,8 @@ function WithdrawFundContent() {
   const [proofModalOpen, setProofModalOpen] = useState(false);
   const [selectedProofUrl, setSelectedProofUrl] = useState<string>('');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [sortField, setSortField] = useState<'date' | 'amount' | 'status' | 'customer' | 'account_id'>('date');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   
   useEffect(() => {
     document.title = 'Withdraw Fund - RAZ CAPITALS';
@@ -71,22 +76,55 @@ function WithdrawFundContent() {
       }
 
       if (data) {
+        // Fetch all unique account IDs
+        const accountIds = [...new Set(data.map((tx: any) => tx.account_id).filter(Boolean))];
+        
+        // Fetch user names from tradingAccounts table
+        const customerNameMap: Record<string, string> = {};
+        if (accountIds.length > 0) {
+          const { data: tradingAccounts, error: tradingError } = await supabase
+            .from('tradingAccounts')
+            .select(`
+              account_uid,
+              user:users!tradingAccounts_user_id_fkey(
+                first_name,
+                last_name
+              )
+            `)
+            .in('account_uid', accountIds);
+
+          if (!tradingError && tradingAccounts) {
+            tradingAccounts.forEach((account: any) => {
+              if (account.user) {
+                const fullName = `${account.user.first_name || ''} ${account.user.last_name || ''}`.trim();
+                if (fullName) {
+                  customerNameMap[account.account_uid] = fullName;
+                }
+              }
+            });
+          }
+        }
+
         // Transform the data to match our interface
-        const transformedTransactions = data.map((tx: any) => ({
-          id: tx.id,
-          type: tx.type,
-          amount: tx.amount,
-          currency: tx.currency,
-          status: tx.status,
-          created_at: tx.created_at,
-          account_id: tx.account_id,
-          transaction_comments: tx.transaction_comments,
-          // Extract user information from account_id or related tables
-          user_name: tx.account_id || 'Unknown User',
-          user_email: tx.account_id ? `${tx.account_id}@example.com` : 'No email',
-          payment_method: (tx.mode_of_payment || 'Unknown Method').replace(/_/g, ' ').trim(),
-          transaction_document: tx.proof_of_transaction_url || '-'
-        }));
+        const transformedTransactions = data.map((tx: any) => {
+          const customerName = customerNameMap[tx.account_id] || 'Unknown User';
+          
+          return {
+            id: tx.id,
+            type: tx.type,
+            amount: tx.amount,
+            currency: tx.currency,
+            status: tx.status,
+            created_at: tx.created_at,
+            account_id: tx.account_id,
+            transaction_comments: tx.transaction_comments,
+            user_name: customerName,
+            user_email: tx.account_id ? `${tx.account_id}@example.com` : 'No email',
+            payment_method: (tx.mode_of_payment || 'Unknown Method').replace(/_/g, ' ').trim(),
+            transaction_document: tx.proof_of_transaction_url || '-',
+            customer_name: customerName
+          };
+        });
         
         setTransactions(transformedTransactions);
       }
@@ -155,6 +193,35 @@ function WithdrawFundContent() {
         } else {
           console.log(`Balance update successful: ${balanceResult.message}`);
         }
+
+        // Send withdrawal approval email
+        try {
+          // Get user email from trading account
+          const { data: tradingAccount } = await supabase
+            .from('tradingAccounts')
+            .select('user_id')
+            .eq('account_uid', selectedTransaction.account_id)
+            .single();
+
+          if (tradingAccount?.user_id) {
+            const user = await UserService.getUserByUuid(tradingAccount.user_id);
+            if (user && user.email) {
+              const userName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Valued Customer';
+              await sendWithdrawalApprovalEmail(
+                user.email,
+                userName,
+                selectedTransaction.amount,
+                selectedTransaction.currency,
+                selectedTransaction.account_id,
+                selectedTransaction.id
+              );
+              console.log('Withdrawal approval email sent to:', user.email);
+            }
+          }
+        } catch (emailError) {
+          console.error('Failed to send withdrawal approval email:', emailError);
+          // Don't block the transaction if email fails
+        }
       }
       
       // Show success message
@@ -219,6 +286,42 @@ function WithdrawFundContent() {
 
   const formatAmount = (amount: number, currency: string) => {
     return `${amount.toFixed(2)} ${currency.toUpperCase()}`;
+  };
+
+  // Sort transactions based on selected field and direction
+  const getSortedTransactions = (): Transaction[] => {
+    const sorted = [...transactions];
+    
+    sorted.sort((a, b) => {
+      let comparison = 0;
+      
+      switch (sortField) {
+        case 'date':
+          comparison = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+          break;
+        case 'amount':
+          comparison = a.amount - b.amount;
+          break;
+        case 'status':
+          const statusOrder = { 'completed': 1, 'pending': 2, 'failed': 3, 'null': 4 };
+          comparison = (statusOrder[a.status] || 99) - (statusOrder[b.status] || 99);
+          break;
+        case 'customer':
+          const nameA = (a.customer_name || '').toLowerCase();
+          const nameB = (b.customer_name || '').toLowerCase();
+          comparison = nameA.localeCompare(nameB);
+          break;
+        case 'account_id':
+          comparison = (a.account_id || '').localeCompare(b.account_id || '');
+          break;
+        default:
+          return 0;
+      }
+      
+      return sortDirection === 'asc' ? comparison : -comparison;
+    });
+    
+    return sorted;
   };
 
   // Loading state
@@ -324,22 +427,52 @@ function WithdrawFundContent() {
                   </p>
                 )}
               </div>
-              <button
-                onClick={fetchTransactions}
-                disabled={loading}
-                className="w-full sm:w-auto px-4 py-2 bg-[#0A2E1D] text-white rounded-lg hover:bg-[#2D4A32] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2 text-sm sm:text-base"
-              >
-                {loading ? (
-                  <svg className="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                  </svg>
-                ) : (
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                  </svg>
-                )}
-                <span>{loading ? 'Refreshing...' : 'Refresh'}</span>
-              </button>
+              <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                {/* Sort Dropdown */}
+                <div className="relative">
+                  <select
+                    value={`${sortField}_${sortDirection}`}
+                    onChange={(e) => {
+                      const [field, direction] = e.target.value.split('_');
+                      setSortField(field as 'date' | 'amount' | 'status' | 'customer' | 'account_id');
+                      setSortDirection(direction as 'asc' | 'desc');
+                    }}
+                    className="w-full sm:w-auto px-4 py-2 bg-white border border-gray-300 rounded-lg text-[#0A2E1D] text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-[#0A2E1D] cursor-pointer appearance-none pr-8"
+                  >
+                    <option value="date_desc">Sort by: Date (Newest First)</option>
+                    <option value="date_asc">Sort by: Date (Oldest First)</option>
+                    <option value="amount_desc">Sort by: Amount (High to Low)</option>
+                    <option value="amount_asc">Sort by: Amount (Low to High)</option>
+                    <option value="status_asc">Sort by: Status (A-Z)</option>
+                    <option value="status_desc">Sort by: Status (Z-A)</option>
+                    <option value="customer_asc">Sort by: Customer Name (A-Z)</option>
+                    <option value="customer_desc">Sort by: Customer Name (Z-A)</option>
+                    <option value="account_id_asc">Sort by: Account ID (A-Z)</option>
+                    <option value="account_id_desc">Sort by: Account ID (Z-A)</option>
+                  </select>
+                  <div className="absolute right-2 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                    <svg className="w-4 h-4 text-[#0A2E1D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </div>
+                </div>
+                <button
+                  onClick={fetchTransactions}
+                  disabled={loading}
+                  className="w-full sm:w-auto px-4 py-2 bg-[#0A2E1D] text-white rounded-lg hover:bg-[#2D4A32] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2 text-sm sm:text-base"
+                >
+                  {loading ? (
+                    <svg className="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                  ) : (
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                  )}
+                  <span>{loading ? 'Refreshing...' : 'Refresh'}</span>
+                </button>
+              </div>
             </div>
 
             {/* Mobile Card View */}
@@ -351,7 +484,7 @@ function WithdrawFundContent() {
               ) : transactions.length === 0 ? (
                 <div className="text-center text-gray-500 py-8">No withdrawal transactions found.</div>
               ) : (
-                transactions.map((row) => (
+                getSortedTransactions().map((row) => (
                   <div key={row.id} className="bg-white rounded-lg p-4 space-y-3 border border-gray-200">
                     <div className="flex justify-between items-start">
                       <div className="flex-1">
@@ -367,6 +500,10 @@ function WithdrawFundContent() {
                       <div>
                         <div className="text-[#0A2E1D] text-xs font-medium">Account ID</div>
                         <div className="text-[#0A2E1D] font-mono text-xs">{row.account_id || 'N/A'}</div>
+                      </div>
+                      <div>
+                        <div className="text-[#0A2E1D] text-xs font-medium">Customer Name</div>
+                        <div className="text-[#0A2E1D] text-xs">{row.customer_name || 'Unknown User'}</div>
                       </div>
                       <div>
                         <div className="text-[#0A2E1D] text-xs font-medium">Amount</div>
@@ -406,6 +543,7 @@ function WithdrawFundContent() {
                     <th className="py-3 pr-4 text-[#0A2E1D] font-bold text-center">ID</th>
                     <th className="py-3 pr-4 text-[#0A2E1D] font-bold text-center">Date</th>
                     <th className="py-3 pr-4 text-[#0A2E1D] font-bold text-center">Account ID</th>
+                    <th className="py-3 pr-4 text-[#0A2E1D] font-bold text-center">Customer Name</th>
                     <th className="py-3 pr-4 text-[#0A2E1D] font-bold text-center">Amount</th>
                     <th className="py-3 pr-4 text-[#0A2E1D] font-bold text-center">Type</th>
                     <th className="py-3 pr-4 text-[#0A2E1D] font-bold text-center">Status</th>
@@ -416,22 +554,23 @@ function WithdrawFundContent() {
                 <tbody className="text-[#0A2E1D]">
                   {loading ? (
                     <tr>
-                      <td colSpan={8} className="py-8 text-center text-gray-500">Loading...</td>
+                      <td colSpan={9} className="py-8 text-center text-gray-500">Loading...</td>
                     </tr>
                   ) : error ? (
                     <tr>
-                      <td colSpan={8} className="py-8 text-center text-red-500">{error}</td>
+                      <td colSpan={9} className="py-8 text-center text-red-500">{error}</td>
                     </tr>
                   ) : transactions.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="py-8 text-center text-gray-500">No withdrawal transactions found.</td>
+                      <td colSpan={9} className="py-8 text-center text-gray-500">No withdrawal transactions found.</td>
                     </tr>
                   ) : (
-                    transactions.map((row) => (
+                    getSortedTransactions().map((row) => (
                       <tr key={row.id} className="border-b border-black/10 last:border-b-0">
                         <td className="py-4 pr-4">{row.id}</td>
                         <td className="py-4 pr-4">{formatDate(row.created_at)}</td>
                         <td className="py-4 pr-4 font-mono text-sm">{row.account_id || 'N/A'}</td>
+                        <td className="py-4 pr-4 text-sm">{row.customer_name || 'Unknown User'}</td>
                         <td className="py-4 pr-4 font-semibold">{formatAmount(row.amount, row.currency)}</td>
                         <td className="py-4 pr-4">
                           <span className="inline-block px-2 py-1 rounded text-xs font-semibold bg-red-100 text-red-800">

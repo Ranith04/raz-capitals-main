@@ -43,38 +43,6 @@ export default function AgreementsPage() {
             <p className="text-sm text-gray-500 font-medium">PDF</p>
           </div>
 
-          {/* Order Execution Policy */}
-          <div className="bg-white rounded-lg shadow p-6 border border-[#A0C8A9]/20 hover:shadow-lg transition-shadow cursor-pointer group">
-            <div className="flex items-start justify-between mb-4">
-              <div className="w-12 h-12 bg-[#A0C8A9]/20 rounded-lg flex items-center justify-center">
-                <span className="text-2xl">📋</span>
-              </div>
-              <div className="text-[#A0C8A9] group-hover:translate-x-1 transition-transform">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </div>
-            </div>
-            <h3 className="text-lg font-semibold text-[#0A2E1D] mb-2">Order Execution Policy</h3>
-            <p className="text-sm text-gray-500 font-medium">PDF</p>
-          </div>
-
-          {/* Bonus Policy */}
-          <div className="bg-white rounded-lg shadow p-6 border border-[#A0C8A9]/20 hover:shadow-lg transition-shadow cursor-pointer group">
-            <div className="flex items-start justify-between mb-4">
-              <div className="w-12 h-12 bg-[#A0C8A9]/20 rounded-lg flex items-center justify-center">
-                <span className="text-2xl">🎁</span>
-              </div>
-              <div className="text-[#A0C8A9] group-hover:translate-x-1 transition-transform">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </div>
-            </div>
-            <h3 className="text-lg font-semibold text-[#0A2E1D] mb-2">Bonus Policy</h3>
-            <p className="text-sm text-gray-500 font-medium">PDF</p>
-          </div>
-
           {/* Risk Disclosure */}
           <div className="bg-white rounded-lg shadow p-6 border border-[#A0C8A9]/20 hover:shadow-lg transition-shadow cursor-pointer group">
             <div className="flex items-start justify-between mb-4">
