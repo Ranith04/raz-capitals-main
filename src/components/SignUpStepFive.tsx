@@ -2,7 +2,7 @@
 
 import { AuthService } from '@/lib/authService';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 export default function SignUpStepFive() {
   const [bankName, setBankName] = useState('');
@@ -11,6 +11,36 @@ export default function SignUpStepFive() {
   const [bankDocument, setBankDocument] = useState<File | null>(null);
   const [errors, setErrors] = useState({ bankName: '', accountNumber: '', ifscCode: '', bankDocument: '' });
   const router = useRouter();
+
+  // Load saved data from sessionStorage on mount
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedStep5Data = sessionStorage.getItem('signup_step5');
+      if (savedStep5Data) {
+        try {
+          const data = JSON.parse(savedStep5Data);
+          if (data.bankName) setBankName(data.bankName);
+          if (data.accountNumber) setAccountNumber(data.accountNumber);
+          if (data.ifscCode) setIfscCode(data.ifscCode);
+          // Note: Files cannot be persisted in sessionStorage, so they will need to be re-uploaded
+        } catch (error) {
+          console.error('Error parsing saved step 5 data:', error);
+        }
+      }
+    }
+  }, []);
+
+  // Save form data to sessionStorage when fields change
+  useEffect(() => {
+    if (typeof window !== 'undefined' && (bankName || accountNumber || ifscCode)) {
+      const step5Data = {
+        bankName,
+        accountNumber,
+        ifscCode,
+      };
+      sessionStorage.setItem('signup_step5', JSON.stringify(step5Data));
+    }
+  }, [bankName, accountNumber, ifscCode]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

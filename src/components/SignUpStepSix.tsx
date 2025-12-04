@@ -8,9 +8,38 @@ export default function SignUpStepSix() {
   const [signature, setSignature] = useState('');
   const [agreeToTerms, setAgreeToTerms] = useState(false);
   const [errors, setErrors] = useState({ signature: '', terms: '' });
+  const [showTermsModal, setShowTermsModal] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const modalContentRef = useRef<HTMLDivElement>(null);
   const isDrawingRef = useRef(false);
   const router = useRouter();
+
+  // Load saved data from sessionStorage on mount
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedStep6Data = sessionStorage.getItem('signup_step6');
+      if (savedStep6Data) {
+        try {
+          const data = JSON.parse(savedStep6Data);
+          if (data.agreeToTerms !== undefined) setAgreeToTerms(data.agreeToTerms);
+          // Note: Signature canvas cannot be persisted, so it will need to be redrawn
+        } catch (error) {
+          console.error('Error parsing saved step 6 data:', error);
+        }
+      }
+    }
+  }, []);
+
+  // Save form data to sessionStorage when fields change
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const step6Data = {
+        agreeToTerms,
+        signature: signature || '', // Save signature state (though canvas can't be restored)
+      };
+      sessionStorage.setItem('signup_step6', JSON.stringify(step6Data));
+    }
+  }, [agreeToTerms, signature]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -25,6 +54,20 @@ export default function SignUpStepSix() {
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
   }, []);
+
+  // Disable page scroll when modal is open
+  useEffect(() => {
+    if (showTermsModal) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    
+    // Cleanup function to restore scroll when component unmounts
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [showTermsModal]);
 
   const startDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
     isDrawingRef.current = true;
@@ -114,6 +157,22 @@ export default function SignUpStepSix() {
     router.push('/signup/step-6');
   };
 
+  const handleOpenTermsModal = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setShowTermsModal(true);
+  };
+
+  const handleAcceptTerms = () => {
+    setAgreeToTerms(true);
+    setShowTermsModal(false);
+  };
+
+  const handleDeclineTerms = () => {
+    setAgreeToTerms(false);
+    setShowTermsModal(false);
+  };
+
   return (
     <div className="bg-white rounded-2xl shadow-xl p-6 max-w-sm mx-auto">
       {/* Header with right-arrow icon */}
@@ -180,7 +239,11 @@ export default function SignUpStepSix() {
             />
             <label htmlFor="agreeToTerms" className="text-sm text-gray-700">
               I agree to the{' '}
-              <button type="button" className="text-blue-600 underline hover:text-blue-800">
+              <button 
+                type="button" 
+                onClick={handleOpenTermsModal}
+                className="text-blue-600 underline hover:text-blue-800 cursor-pointer"
+              >
                 Terms and Conditions
               </button>
               {' '}and{' '}
@@ -212,23 +275,142 @@ export default function SignUpStepSix() {
           
           <button
             type="submit"
-            className="flex-1 py-2.5 px-5 rounded-lg font-semibold transition-colors duration-200 text-white text-sm"
+            disabled={!agreeToTerms}
+            className="flex-1 py-2.5 px-5 rounded-lg font-semibold transition-colors duration-200 text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed"
             style={{ 
-              backgroundColor: '#A0C8A9'
+              backgroundColor: agreeToTerms ? '#A0C8A9' : '#A0C8A9'
             }}
             onMouseEnter={(e) => {
-              const target = e.target as HTMLButtonElement;
-              target.style.backgroundColor = '#8FB89A';
+              if (agreeToTerms) {
+                const target = e.target as HTMLButtonElement;
+                target.style.backgroundColor = '#8FB89A';
+              }
             }}
             onMouseLeave={(e) => {
-              const target = e.target as HTMLButtonElement;
-              target.style.backgroundColor = '#A0C8A9';
+              if (agreeToTerms) {
+                const target = e.target as HTMLButtonElement;
+                target.style.backgroundColor = '#A0C8A9';
+              }
             }}
           >
             Submit KYC
           </button>
         </div>
       </form>
+
+      {/* Terms and Conditions Modal */}
+      {showTermsModal && (
+        <>
+          <style dangerouslySetInnerHTML={{
+            __html: `
+              .modal-scroll-content::-webkit-scrollbar {
+                display: none;
+              }
+            `
+          }} />
+          <div 
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}
+          >
+          <div 
+            className="bg-white shadow-2xl max-w-sm w-full max-h-[85vh] overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+            style={{ borderRadius: '20px' }}
+          >
+            {/* Logo Section */}
+            <div className="flex justify-center pt-6 pb-4">
+              <div 
+                className="rounded-xl flex items-center justify-center px-4 py-3"
+                style={{ backgroundColor: '#A0C8A9' }}
+              >
+                <div className="flex items-center space-x-2">
+                  {/* Bar Chart Icon */}
+                  <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                  </svg>
+                  {/* RAZ CAPITALS Text */}
+                  <div className="flex flex-col">
+                    <span className="text-white font-bold text-xs leading-tight">RAZ</span>
+                    <span className="text-white font-bold text-xs leading-tight">CAPITALS</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Title */}
+            <div className="px-6 pb-4 text-center">
+              <h2 className="text-xl font-bold text-gray-900">Welcome to Raz Capitals!</h2>
+            </div>
+
+            {/* Modal Content - Scrollable */}
+            <div 
+              ref={modalContentRef}
+              className="px-6 pb-4 overflow-y-auto flex-1 modal-scroll-content"
+              style={{
+                scrollbarWidth: 'none',
+                msOverflowStyle: 'none',
+              } as React.CSSProperties & { msOverflowStyle?: string }}
+            >
+              <div className="text-sm text-gray-700 leading-relaxed space-y-3">
+                <p>
+                  This application requires consent for data collection, including personal information
+                  (Name, Email address, Phone number), App info and performance (Crash logs),
+                  phone status, and identifiers (Device ID, Android ID).
+                </p>
+
+                <p>
+                  Collected information will only be used with consent and for related purposes.
+                </p>
+
+                <p>
+                  Personal information is not shared with third parties and is strictly protected.
+                </p>
+
+                <p>
+                  Pressing the 'ACCEPT' button signifies acknowledgment and agreement with our
+                  Terms of Service and Privacy Policy, including consent to data collection.
+                </p>
+              </div>
+            </div>
+
+            {/* Modal Footer with Buttons */}
+            <div className="px-6 pb-4 flex gap-3">
+              <button
+                type="button"
+                onClick={handleAcceptTerms}
+                className="flex-1 py-3 px-4 rounded-lg font-semibold transition-colors duration-200 text-white text-sm"
+                style={{ backgroundColor: '#A0C8A9' }}
+                onMouseEnter={(e) => {
+                  const target = e.target as HTMLButtonElement;
+                  target.style.backgroundColor = '#8FB89A';
+                }}
+                onMouseLeave={(e) => {
+                  const target = e.target as HTMLButtonElement;
+                  target.style.backgroundColor = '#A0C8A9';
+                }}
+              >
+                Accept
+              </button>
+              <button
+                type="button"
+                onClick={handleDeclineTerms}
+                className="flex-1 py-3 px-4 rounded-lg font-medium transition-colors duration-200 border border-gray-300 text-gray-700 hover:bg-gray-50 bg-white text-sm"
+              >
+                Decline
+              </button>
+            </div>
+
+            {/* Additional Info Below Buttons */}
+            <div className="px-6 pb-6">
+              <p className="text-xs text-gray-500 leading-relaxed text-center">
+                To trade using real money, you need to apply for a real trading account by entering
+                into a separate agreement with a financial services company.
+              </p>
+            </div>
+          </div>
+        </div>
+        </>
+      )}
     </div>
   );
 }

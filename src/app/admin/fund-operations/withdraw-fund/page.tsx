@@ -77,7 +77,7 @@ function WithdrawFundContent() {
 
       if (data) {
         // Fetch all unique account IDs
-        const accountIds = [...new Set(data.map((tx: any) => tx.account_id).filter(Boolean))];
+        const accountIds = Array.from(new Set(data.map((tx: any) => tx.account_id).filter(Boolean)));
         
         // Fetch user names from tradingAccounts table
         const customerNameMap: Record<string, string> = {};
@@ -163,6 +163,12 @@ function WithdrawFundContent() {
   const handleSubmit = async () => {
     if (!selectedTransaction) return;
     
+    // Prevent updates if transaction is already completed or failed
+    if (selectedTransaction.status === 'completed' || selectedTransaction.status === 'failed') {
+      alert('Cannot update transaction. Transaction status is already finalized.');
+      return;
+    }
+    
     setIsSubmitting(true);
     
     try {
@@ -178,6 +184,7 @@ function WithdrawFundContent() {
       if (updateError) {
         console.error('Error updating transaction:', updateError);
         alert('Error updating transaction. Please try again.');
+        setIsSubmitting(false);
         return;
       }
 
@@ -694,7 +701,12 @@ function WithdrawFundContent() {
                 <select
                   value={newStatus}
                   onChange={(e) => setNewStatus(e.target.value as 'null' | 'pending' | 'completed' | 'failed')}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0A2E1D] focus:border-transparent text-gray-900 bg-white text-sm"
+                  disabled={selectedTransaction.status === 'completed' || selectedTransaction.status === 'failed'}
+                  className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0A2E1D] focus:border-transparent text-gray-900 bg-white text-sm ${
+                    selectedTransaction.status === 'completed' || selectedTransaction.status === 'failed'
+                      ? 'bg-gray-100 cursor-not-allowed opacity-60'
+                      : ''
+                  }`}
                 >
                   <option value="null">Select Status</option>
                   <option value="pending">Pending</option>
@@ -713,7 +725,12 @@ function WithdrawFundContent() {
                     value={transactionComments}
                     onChange={(e) => setTransactionComments(e.target.value)}
                     placeholder="Please provide transaction comments..."
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0A2E1D] focus:border-transparent resize-none text-gray-900 bg-white text-sm"
+                    disabled={selectedTransaction.status === 'completed' || selectedTransaction.status === 'failed'}
+                    className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0A2E1D] focus:border-transparent resize-none text-gray-900 bg-white text-sm ${
+                      selectedTransaction.status === 'completed' || selectedTransaction.status === 'failed'
+                        ? 'bg-gray-100 cursor-not-allowed opacity-60'
+                        : ''
+                    }`}
                     rows={3}
                   />
                 </div>
@@ -729,9 +746,9 @@ function WithdrawFundContent() {
                 </button>
                 <button
                   onClick={handleSubmit}
-                  disabled={!canSubmit || isSubmitting}
+                  disabled={!canSubmit || isSubmitting || selectedTransaction.status === 'completed' || selectedTransaction.status === 'failed'}
                   className={`w-full sm:w-auto px-6 py-2 rounded-lg font-medium transition-colors text-sm ${
-                    canSubmit && !isSubmitting
+                    canSubmit && !isSubmitting && selectedTransaction.status !== 'completed' && selectedTransaction.status !== 'failed'
                       ? newStatus === 'completed'
                         ? 'bg-[#16a34a] text-white hover:bg-[#15803d]'
                         : newStatus === 'failed'

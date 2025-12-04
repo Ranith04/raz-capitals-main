@@ -2,7 +2,7 @@
 
 import { AuthService } from '@/lib/authService';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 export default function SignUpForm() {
   const [email, setEmail] = useState('');
@@ -11,6 +11,35 @@ export default function SignUpForm() {
   const [errors, setErrors] = useState({ email: '', password: '' });
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
+
+  // Load saved data from sessionStorage on mount
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedEmail = sessionStorage.getItem('signup_email');
+      const savedPassword = sessionStorage.getItem('signup_password');
+      
+      if (savedEmail) {
+        setEmail(savedEmail);
+      }
+      if (savedPassword) {
+        setPassword(savedPassword);
+      }
+    }
+  }, []);
+
+  // Save email to sessionStorage when it changes
+  useEffect(() => {
+    if (typeof window !== 'undefined' && email) {
+      sessionStorage.setItem('signup_email', email);
+    }
+  }, [email]);
+
+  // Save password to sessionStorage when it changes
+  useEffect(() => {
+    if (typeof window !== 'undefined' && password) {
+      sessionStorage.setItem('signup_password', password);
+    }
+  }, [password]);
 
   const togglePasswordVisibility = () => {
     setShowPassword(!showPassword);

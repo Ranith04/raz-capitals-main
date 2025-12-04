@@ -7,9 +7,22 @@ import TradingID from '@/components/TradingID';
 import UserHeader from '@/components/UserHeader';
 import { useDashboardMetrics } from '@/hooks/useDashboardMetrics';
 import { useUserTradingAccountCounts } from '@/hooks/useUserTradingAccountCounts';
+import { useActiveAccount } from '@/contexts/ActiveAccountContext';
+import { supabase } from '@/lib/supabaseClient';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+
+interface RecentTransaction {
+  id: string;
+  date: string;
+  type: string;
+  description: string;
+  amount: string;
+  status: string;
+  amountType: 'positive' | 'negative' | 'neutral';
+  rawDate: string;
+}
 
 export default function DashboardClient() {
   const router = useRouter();
@@ -17,6 +30,177 @@ export default function DashboardClient() {
   const [darkMode, setDarkMode] = useState(true);
   const { metrics } = useDashboardMetrics();
   const { liveAccounts, demoAccounts, loading: userAccLoading } = useUserTradingAccountCounts();
+  const { activeAccount, loading: accountLoading } = useActiveAccount();
+  const [recentTransactions, setRecentTransactions] = useState<RecentTransaction[]>([]);
+  const [transactionsLoading, setTransactionsLoading] = useState(true);
+
+  useEffect(() => {
+    if (!accountLoading && activeAccount) {
+      fetchRecentTransactions();
+    } else if (!accountLoading && !activeAccount) {
+      setRecentTransactions([]);
+      setTransactionsLoading(false);
+    }
+  }, [activeAccount, accountLoading]);
+
+  const fetchRecentTransactions = async () => {
+    if (!activeAccount) {
+      setRecentTransactions([]);
+      setTransactionsLoading(false);
+      return;
+    }
+
+    try {
+      setTransactionsLoading(true);
+      const accountUid = activeAccount.account_uid;
+      const allTransactions: RecentTransaction[] = [];
+
+      // Fetch transactions from transactions table
+      const { data: transactionsData, error: transactionsError } = await supabase
+        .from('transactions')
+        .select('*')
+        .eq('account_id', accountUid)
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      if (!transactionsError && transactionsData) {
+        const transformedTransactions: RecentTransaction[] = transactionsData.map((tx: any) => {
+          let description = tx.transaction_comments || '';
+          if (!description) {
+            if (tx.type === 'deposit') {
+              description = tx.mode_of_payment ? `${formatPaymentMethod(tx.mode_of_payment)} Deposit` : 'Deposit';
+            } else if (tx.type === 'withdrawal') {
+              description = tx.mode_of_payment ? `${formatPaymentMethod(tx.mode_of_payment)} Withdrawal` : 'Withdrawal';
+            } else if (tx.type === 'transfer') {
+              description = 'Transfer';
+            }
+          }
+
+          let amountType: 'positive' | 'negative' | 'neutral' = 'neutral';
+          let amountDisplay = formatCurrency(tx.amount || 0, tx.currency || 'USD');
+          
+          if (tx.type === 'deposit') {
+            amountType = 'positive';
+            amountDisplay = '+' + amountDisplay;
+          } else if (tx.type === 'withdrawal') {
+            amountType = 'negative';
+            amountDisplay = '-' + amountDisplay;
+          }
+
+          return {
+            id: `tx-${tx.id}`,
+            date: formatDate(tx.created_at),
+            type: capitalizeFirst(tx.type || 'Transaction'),
+            description,
+            amount: amountDisplay,
+            status: capitalizeFirst(tx.status || 'pending'),
+            amountType,
+            rawDate: tx.created_at,
+          };
+        });
+
+        allTransactions.push(...transformedTransactions);
+      }
+
+      // Fetch trades from trades table
+      try {
+        const { data: tradesData, error: tradesError } = await supabase
+          .from('trades')
+          .select('*')
+          .eq('account_id', accountUid)
+          .order('created_at', { ascending: false })
+          .limit(10);
+
+        if (!tradesError && tradesData) {
+          const tradeTransactions: RecentTransaction[] = tradesData.map((trade: any) => {
+            const description = trade.instrument 
+              ? `${trade.type === 'buy' ? 'Buy' : 'Sell'} ${trade.instrument}`
+              : `${trade.type === 'buy' ? 'Buy' : 'Sell'} Trade`;
+            
+            const profit = trade.profit || trade.pnl || 0;
+            const amountType: 'positive' | 'negative' | 'neutral' = profit >= 0 ? 'positive' : 'negative';
+            const amountDisplay = (profit >= 0 ? '+' : '') + formatCurrency(Math.abs(profit), trade.currency || 'USD');
+
+            const tradeStatus = trade.status === 'closed' ? 'Completed' : capitalizeFirst(trade.status || 'Open');
+            const tradeDate = trade.created_at || trade.close_time || trade.open_time;
+
+            return {
+              id: `trade-${trade.id}`,
+              date: formatDate(tradeDate),
+              type: 'Trade',
+              description,
+              amount: amountDisplay,
+              status: tradeStatus,
+              amountType,
+              rawDate: tradeDate,
+            };
+          });
+
+          allTransactions.push(...tradeTransactions);
+        }
+      } catch (err) {
+        // Trades table might not exist, that's okay
+        console.log('Trades table not available or error fetching:', err);
+      }
+
+      // Sort by date (newest first) and take only 1-2 most recent
+      allTransactions.sort((a, b) => {
+        const dateA = new Date(a.rawDate).getTime();
+        const dateB = new Date(b.rawDate).getTime();
+        return dateB - dateA;
+      });
+
+      // Take only 1-2 most recent transactions
+      setRecentTransactions(allTransactions.slice(0, 2));
+    } catch (err) {
+      console.error('Error fetching recent transactions:', err);
+      setRecentTransactions([]);
+    } finally {
+      setTransactionsLoading(false);
+    }
+  };
+
+  const formatCurrency = (amount: number, currency: string = 'USD'): string => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: currency,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(amount);
+  };
+
+  const formatDate = (dateString: string): string => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    });
+  };
+
+  const capitalizeFirst = (str: string): string => {
+    if (!str) return '';
+    return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
+  };
+
+  const formatPaymentMethod = (method: string): string => {
+    return method.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
+  };
+
+  const getStatusColor = (status: string) => {
+    const statusLower = status.toLowerCase();
+    if (statusLower === 'completed' || statusLower === 'closed') {
+      return darkMode ? 'bg-[#16a34a]/20 text-[#16a34a]' : 'bg-green-100 text-green-800';
+    } else if (statusLower === 'failed') {
+      return darkMode ? 'bg-[#dc2626]/20 text-[#dc2626]' : 'bg-red-100 text-red-800';
+    } else if (statusLower === 'pending' || statusLower === 'processing') {
+      return darkMode ? 'bg-[#f59e0b]/20 text-[#f59e0b]' : 'bg-yellow-100 text-yellow-800';
+    } else {
+      return darkMode ? 'bg-[#A0C8A9]/20 text-[#A0C8A9]' : 'bg-gray-100 text-gray-800';
+    }
+  };
 
   return (
     <div className={`flex h-screen overflow-hidden ${darkMode ? 'bg-[#0A2E1D]' : 'bg-gray-100'}`}>
@@ -153,7 +337,6 @@ export default function DashboardClient() {
             </button>
             
             <button 
-              onClick={() => router.push('/dashboard/transfer')}
               className={`${darkMode ? 'bg-[#2D4A35] hover:bg-[#3A5642] text-white' : 'bg-white hover:bg-gray-50 text-gray-900 border border-gray-200'} rounded-lg p-4 sm:p-6 transition-colors duration-200 flex flex-col items-center cursor-pointer`}
             >
               <div className="w-10 h-10 sm:w-12 sm:h-12 bg-[#A0C8A9] rounded-full flex items-center justify-center mb-2 sm:mb-3">
@@ -235,15 +418,68 @@ export default function DashboardClient() {
             <div className={`${darkMode ? 'bg-[#2D4A35]' : 'bg-white border border-gray-200'} rounded-lg p-4 sm:p-6`}>
               <div className="flex justify-between items-center mb-4 sm:mb-6">
                 <h2 className={`text-base sm:text-lg font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>Recent Transactions</h2>
-                <a href="#" className={`text-sm hover:underline ${darkMode ? 'text-[#A0C8A9] hover:text-white' : 'text-blue-600 hover:text-blue-800'} transition-colors`}>See All</a>
+                <a 
+                  href="/dashboard/history" 
+                  onClick={(e) => {
+                    e.preventDefault();
+                    router.push('/dashboard/history');
+                  }}
+                  className={`text-sm hover:underline ${darkMode ? 'text-[#A0C8A9] hover:text-white' : 'text-blue-600 hover:text-blue-800'} transition-colors`}
+                >
+                  See All
+                </a>
               </div>
               
-              <div className={`text-center py-6 sm:py-8 ${darkMode ? 'text-[#A0C8A9]/60' : 'text-gray-500'}`}>
-                <svg className="w-10 h-10 sm:w-12 sm:h-12 mx-auto mb-3 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v8a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                </svg>
-                <p className="text-sm">No recent transactions</p>
-              </div>
+              {transactionsLoading ? (
+                <div className={`text-center py-6 sm:py-8 ${darkMode ? 'text-[#A0C8A9]/60' : 'text-gray-500'}`}>
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-current mx-auto mb-3"></div>
+                  <p className="text-sm">Loading transactions...</p>
+                </div>
+              ) : recentTransactions.length === 0 ? (
+                <div className={`text-center py-6 sm:py-8 ${darkMode ? 'text-[#A0C8A9]/60' : 'text-gray-500'}`}>
+                  <svg className="w-10 h-10 sm:w-12 sm:h-12 mx-auto mb-3 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v8a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                  </svg>
+                  <p className="text-sm">No recent transactions</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {recentTransactions.map((tx) => (
+                    <div 
+                      key={tx.id} 
+                      className={`${darkMode ? 'bg-[#B8D4C1]/10 border-[#A0C8A9]/20' : 'bg-gray-50 border-gray-200'} border rounded-lg p-3 sm:p-4`}
+                    >
+                      <div className="flex justify-between items-start mb-2">
+                        <div className="flex-1 min-w-0">
+                          <div className={`text-xs sm:text-sm font-medium ${darkMode ? 'text-white' : 'text-gray-900'} truncate`}>
+                            {tx.type}
+                          </div>
+                          <div className={`text-xs ${darkMode ? 'text-[#A0C8A9]/70' : 'text-gray-600'} truncate mt-1`}>
+                            {tx.description}
+                          </div>
+                        </div>
+                        <div className={`text-sm sm:text-base font-semibold ml-2 ${
+                          tx.amountType === 'positive' 
+                            ? darkMode ? 'text-[#16a34a]' : 'text-green-600'
+                            : tx.amountType === 'negative'
+                            ? darkMode ? 'text-[#dc2626]' : 'text-red-600'
+                            : darkMode ? 'text-[#A0C8A9]' : 'text-gray-600'
+                        }`}>
+                          {tx.amount}
+                        </div>
+                      </div>
+                      <div className="flex justify-between items-center mt-2">
+                        <div className={`text-xs ${darkMode ? 'text-[#A0C8A9]/60' : 'text-gray-500'}`}>
+                          {tx.date}
+                        </div>
+                        <span className={`px-2 py-1 rounded text-xs font-medium ${getStatusColor(tx.status)}`}>
+                          {tx.status}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
           </ErrorBoundary>

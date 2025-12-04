@@ -38,6 +38,81 @@ export default function SignUpStepTwo() {
     { code: '+84', country: 'Vietnam' }
   ];
 
+  // Load saved data from sessionStorage or database on mount
+  useEffect(() => {
+    const loadSavedData = async () => {
+      if (typeof window !== 'undefined') {
+        // Try to load from sessionStorage first
+        const savedStep2Data = sessionStorage.getItem('signup_step2');
+        if (savedStep2Data) {
+          try {
+            const data = JSON.parse(savedStep2Data);
+            if (data.first_name) setFirstName(data.first_name);
+            if (data.middle_name) setMiddleName(data.middle_name);
+            if (data.last_name) setLastName(data.last_name);
+            if (data.country_code) setCountryCode(data.country_code);
+            
+            // Extract phone number from phone_number (format: +91XXXXXXXXXX)
+            if (data.phone_number) {
+              const phoneWithCode = data.phone_number;
+              const code = data.country_code || '+91';
+              // Remove country code from the beginning
+              const phone = phoneWithCode.startsWith(code) 
+                ? phoneWithCode.slice(code.length) 
+                : phoneWithCode;
+              setPhoneNumber(phone);
+            }
+          } catch (error) {
+            console.error('Error parsing saved step 2 data:', error);
+          }
+        } else {
+          // Try to fetch from database as fallback
+          const userUuid = sessionStorage.getItem('signup_user_uuid');
+          if (userUuid) {
+            try {
+              const userProfile = await AuthService.getUserProfile(userUuid);
+              if (userProfile) {
+                if (userProfile.first_name) setFirstName(userProfile.first_name);
+                if (userProfile.middle_name) setMiddleName(userProfile.middle_name);
+                if (userProfile.last_name) setLastName(userProfile.last_name);
+                if (userProfile.phone_number) {
+                  // Extract country code and phone number
+                  const phoneWithCode = userProfile.phone_number;
+                  // Try to extract country code (assumes format like +91XXXXXXXXXX)
+                  const match = phoneWithCode.match(/^(\+\d{1,4})(\d+)$/);
+                  if (match) {
+                    setCountryCode(match[1]);
+                    setPhoneNumber(match[2]);
+                  } else {
+                    setPhoneNumber(phoneWithCode);
+                  }
+                }
+              }
+            } catch (error) {
+              console.error('Error fetching user profile:', error);
+            }
+          }
+        }
+      }
+    };
+
+    loadSavedData();
+  }, []);
+
+  // Save form data to sessionStorage when fields change
+  useEffect(() => {
+    if (typeof window !== 'undefined' && (firstName || lastName || phoneNumber)) {
+      const step2Data = {
+        first_name: firstName,
+        middle_name: middleName,
+        last_name: lastName,
+        phone_number: `${countryCode}${phoneNumber}`,
+        country_code: countryCode
+      };
+      sessionStorage.setItem('signup_step2', JSON.stringify(step2Data));
+    }
+  }, [firstName, middleName, lastName, phoneNumber, countryCode]);
+
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {

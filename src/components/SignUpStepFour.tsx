@@ -24,6 +24,34 @@ export default function SignUpStepFour() {
     'Social Security Card', 'Military ID', 'Student ID', 'Work Permit'
   ];
 
+  // Load saved data from sessionStorage on mount
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedStep4Data = sessionStorage.getItem('signup_step4');
+      if (savedStep4Data) {
+        try {
+          const data = JSON.parse(savedStep4Data);
+          if (data.primaryDocumentType) setPrimaryDocumentType(data.primaryDocumentType);
+          if (data.secondaryDocumentType) setSecondaryDocumentType(data.secondaryDocumentType);
+          // Note: Files cannot be persisted in sessionStorage, so they will need to be re-uploaded
+        } catch (error) {
+          console.error('Error parsing saved step 4 data:', error);
+        }
+      }
+    }
+  }, []);
+
+  // Save document types to sessionStorage when they change
+  useEffect(() => {
+    if (typeof window !== 'undefined' && (primaryDocumentType || secondaryDocumentType)) {
+      const step4Data = {
+        primaryDocumentType,
+        secondaryDocumentType,
+      };
+      sessionStorage.setItem('signup_step4', JSON.stringify(step4Data));
+    }
+  }, [primaryDocumentType, secondaryDocumentType]);
+
   // Close dropdowns when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {

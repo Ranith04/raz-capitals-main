@@ -22,6 +22,58 @@ export default function SignUpStepThree() {
     'Russia', 'Ukraine', 'Poland', 'Netherlands', 'Belgium', 'Switzerland', 'Austria', 'Sweden', 'Norway', 'Denmark'
   ];
 
+  // Load saved data from sessionStorage or database on mount
+  useEffect(() => {
+    const loadSavedData = async () => {
+      if (typeof window !== 'undefined') {
+        // Try to load from sessionStorage first
+        const savedStep3Data = sessionStorage.getItem('signup_step3');
+        if (savedStep3Data) {
+          try {
+            const data = JSON.parse(savedStep3Data);
+            if (data.dob) setDateOfBirth(data.dob);
+            if (data.country_of_birth) setCountryOfBirth(data.country_of_birth);
+            if (data.gender) setGender(data.gender);
+            if (data.residential_address) setResidentialAddress(data.residential_address);
+          } catch (error) {
+            console.error('Error parsing saved step 3 data:', error);
+          }
+        } else {
+          // Try to fetch from database as fallback
+          const userUuid = sessionStorage.getItem('signup_user_uuid');
+          if (userUuid) {
+            try {
+              const userProfile = await AuthService.getUserProfile(userUuid);
+              if (userProfile) {
+                if (userProfile.dob) setDateOfBirth(userProfile.dob);
+                if (userProfile.country_of_birth) setCountryOfBirth(userProfile.country_of_birth);
+                if (userProfile.gender) setGender(userProfile.gender);
+                if (userProfile.residential_address) setResidentialAddress(userProfile.residential_address);
+              }
+            } catch (error) {
+              console.error('Error fetching user profile:', error);
+            }
+          }
+        }
+      }
+    };
+
+    loadSavedData();
+  }, []);
+
+  // Save form data to sessionStorage when fields change
+  useEffect(() => {
+    if (typeof window !== 'undefined' && (dateOfBirth || countryOfBirth || residentialAddress)) {
+      const step3Data = {
+        dob: dateOfBirth,
+        gender,
+        country_of_birth: countryOfBirth,
+        residential_address: residentialAddress,
+      };
+      sessionStorage.setItem('signup_step3', JSON.stringify(step3Data));
+    }
+  }, [dateOfBirth, countryOfBirth, gender, residentialAddress]);
+
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
