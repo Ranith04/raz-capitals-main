@@ -91,6 +91,17 @@ export function getKYCApprovalEmailTemplate(userName: string): string {
                 <li>Access all trading features</li>
                 <li>Enjoy full account privileges</li>
               </ul>
+              <div style="background-color: #FFD700; border: 2px solid #FFA500; padding: 25px; border-radius: 8px; margin: 30px 0; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">
+                <h3 style="color: #0A2E1D; margin-top: 0; margin-bottom: 15px; font-size: 20px; font-weight: bold;">
+                  💰 Want to add funds to your account?
+                </h3>
+                <p style="color: #0A2E1D; font-size: 16px; line-height: 1.6; margin: 10px 0; font-weight: 500;">
+                  Contact our support team at <a href="mailto:support@razcaps.com" style="color: #0A2E1D; text-decoration: underline; font-weight: bold;">support@razcaps.com</a> with all your details.
+                </p>
+                <p style="color: #0A2E1D; font-size: 14px; line-height: 1.5; margin: 10px 0 0 0;">
+                  Our team will guide you through the deposit process and answer any questions you may have.
+                </p>
+              </div>
               <p style="color: #333333; font-size: 16px; line-height: 1.6; margin: 30px 0 20px 0;">
                 If you have any questions or need assistance, please don't hesitate to contact our support team.
               </p>

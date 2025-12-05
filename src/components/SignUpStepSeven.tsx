@@ -2,7 +2,7 @@
 
 import { AuthService } from '@/lib/authService';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 export default function SignUpStepSeven() {
   const router = useRouter();
@@ -12,30 +12,6 @@ export default function SignUpStepSeven() {
     investmentGoals: '',
     riskTolerance: 'medium'
   });
-
-  // Load saved data from sessionStorage on mount
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const savedStep7Data = sessionStorage.getItem('signup_step7');
-      if (savedStep7Data) {
-        try {
-          const data = JSON.parse(savedStep7Data);
-          if (data.tradingExperience) setAdditionalInfo(prev => ({ ...prev, tradingExperience: data.tradingExperience }));
-          if (data.investmentGoals) setAdditionalInfo(prev => ({ ...prev, investmentGoals: data.investmentGoals }));
-          if (data.riskTolerance) setAdditionalInfo(prev => ({ ...prev, riskTolerance: data.riskTolerance }));
-        } catch (error) {
-          console.error('Error parsing saved step 7 data:', error);
-        }
-      }
-    }
-  }, []);
-
-  // Save form data to sessionStorage when fields change
-  useEffect(() => {
-    if (typeof window !== 'undefined' && (additionalInfo.tradingExperience || additionalInfo.investmentGoals || additionalInfo.riskTolerance)) {
-      sessionStorage.setItem('signup_step7', JSON.stringify(additionalInfo));
-    }
-  }, [additionalInfo]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

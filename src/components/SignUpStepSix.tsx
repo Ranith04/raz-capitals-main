@@ -14,33 +14,6 @@ export default function SignUpStepSix() {
   const isDrawingRef = useRef(false);
   const router = useRouter();
 
-  // Load saved data from sessionStorage on mount
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const savedStep6Data = sessionStorage.getItem('signup_step6');
-      if (savedStep6Data) {
-        try {
-          const data = JSON.parse(savedStep6Data);
-          if (data.agreeToTerms !== undefined) setAgreeToTerms(data.agreeToTerms);
-          // Note: Signature canvas cannot be persisted, so it will need to be redrawn
-        } catch (error) {
-          console.error('Error parsing saved step 6 data:', error);
-        }
-      }
-    }
-  }, []);
-
-  // Save form data to sessionStorage when fields change
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const step6Data = {
-        agreeToTerms,
-        signature: signature || '', // Save signature state (though canvas can't be restored)
-      };
-      sessionStorage.setItem('signup_step6', JSON.stringify(step6Data));
-    }
-  }, [agreeToTerms, signature]);
-
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
