@@ -159,20 +159,9 @@ function LiveAccountsContent() {
         ) : (
           /* Live Accounts Content */
           <div className="flex-1 p-2 xs:p-3 sm:p-4 md:p-6 lg:p-8 overflow-y-auto">
-          {/* Action Buttons */}
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 sm:mb-6 lg:mb-8 gap-3">
+          {/* Page Title */}
+          <div className="mb-4 sm:mb-6 lg:mb-8">
             <h1 className="text-[#0A2E1D] text-2xl sm:text-3xl font-bold">Live Trading Accounts</h1>
-            <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 w-full sm:w-auto">
-              <button 
-                onClick={refreshAccounts}
-                className="w-full sm:w-auto px-4 sm:px-6 py-2 bg-[#4A6741] text-white rounded-lg hover:bg-[#3A5A3F] transition-colors text-sm sm:text-base"
-              >
-                Refresh Data
-              </button>
-              <button className="w-full sm:w-auto px-4 sm:px-6 py-2 bg-[#2D4A32] text-white rounded-lg hover:bg-[#3A5A3F] transition-colors text-sm sm:text-base">
-                Create New Account
-              </button>
-            </div>
           </div>
 
           {/* Statistics Cards */}
