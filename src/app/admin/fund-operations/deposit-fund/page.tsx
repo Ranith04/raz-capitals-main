@@ -325,7 +325,15 @@ function DepositFundContent() {
     }
   };
 
-  const canSubmit = newStatus !== 'null' && (newStatus === selectedTransaction?.status || transactionComments.trim());
+  // Button should be enabled if:
+  // 1. A status is selected (not 'null')
+  // 2. The transaction's current status is not already finalized (not 'completed' or 'failed')
+  // 3. Either the status is being changed OR there are comments
+  const canSubmit = newStatus !== 'null' 
+    && selectedTransaction 
+    && selectedTransaction.status !== 'completed' 
+    && selectedTransaction.status !== 'failed'
+    && (newStatus !== selectedTransaction.status || transactionComments.trim());
 
   const getStatusColor = (status: string) => {
     switch (status) {
