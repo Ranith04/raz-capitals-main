@@ -27,7 +27,7 @@ function DocumentKYCContent() {
     url: string | null;
     documentType?: string;
     dateAdded: string;
-    filePath?: string;
+    filePath?: string | null;
     bucketName?: string | undefined;
   }>>([]);
   const [selectedDocument, setSelectedDocument] = useState<{
@@ -36,7 +36,7 @@ function DocumentKYCContent() {
     name: string;
     url: string | null;
     documentType?: string;
-    filePath?: string;
+    filePath?: string | null;
     bucketName?: string | undefined;
   } | null>(null);
   const [isViewerOpen, setIsViewerOpen] = useState(false);
@@ -104,7 +104,7 @@ function DocumentKYCContent() {
     name: string;
     url: string | null;
     documentType?: string;
-    filePath?: string;
+    filePath?: string | null;
     bucketName?: string | undefined;
   }) => {
     try {
