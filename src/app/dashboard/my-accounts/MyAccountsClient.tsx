@@ -158,7 +158,7 @@ export default function MyAccountsClient() {
 
         // Calculate statistics
         const activeAccounts = transformedAccounts.filter(acc => 
-          acc.status === 'active' || acc.status === 'activ'
+          acc.status === 'active'
         );
         
         const totalEquity = transformedAccounts.reduce((sum, acc) => sum + (acc.equity || acc.balance || 0), 0);
@@ -224,7 +224,7 @@ export default function MyAccountsClient() {
     }
     
     const statusLower = status?.toLowerCase();
-    if (statusLower === 'active' || statusLower === 'activ') {
+    if (statusLower === 'active') {
       return (
         <span className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-medium">
           Active
