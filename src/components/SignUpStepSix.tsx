@@ -42,12 +42,41 @@ export default function SignUpStepSix() {
     };
   }, [showTermsModal]);
 
-  const startDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  // Helper function to get coordinates from mouse or touch event
+  const getCoordinates = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return null;
+
+    const rect = canvas.getBoundingClientRect();
+    
+    if ('touches' in e && e.touches.length > 0) {
+      // Touch event
+      const touch = e.touches[0];
+      return {
+        x: touch.clientX - rect.left,
+        y: touch.clientY - rect.top
+      };
+    } else if ('clientX' in e) {
+      // Mouse event
+      return {
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top
+      };
+    }
+    
+    return null;
+  };
+
+  const startDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    e.preventDefault(); // Prevent default behavior for both mouse and touch
     isDrawingRef.current = true;
     draw(e);
   };
 
-  const stopDrawing = () => {
+  const stopDrawing = (e?: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    if (e) {
+      e.preventDefault(); // Prevent default behavior
+    }
     isDrawingRef.current = false;
     const ctx = canvasRef.current?.getContext('2d');
     if (ctx) {
@@ -55,7 +84,7 @@ export default function SignUpStepSix() {
     }
   };
 
-  const draw = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  const draw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
     if (!isDrawingRef.current) return;
 
     const canvas = canvasRef.current;
@@ -64,14 +93,13 @@ export default function SignUpStepSix() {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    const coords = getCoordinates(e);
+    if (!coords) return;
 
-    ctx.lineTo(x, y);
+    ctx.lineTo(coords.x, coords.y);
     ctx.stroke();
     ctx.beginPath();
-    ctx.moveTo(x, y);
+    ctx.moveTo(coords.x, coords.y);
 
     // Update signature state
     setSignature('signed');
@@ -183,11 +211,16 @@ export default function SignUpStepSix() {
               ref={canvasRef}
               width={280}
               height={120}
-              className="w-full h-32 cursor-crosshair bg-white"
+              className="w-full h-32 cursor-crosshair bg-white touch-none"
               onMouseDown={startDrawing}
               onMouseUp={stopDrawing}
               onMouseOut={stopDrawing}
               onMouseMove={draw}
+              onTouchStart={startDrawing}
+              onTouchMove={draw}
+              onTouchEnd={stopDrawing}
+              onTouchCancel={stopDrawing}
+              style={{ touchAction: 'none' }}
             />
           </div>
           {errors.signature && (

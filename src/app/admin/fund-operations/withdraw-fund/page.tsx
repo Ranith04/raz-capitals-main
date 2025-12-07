@@ -10,13 +10,16 @@ import { sendWithdrawalApprovalEmail } from '@/lib/emailService';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
+// Transaction status type - database can return null, but we normalize to 'pending'
+type TransactionStatus = 'pending' | 'completed' | 'failed';
+
 // Transaction type definition matching the database schema
 interface Transaction {
   id: number;
   type: 'deposit' | 'withdrawal' | 'transfer';
   amount: number;
   currency: string;
-  status: 'null' | 'pending' | 'completed' | 'failed';
+  status: TransactionStatus;
   created_at: string;
   account_id: string;
   transaction_comments?: string;
@@ -28,11 +31,24 @@ interface Transaction {
   customer_name?: string;
 }
 
+// Helper function to normalize status from database (null/undefined/string 'null' -> 'pending')
+const normalizeStatus = (status: any): TransactionStatus => {
+  if (!status || status === 'null' || status === null || status === undefined) {
+    return 'pending';
+  }
+  // Ensure we only return valid status values
+  if (status === 'completed' || status === 'failed' || status === 'pending') {
+    return status as TransactionStatus;
+  }
+  // Default to 'pending' for any invalid status
+  return 'pending';
+};
+
 function WithdrawFundContent() {
   const router = useRouter();
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [newStatus, setNewStatus] = useState<'null' | 'pending' | 'completed' | 'failed'>('null');
+  const [newStatus, setNewStatus] = useState<TransactionStatus | ''>('');
   const [transactionComments, setTransactionComments] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -114,7 +130,7 @@ function WithdrawFundContent() {
             type: tx.type,
             amount: tx.amount,
             currency: tx.currency,
-            status: tx.status,
+            status: normalizeStatus(tx.status), // Normalize null/undefined/'null' to 'pending'
             created_at: tx.created_at,
             account_id: tx.account_id,
             transaction_comments: tx.transaction_comments,
@@ -146,7 +162,7 @@ function WithdrawFundContent() {
   const handleCloseModal = () => {
     setIsModalOpen(false);
     setSelectedTransaction(null);
-    setNewStatus('null');
+    setNewStatus('');
     setTransactionComments('');
   };
 
@@ -163,6 +179,23 @@ function WithdrawFundContent() {
   const handleSubmit = async () => {
     if (!selectedTransaction) return;
     
+    // Validate that a status has been selected
+    // Use string comparison to handle empty string case
+    const statusValue = String(newStatus || '');
+    if (!statusValue || statusValue === '' || statusValue === 'null') {
+      alert('Please select a status before updating the transaction.');
+      return;
+    }
+    
+    // Type guard: ensure newStatus is a valid TransactionStatus
+    if (statusValue !== 'pending' && statusValue !== 'completed' && statusValue !== 'failed') {
+      alert('Please select a valid status before updating the transaction.');
+      return;
+    }
+    
+    // Now we know statusValue is a valid TransactionStatus
+    const statusToUpdate = statusValue as TransactionStatus;
+    
     // Prevent updates if transaction is already completed or failed
     if (selectedTransaction.status === 'completed' || selectedTransaction.status === 'failed') {
       alert('Cannot update transaction. Transaction status is already finalized.');
@@ -176,7 +209,7 @@ function WithdrawFundContent() {
       const { error: updateError } = await supabase
         .from('transactions')
         .update({ 
-          status: newStatus,
+          status: statusToUpdate,
           transaction_comments: transactionComments || selectedTransaction.transaction_comments
         })
         .eq('id', selectedTransaction.id);
@@ -189,7 +222,7 @@ function WithdrawFundContent() {
       }
 
       // If status is 'completed', update the trading account balance
-      if (newStatus === 'completed' && selectedTransaction.account_id) {
+      if (statusToUpdate === 'completed' && selectedTransaction.account_id) {
         const balanceResult = await updateBalanceForWithdrawal(
           selectedTransaction.account_id, 
           selectedTransaction.amount
@@ -232,10 +265,10 @@ function WithdrawFundContent() {
       }
       
       // Show success message
-      const balanceMessage = (newStatus === 'completed' && selectedTransaction.account_id) 
+      const balanceMessage = (statusToUpdate === 'completed' && selectedTransaction.account_id) 
         ? ` Balance has been updated for account ${selectedTransaction.account_id}.`
         : '';
-      alert(`Transaction ${selectedTransaction.id} updated successfully! Status: ${newStatus}.${balanceMessage}`);
+      alert(`Transaction ${selectedTransaction.id} updated successfully! Status: ${statusToUpdate}.${balanceMessage}`);
       
       // Refresh the transactions list
       await fetchTransactions();
@@ -248,7 +281,7 @@ function WithdrawFundContent() {
     }
   };
 
-  const canSubmit = newStatus !== 'null' && (newStatus === selectedTransaction?.status || transactionComments.trim());
+  const canSubmit = newStatus !== '' && newStatus !== null && (newStatus !== selectedTransaction?.status || transactionComments.trim());
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -265,8 +298,6 @@ function WithdrawFundContent() {
 
   const getStatusDisplayName = (status: string) => {
     switch (status) {
-      case 'null':
-        return 'NULL';
       case 'pending':
         return 'Pending';
       case 'completed':
@@ -274,7 +305,7 @@ function WithdrawFundContent() {
       case 'failed':
         return 'Failed';
       default:
-        return status;
+        return status || 'Pending';
     }
   };
 
@@ -310,7 +341,7 @@ function WithdrawFundContent() {
           comparison = a.amount - b.amount;
           break;
         case 'status':
-          const statusOrder = { 'completed': 1, 'pending': 2, 'failed': 3, 'null': 4 };
+          const statusOrder: Record<TransactionStatus, number> = { 'completed': 1, 'pending': 2, 'failed': 3 };
           comparison = (statusOrder[a.status] || 99) - (statusOrder[b.status] || 99);
           break;
         case 'customer':
@@ -700,7 +731,10 @@ function WithdrawFundContent() {
                 <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-3">Update Status</label>
                 <select
                   value={newStatus}
-                  onChange={(e) => setNewStatus(e.target.value as 'null' | 'pending' | 'completed' | 'failed')}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setNewStatus(value === '' ? '' : value as TransactionStatus);
+                  }}
                   disabled={selectedTransaction.status === 'completed' || selectedTransaction.status === 'failed'}
                   className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0A2E1D] focus:border-transparent text-gray-900 bg-white text-sm ${
                     selectedTransaction.status === 'completed' || selectedTransaction.status === 'failed'
@@ -708,7 +742,7 @@ function WithdrawFundContent() {
                       : ''
                   }`}
                 >
-                  <option value="null">Select Status</option>
+                  <option value="">Select Status</option>
                   <option value="pending">Pending</option>
                   <option value="completed">Completed</option>
                   <option value="failed">Failed</option>
@@ -716,7 +750,7 @@ function WithdrawFundContent() {
               </div>
 
               {/* Transaction Comments */}
-              {newStatus !== 'null' && newStatus !== selectedTransaction?.status && (
+              {newStatus !== '' && newStatus !== selectedTransaction?.status && (
                 <div className="mb-4 sm:mb-6">
                   <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
                     transaction_comments
