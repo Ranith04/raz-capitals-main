@@ -3,6 +3,7 @@
 import AuthShell from '@/components/AuthShell';
 import { supabase } from '@/lib/supabaseClient';
 import { TradingCredentialsService } from '@/lib/tradingCredentialsService';
+import { UserService } from '@/lib/userService';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
@@ -80,11 +81,30 @@ export default function SignUpSuccess() {
             return;
           }
 
+          // Dispatch event to refresh accounts list in UI
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('accountsRefreshNeeded'));
+          }
+
           // Store credentials in sessionStorage for login
           sessionStorage.setItem('trading_credentials', JSON.stringify({ tradingId: newTradingId, password: newPassword }));
           
           // Get user email from sessionStorage
           const userEmail = sessionStorage.getItem('signup_email') || '';
+          
+          // Get user name from database
+          let userName = 'Valued Customer';
+          try {
+            const user = await UserService.getUserByUuid(userUuid);
+            if (user) {
+              const fullName = `${user.first_name || ''} ${user.last_name || ''}`.trim();
+              if (fullName) {
+                userName = fullName;
+              }
+            }
+          } catch (error) {
+            console.warn('Could not fetch user name, using default:', error);
+          }
           
           // Send trading credentials via email API
           if (userEmail) {
@@ -93,7 +113,8 @@ export default function SignUpSuccess() {
               const emailResult = await TradingCredentialsService.sendTradingCredentials(
                 userEmail,
                 newTradingId,
-                newPassword
+                newPassword,
+                userName
               );
               
               if (emailResult.success) {
@@ -157,6 +178,11 @@ export default function SignUpSuccess() {
             alert(`Failed to create trading account: ${accountError.message}`);
             return;
           }
+
+          // Dispatch event to refresh accounts list in UI
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('accountsRefreshNeeded'));
+          }
         } catch (insertError) {
           console.error('Exception during insert:', insertError);
           alert('Database error occurred. Please try again.');
@@ -169,6 +195,20 @@ export default function SignUpSuccess() {
         // Get user email from sessionStorage
         const userEmail = sessionStorage.getItem('signup_email') || '';
         
+        // Get user name from database
+        let userName = 'Valued Customer';
+        try {
+          const user = await UserService.getUserByUuid(userUuid);
+          if (user) {
+            const fullName = `${user.first_name || ''} ${user.last_name || ''}`.trim();
+            if (fullName) {
+              userName = fullName;
+            }
+          }
+        } catch (error) {
+          console.warn('Could not fetch user name, using default:', error);
+        }
+        
         // Send trading credentials via email API
         if (userEmail) {
           try {
@@ -176,7 +216,8 @@ export default function SignUpSuccess() {
             const emailResult = await TradingCredentialsService.sendTradingCredentials(
               userEmail,
               tradingId,
-              password
+              password,
+              userName
             );
             
             if (emailResult.success) {

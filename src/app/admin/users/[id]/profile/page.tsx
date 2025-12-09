@@ -29,6 +29,22 @@ function ProfileContent() {
   });
   const [overviewLoading, setOverviewLoading] = useState(true);
   
+  // State for payment details
+  interface PaymentDetail {
+    mode_of_payment: string;
+    bank_name?: string;
+    account_number?: string;
+    ifsc_code?: string;
+    upi_id?: string;
+    card_type?: string;
+    card_network?: string;
+    card_last_4?: string;
+    payment_method_name?: string;
+    last_used_date: string;
+  }
+  const [paymentDetails, setPaymentDetails] = useState<PaymentDetail[]>([]);
+  const [paymentDetailsLoading, setPaymentDetailsLoading] = useState(true);
+  
   // State for edit mode
   const [isEditing, setIsEditing] = useState(false);
   const [editedUser, setEditedUser] = useState<Partial<EnhancedClientUser>>({});
@@ -185,10 +201,158 @@ function ProfileContent() {
   useEffect(() => {
     if (user?.user_uuid) {
       fetchAccountOverview();
+      fetchPaymentDetails();
     } else {
       setOverviewLoading(false);
+      setPaymentDetailsLoading(false);
     }
   }, [user?.user_uuid]);
+
+  // Fetch payment details from kyc_documents and transactions
+  const fetchPaymentDetails = async () => {
+    if (!userId || !user?.user_uuid) {
+      setPaymentDetailsLoading(false);
+      return;
+    }
+
+    try {
+      setPaymentDetailsLoading(true);
+      
+      const userUuid = user.user_uuid;
+      const paymentMap = new Map<string, PaymentDetail>();
+
+      // Step 1: Fetch bank details directly from kyc_documents table
+      const { data: kycDoc, error: kycError } = await supabase
+        .from('kyc_documents')
+        .select('bank_name, bank_account_number, ifsc_code, submitted_at, verified_at')
+        .eq('user_id', userUuid)
+        .not('bank_name', 'is', null)
+        .order('submitted_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (kycError) {
+        console.error('Error fetching KYC bank details:', kycError);
+      }
+
+      // If bank details exist in kyc_documents, add them as Bank Transfer payment method
+      if (kycDoc && (kycDoc.bank_name || kycDoc.bank_account_number)) {
+        const lastUsedDate = kycDoc.verified_at || kycDoc.submitted_at || new Date().toISOString();
+        paymentMap.set('bank-transfer', {
+          mode_of_payment: 'Bank Transfer',
+          bank_name: kycDoc.bank_name || undefined,
+          account_number: kycDoc.bank_account_number || undefined,
+          ifsc_code: kycDoc.ifsc_code || undefined,
+          last_used_date: lastUsedDate
+        });
+      }
+
+      // Step 2: Get all trading accounts for this user to fetch transaction-based payment methods
+      const { data: tradingAccounts, error: accountsError } = await supabase
+        .from('tradingAccounts')
+        .select('account_uid')
+        .eq('user_id', userUuid);
+
+      if (accountsError) {
+        console.error('Error fetching trading accounts:', accountsError);
+      }
+
+      const accountIds = tradingAccounts?.map(acc => acc.account_uid) || [];
+      
+      // Step 3: Get all completed transactions for these accounts (for non-bank payment methods)
+      if (accountIds.length > 0) {
+        const { data: transactions, error: transactionsError } = await supabase
+          .from('transactions')
+          .select('mode_of_payment, transaction_comments, created_at, account_id')
+          .in('account_id', accountIds)
+          .or('status.eq.completed,status.eq.success')
+          .order('created_at', { ascending: false });
+
+        if (transactionsError) {
+          console.error('Error fetching transactions:', transactionsError);
+        }
+
+        // Process transactions to extract payment details (excluding bank transfers already from KYC)
+        if (transactions && transactions.length > 0) {
+          transactions.forEach((tx: any) => {
+            const mode = tx.mode_of_payment || '';
+            if (!mode) return;
+
+            // Normalize mode_of_payment for grouping
+            const normalizedMode = mode.toLowerCase().replace(/[_\s]/g, '-');
+            
+            // Skip bank transfer as we already have it from KYC
+            if (normalizedMode.includes('bank') || normalizedMode.includes('transfer')) {
+              return;
+            }
+            
+            // Skip if we already have a more recent entry for this payment method
+            if (paymentMap.has(normalizedMode)) {
+              const existing = paymentMap.get(normalizedMode)!;
+              const txDate = new Date(tx.created_at);
+              const existingDate = new Date(existing.last_used_date);
+              if (txDate <= existingDate) return;
+            }
+
+            // Extract payment details based on mode_of_payment
+            const comments = tx.transaction_comments || '';
+            let paymentDetail: PaymentDetail = {
+              mode_of_payment: mode,
+              last_used_date: tx.created_at
+            };
+
+            // Parse based on payment method type
+            if (normalizedMode.includes('upi')) {
+              // UPI - extract UPI ID from comments
+              const upiMatch = comments.match(/upi[:\s]+id[:\s]+([a-zA-Z0-9._-]+@[a-zA-Z0-9]+)/i) || 
+                             comments.match(/upi[:\s]+([a-zA-Z0-9._-]+@[a-zA-Z0-9]+)/i) ||
+                             comments.match(/([a-zA-Z0-9._-]+@[a-zA-Z0-9]+)/);
+              paymentDetail.upi_id = upiMatch ? upiMatch[1].trim() : undefined;
+            } else if (normalizedMode.includes('card') || normalizedMode.includes('credit') || normalizedMode.includes('debit')) {
+              // Card Payment - try to extract card details
+              const last4Match = comments.match(/(?:last[:\s]+4|ending[:\s]+in|xxxx[:\s]*|ends[:\s]+with[:\s]+)([0-9]{4})/i) ||
+                                comments.match(/([0-9]{4})(?:\s|$)/);
+              const networkMatch = comments.match(/(visa|mastercard|amex|discover|maestro|rupay)/i);
+              const typeMatchFromComments = comments.match(/(credit|debit)/i);
+              const typeMatch = typeMatchFromComments 
+                ? typeMatchFromComments[1].toLowerCase()
+                : (normalizedMode.includes('credit') ? 'credit' : 
+                   normalizedMode.includes('debit') ? 'debit' : undefined);
+              
+              paymentDetail.card_last_4 = last4Match ? last4Match[1] : undefined;
+              paymentDetail.card_network = networkMatch ? networkMatch[1].toLowerCase() : undefined;
+              paymentDetail.card_type = typeMatch;
+            } else {
+              // Cash / PayPal / Other
+              paymentDetail.payment_method_name = mode.replace(/[_-]/g, ' ');
+            }
+
+            paymentMap.set(normalizedMode, paymentDetail);
+          });
+        }
+      }
+
+      setPaymentDetails(Array.from(paymentMap.values()));
+    } catch (error) {
+      console.error('Error fetching payment details:', error);
+      setPaymentDetails([]);
+    } finally {
+      setPaymentDetailsLoading(false);
+    }
+  };
+
+  // Helper function to mask sensitive data
+  const maskAccountNumber = (accountNumber: string | undefined): string => {
+    if (!accountNumber) return 'N/A';
+    if (accountNumber.length <= 4) return 'XXXX';
+    return 'XXXX' + accountNumber.slice(-4);
+  };
+
+  const maskCardNumber = (cardNumber: string | undefined): string => {
+    if (!cardNumber) return 'N/A';
+    if (cardNumber.length <= 4) return 'XXXX';
+    return 'XXXX' + cardNumber.slice(-4);
+  };
 
   if (loading) {
     return (
@@ -600,6 +764,105 @@ function ProfileContent() {
                     </span>
                   </div>
                 </div>
+              </div>
+
+              {/* Payment / Bank Details Card */}
+              <div className="bg-[#2D4A32] rounded-2xl p-6 sm:p-8 shadow-xl border border-[#4A6741]/20">
+                <div className="flex items-center justify-between mb-6 pb-4 border-b border-[#4A6741]/30">
+                  <h3 className="text-white text-xl sm:text-2xl font-bold">Payment / Bank Details</h3>
+                </div>
+                {paymentDetailsLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="text-[#9BC5A2]">Loading payment details...</div>
+                  </div>
+                ) : paymentDetails.length === 0 ? (
+                  <div className="text-center py-8">
+                    <p className="text-[#9BC5A2] text-base">No payment details available for this user.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    {paymentDetails.map((detail, index) => {
+                      const normalizedMode = detail.mode_of_payment.toLowerCase().replace(/[_\s]/g, '-');
+                      const isBankTransfer = normalizedMode.includes('bank') || normalizedMode.includes('transfer');
+                      const isUPI = normalizedMode.includes('upi');
+                      const isCard = normalizedMode.includes('card') || normalizedMode.includes('credit') || normalizedMode.includes('debit');
+                      const isOther = !isBankTransfer && !isUPI && !isCard;
+
+                      return (
+                        <div key={index} className="bg-[#4A6741]/30 rounded-xl p-5 border border-[#4A6741]/50">
+                          <div className="flex items-center justify-between mb-4">
+                            <h4 className="text-white text-lg font-semibold">
+                              {detail.mode_of_payment.replace(/[_-]/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                            </h4>
+                            <span className="text-[#9BC5A2] text-sm">
+                              Last Used: {formatDate(detail.last_used_date)}
+                            </span>
+                          </div>
+                          
+                          {isBankTransfer && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              {detail.bank_name && (
+                                <div>
+                                  <label className="text-[#9BC5A2] text-xs font-semibold uppercase tracking-wide block mb-1">Bank Name</label>
+                                  <p className="text-white text-base">{detail.bank_name}</p>
+                                </div>
+                              )}
+                              {detail.account_number && (
+                                <div>
+                                  <label className="text-[#9BC5A2] text-xs font-semibold uppercase tracking-wide block mb-1">Account Number</label>
+                                  <p className="text-white text-base">{maskAccountNumber(detail.account_number)}</p>
+                                </div>
+                              )}
+                              {detail.ifsc_code && (
+                                <div>
+                                  <label className="text-[#9BC5A2] text-xs font-semibold uppercase tracking-wide block mb-1">IFSC Code</label>
+                                  <p className="text-white text-base">{detail.ifsc_code}</p>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {isUPI && detail.upi_id && (
+                            <div>
+                              <label className="text-[#9BC5A2] text-xs font-semibold uppercase tracking-wide block mb-1">UPI ID</label>
+                              <p className="text-white text-base">{detail.upi_id}</p>
+                            </div>
+                          )}
+
+                          {isCard && (
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                              {detail.card_type && (
+                                <div>
+                                  <label className="text-[#9BC5A2] text-xs font-semibold uppercase tracking-wide block mb-1">Card Type</label>
+                                  <p className="text-white text-base capitalize">{detail.card_type}</p>
+                                </div>
+                              )}
+                              {detail.card_network && (
+                                <div>
+                                  <label className="text-[#9BC5A2] text-xs font-semibold uppercase tracking-wide block mb-1">Card Network</label>
+                                  <p className="text-white text-base capitalize">{detail.card_network}</p>
+                                </div>
+                              )}
+                              {detail.card_last_4 && (
+                                <div>
+                                  <label className="text-[#9BC5A2] text-xs font-semibold uppercase tracking-wide block mb-1">Last 4 Digits</label>
+                                  <p className="text-white text-base">{detail.card_last_4}</p>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {isOther && detail.payment_method_name && (
+                            <div>
+                              <label className="text-[#9BC5A2] text-xs font-semibold uppercase tracking-wide block mb-1">Payment Method</label>
+                              <p className="text-white text-base">{detail.payment_method_name}</p>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </div>
 

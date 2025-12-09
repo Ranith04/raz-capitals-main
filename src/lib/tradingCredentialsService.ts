@@ -1,15 +1,9 @@
 /**
  * Service to send trading credentials via email using external API
+ * This service now uses the standard email service format
  */
 
-const BASE_URL = 'http://13.232.71.139:3000';
-const ENDPOINT = '/http/trading-credentials';
-
-export interface TradingCredentialsRequest {
-  emailID: string;
-  tradingID: string;
-  tradingPassword: string;
-}
+import { sendTradingCredentialsEmail } from './emailService';
 
 export interface TradingCredentialsResponse {
   success: boolean;
@@ -24,54 +18,40 @@ export class TradingCredentialsService {
    * @param emailId - User's email address
    * @param tradingId - Generated trading ID
    * @param tradingPassword - Generated trading password
+   * @param userName - User's name (optional, defaults to "Valued Customer")
    * @returns Promise with API response
    */
   static async sendTradingCredentials(
     emailId: string,
     tradingId: string,
-    tradingPassword: string
+    tradingPassword: string,
+    userName: string = 'Valued Customer'
   ): Promise<TradingCredentialsResponse> {
     try {
-      const url = `${BASE_URL}${ENDPOINT}`;
-      
-      const requestBody: TradingCredentialsRequest = {
-        emailID: emailId,
-        tradingID: tradingId,
-        tradingPassword: tradingPassword,
-      };
-
-      console.log('📧 Sending trading credentials to API:', {
-        url,
+      console.log('📧 Sending trading credentials to email:', {
         emailID: emailId,
         tradingID: tradingId,
         tradingPassword: '***' // Don't log password
       });
 
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestBody),
-      });
+      const success = await sendTradingCredentialsEmail(
+        emailId,
+        userName,
+        tradingId,
+        tradingPassword
+      );
 
-      const responseData = await response.json();
-
-      if (response.status === 200) {
-        console.log('✅ Trading credentials sent successfully:', responseData);
+      if (success) {
+        console.log('✅ Trading credentials email sent successfully');
         return {
           success: true,
-          data: responseData,
+          data: { message: 'Email sent successfully' },
         };
       } else {
-        console.error('❌ Trading credentials API error:', {
-          status: response.status,
-          data: responseData,
-        });
+        console.error('❌ Failed to send trading credentials email');
         return {
           success: false,
-          error: responseData.message || 'Failed to send trading credentials',
-          statusCode: response.status,
+          error: 'Failed to send trading credentials email',
         };
       }
     } catch (error) {

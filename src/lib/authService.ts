@@ -18,6 +18,228 @@ import { supabase } from './supabaseClient';
  */
 export class AuthService {
   /**
+   * Check if email exists in users table and return user_uuid
+   */
+  static async checkEmailExists(email: string): Promise<{ exists: boolean; userUuid?: string }> {
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('user_uuid')
+        .eq('email', email.toLowerCase().trim())
+        .maybeSingle();
+
+      if (error) {
+        console.error('Error checking email existence:', error);
+        return { exists: false };
+      }
+
+      return {
+        exists: !!data,
+        userUuid: data?.user_uuid,
+      };
+    } catch (error) {
+      console.error('Unexpected error checking email:', error);
+      return { exists: false };
+    }
+  }
+
+  /**
+   * Get all trading accounts for a user by user_uuid
+   */
+  static async getTradingAccountsByUserId(userUuid: string): Promise<Array<{ account_uid: string; status: string }>> {
+    try {
+      const { data, error } = await supabase
+        .from('tradingAccounts')
+        .select('account_uid, status')
+        .eq('user_id', userUuid)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching trading accounts:', error);
+        return [];
+      }
+
+      return data || [];
+    } catch (error) {
+      console.error('Unexpected error fetching trading accounts:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Verify password for existing user
+   */
+  static async verifyPasswordForUser(email: string, password: string): Promise<{ valid: boolean; userUuid?: string }> {
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('user_uuid, password')
+        .eq('email', email.toLowerCase().trim())
+        .maybeSingle();
+
+      if (error || !data) {
+        return { valid: false };
+      }
+
+      // Compare passwords (assuming plain text storage as per existing code)
+      const isValid = data.password === password;
+
+      return {
+        valid: isValid,
+        userUuid: isValid ? data.user_uuid : undefined,
+      };
+    } catch (error) {
+      console.error('Unexpected error verifying password:', error);
+      return { valid: false };
+    }
+  }
+
+  /**
+   * Generate a random trading ID (8 digits)
+   */
+  private static generateTradingId(): string {
+    const chars = '0123456789';
+    let result = '';
+    for (let i = 0; i < 8; i++) {
+      result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return result;
+  }
+
+  /**
+   * Generate a random password (7 characters: uppercase + numbers)
+   */
+  private static generateTradingPassword(): string {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let result = '';
+    for (let i = 0; i < 7; i++) {
+      result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return result;
+  }
+
+  /**
+   * Create new trading account for existing user and send credentials via email
+   */
+  static async createTradingAccountForExistingUser(
+    userUuid: string,
+    email: string
+  ): Promise<{ success: boolean; tradingId?: string; password?: string; message?: string }> {
+    try {
+      // Generate trading credentials
+      let tradingId = this.generateTradingId();
+      let tradingPassword = this.generateTradingPassword();
+
+      // Check for trading ID collision and regenerate if needed
+      let maxAttempts = 10;
+      while (maxAttempts > 0) {
+        const { data: existing } = await supabase
+          .from('tradingAccounts')
+          .select('account_uid')
+          .eq('account_uid', tradingId)
+          .maybeSingle();
+
+        if (!existing) {
+          break; // Unique ID found
+        }
+
+        tradingId = this.generateTradingId();
+        tradingPassword = this.generateTradingPassword();
+        maxAttempts--;
+      }
+
+      if (maxAttempts === 0) {
+        return {
+          success: false,
+          message: 'Failed to generate unique trading ID. Please try again.',
+        };
+      }
+
+      // Create trading account
+      const nowIso = new Date().toISOString();
+      const { error: accountError } = await supabase
+        .from('tradingAccounts')
+        .insert({
+          account_uid: tradingId,
+          account_password: tradingPassword,
+          user_id: userUuid,
+          levarage: 100.0,
+          balance: 0.0,
+          currency: 'USD',
+          status: 'active',
+          free_margin: 0.0,
+          equity: 0.0,
+          margin: 0.0,
+          watchlist: [],
+          account_type: 'real',
+          created_at: nowIso,
+        });
+
+      if (accountError) {
+        console.error('Error creating trading account:', accountError);
+        return {
+          success: false,
+          message: 'Failed to create trading account. Please try again.',
+        };
+      }
+
+      // Get user name for email
+      let userName = 'Valued Customer';
+      try {
+        const { data: userData } = await supabase
+          .from('users')
+          .select('first_name, last_name')
+          .eq('user_uuid', userUuid)
+          .maybeSingle();
+
+        if (userData) {
+          const fullName = `${userData.first_name || ''} ${userData.last_name || ''}`.trim();
+          if (fullName) {
+            userName = fullName;
+          }
+        }
+      } catch (error) {
+        console.warn('Could not fetch user name, using default:', error);
+      }
+
+      // Send trading credentials via email API
+      try {
+        const { sendTradingCredentialsEmail } = await import('./emailService');
+        const emailSent = await sendTradingCredentialsEmail(
+          email,
+          userName,
+          tradingId,
+          tradingPassword
+        );
+
+        if (emailSent) {
+          console.log('✅ Trading credentials email sent successfully');
+        } else {
+          console.warn('⚠️ Failed to send trading credentials email');
+          // Don't block the flow if email fails
+        }
+      } catch (emailError) {
+        console.error('❌ Error sending trading credentials email:', emailError);
+        // Don't block the flow if email fails
+      }
+
+      return {
+        success: true,
+        tradingId,
+        password: tradingPassword,
+        message: 'Trading account created successfully',
+      };
+
+    } catch (error) {
+      console.error('Unexpected error creating trading account:', error);
+      return {
+        success: false,
+        message: 'An unexpected error occurred. Please try again.',
+      };
+    }
+  }
+
+  /**
    * Step 1: Create user account with email/password
    * This creates the user in Supabase auth.users table
    */

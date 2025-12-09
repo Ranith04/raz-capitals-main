@@ -35,6 +35,17 @@ export default function MyAccountsClient() {
 
   useEffect(() => {
     fetchUserAccounts();
+
+    // Listen for account refresh events (when new accounts are created or login completes)
+    const handleAccountsRefresh = () => {
+      fetchUserAccounts();
+    };
+
+    window.addEventListener('accountsRefreshNeeded', handleAccountsRefresh);
+
+    return () => {
+      window.removeEventListener('accountsRefreshNeeded', handleAccountsRefresh);
+    };
   }, []);
 
   const fetchUserAccounts = async () => {

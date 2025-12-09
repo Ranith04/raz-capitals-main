@@ -3,6 +3,12 @@
 import { AuthService } from '@/lib/authService';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import ExistingAccountsDialog from './ExistingAccountsDialog';
+
+interface TradingAccount {
+  account_uid: string;
+  status: string;
+}
 
 export default function SignUpForm() {
   const [email, setEmail] = useState('');
@@ -10,6 +16,9 @@ export default function SignUpForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState({ email: '', password: '' });
   const [isLoading, setIsLoading] = useState(false);
+  const [showExistingAccountsDialog, setShowExistingAccountsDialog] = useState(false);
+  const [existingAccounts, setExistingAccounts] = useState<TradingAccount[]>([]);
+  const [existingUserUuid, setExistingUserUuid] = useState<string | undefined>();
   const router = useRouter();
 
   const togglePasswordVisibility = () => {
@@ -45,16 +54,30 @@ export default function SignUpForm() {
     setIsLoading(true);
 
     try {
-      // Create user account using Supabase Auth
+      // STEP 1: Check if email exists in users table BEFORE creating account
+      const emailCheck = await AuthService.checkEmailExists(email.trim());
+
+      if (emailCheck.exists && emailCheck.userUuid) {
+        // Email exists - get trading accounts for this user
+        const accounts = await AuthService.getTradingAccountsByUserId(emailCheck.userUuid);
+        
+        if (accounts.length > 0) {
+          // Show dialog with existing trading accounts
+          setExistingAccounts(accounts);
+          setExistingUserUuid(emailCheck.userUuid);
+          setShowExistingAccountsDialog(true);
+          setIsLoading(false);
+          return;
+        }
+      }
+
+      // Email doesn't exist or no trading accounts - proceed with normal registration
       const result = await AuthService.createUserAccount({
         email: email.trim(),
         password: password
       });
 
       if (result.success) {
-        // Show success message
-        alert(result.message);
-        
         // Navigate to step 2
         router.push('/signup/step-2');
       } else {
@@ -66,6 +89,44 @@ export default function SignUpForm() {
       alert('An unexpected error occurred. Please try again.');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleCreateNewAccount = async () => {
+    // Close dialog
+    setShowExistingAccountsDialog(false);
+    
+    // User already exists, so use existing user_uuid
+    if (existingUserUuid) {
+      // Store existing user UUID in sessionStorage for multi-step signup
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('signup_user_uuid', existingUserUuid);
+        sessionStorage.setItem('signup_email', email.trim());
+        sessionStorage.setItem('signup_password', password);
+      }
+      
+      // Navigate to step 2
+      router.push('/signup/step-2');
+    } else {
+      // Fallback: proceed with normal registration
+      setIsLoading(true);
+      try {
+        const result = await AuthService.createUserAccount({
+          email: email.trim(),
+          password: password
+        });
+
+        if (result.success) {
+          router.push('/signup/step-2');
+        } else {
+          alert(result.message);
+        }
+      } catch (error) {
+        console.error('Signup error:', error);
+        alert('An unexpected error occurred. Please try again.');
+      } finally {
+        setIsLoading(false);
+      }
     }
   };
 
@@ -220,6 +281,16 @@ export default function SignUpForm() {
           </a>
         </p>
       </div>
+
+      {/* Existing Accounts Dialog */}
+      {showExistingAccountsDialog && (
+        <ExistingAccountsDialog
+          email={email}
+          accounts={existingAccounts}
+          onClose={() => setShowExistingAccountsDialog(false)}
+          onCreateNewAccount={handleCreateNewAccount}
+        />
+      )}
     </div>
   );
 }

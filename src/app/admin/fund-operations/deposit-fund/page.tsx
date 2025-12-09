@@ -7,7 +7,7 @@ import ProtectedRoute from '@/components/ProtectedRoute';
 import { supabase } from '@/lib/supabaseClient';
 import { UserService } from '@/lib/userService';
 import { updateBalanceForDeposit } from '@/utils/tradingBalanceManager';
-import { sendDepositApprovalEmail } from '@/lib/emailService';
+import { sendDepositApprovalEmail, sendDepositRejectionEmail } from '@/lib/emailService';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
@@ -248,6 +248,7 @@ function DepositFundContent() {
 
       const oldStatus = existingTransaction.status;
       const shouldUpdateBalance = oldStatus !== 'completed' && newStatus === 'completed';
+      const shouldSendRejectionEmail = oldStatus !== 'failed' && newStatus === 'failed';
 
       // Update the transaction status in Supabase (always update status)
       const { error: updateError } = await supabase
@@ -304,6 +305,39 @@ function DepositFundContent() {
           }
         } catch (emailError) {
           console.error('Failed to send deposit approval email:', emailError);
+          // Don't block the transaction if email fails
+        }
+      }
+
+      // Send deposit rejection email when status is set to failed
+      if (shouldSendRejectionEmail && selectedTransaction.account_id) {
+        try {
+          // Get user email from trading account
+          const { data: tradingAccount } = await supabase
+            .from('tradingAccounts')
+            .select('user_id')
+            .eq('account_uid', selectedTransaction.account_id)
+            .single();
+
+          if (tradingAccount?.user_id) {
+            const user = await UserService.getUserByUuid(tradingAccount.user_id);
+            if (user && user.email) {
+              const userName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Valued Customer';
+              const rejectionReason = transactionComments || selectedTransaction.transaction_comments || 'Transaction could not be processed';
+              await sendDepositRejectionEmail(
+                user.email,
+                userName,
+                selectedTransaction.amount,
+                selectedTransaction.currency,
+                selectedTransaction.account_id,
+                selectedTransaction.id,
+                rejectionReason
+              );
+              console.log('Deposit rejection email sent to:', user.email);
+            }
+          }
+        } catch (emailError) {
+          console.error('Failed to send deposit rejection email:', emailError);
           // Don't block the transaction if email fails
         }
       }

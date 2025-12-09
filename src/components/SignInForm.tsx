@@ -182,6 +182,11 @@ export default function SignInForm() {
         
         storeUserSession(authResponse.user, authResponse.token);
         
+        // Dispatch event to refresh accounts list in UI
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('accountsRefreshNeeded'));
+        }
+        
         // Verify session was stored
         const storedUser = sessionStorage.getItem('user');
         console.log('✅ Stored user session:', storedUser);

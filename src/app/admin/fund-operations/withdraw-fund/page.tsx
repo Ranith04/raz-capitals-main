@@ -6,7 +6,7 @@ import ProtectedRoute from '@/components/ProtectedRoute';
 import { supabase } from '@/lib/supabaseClient';
 import { UserService } from '@/lib/userService';
 import { updateBalanceForWithdrawal } from '@/utils/tradingBalanceManager';
-import { sendWithdrawalApprovalEmail } from '@/lib/emailService';
+import { sendWithdrawalApprovalEmail, sendWithdrawalRejectionEmail } from '@/lib/emailService';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
@@ -260,6 +260,39 @@ function WithdrawFundContent() {
           }
         } catch (emailError) {
           console.error('Failed to send withdrawal approval email:', emailError);
+          // Don't block the transaction if email fails
+        }
+      }
+
+      // Send withdrawal rejection email when status is set to failed
+      if (statusToUpdate === 'failed' && selectedTransaction.account_id) {
+        try {
+          // Get user email from trading account
+          const { data: tradingAccount } = await supabase
+            .from('tradingAccounts')
+            .select('user_id')
+            .eq('account_uid', selectedTransaction.account_id)
+            .single();
+
+          if (tradingAccount?.user_id) {
+            const user = await UserService.getUserByUuid(tradingAccount.user_id);
+            if (user && user.email) {
+              const userName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Valued Customer';
+              const rejectionReason = transactionComments || selectedTransaction.transaction_comments || 'Transaction could not be processed';
+              await sendWithdrawalRejectionEmail(
+                user.email,
+                userName,
+                selectedTransaction.amount,
+                selectedTransaction.currency,
+                selectedTransaction.account_id,
+                selectedTransaction.id,
+                rejectionReason
+              );
+              console.log('Withdrawal rejection email sent to:', user.email);
+            }
+          }
+        } catch (emailError) {
+          console.error('Failed to send withdrawal rejection email:', emailError);
           // Don't block the transaction if email fails
         }
       }

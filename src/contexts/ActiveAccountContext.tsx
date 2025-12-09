@@ -166,12 +166,19 @@ export function ActiveAccountProvider({ children }: { children: ReactNode }) {
       loadAccounts();
     };
 
+    // Listen for account refresh events (when new accounts are created or login completes)
+    const handleAccountsRefresh = () => {
+      loadAccounts();
+    };
+
     window.addEventListener('storage', handleStorageChange);
     window.addEventListener('accountChanged', handleAccountChange);
+    window.addEventListener('accountsRefreshNeeded', handleAccountsRefresh);
 
     return () => {
       window.removeEventListener('storage', handleStorageChange);
       window.removeEventListener('accountChanged', handleAccountChange);
+      window.removeEventListener('accountsRefreshNeeded', handleAccountsRefresh);
     };
   }, []);
 
