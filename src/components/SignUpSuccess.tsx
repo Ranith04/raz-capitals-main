@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabaseClient';
 import { TradingCredentialsService } from '@/lib/tradingCredentialsService';
 import { UserService } from '@/lib/userService';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 
 interface TradingCredentials {
   tradingId: string;
@@ -17,10 +17,18 @@ export default function SignUpSuccess() {
   const [credentials, setCredentials] = useState<TradingCredentials | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [isCreatingAccount, setIsCreatingAccount] = useState(true);
+  const accountCreationInProgress = useRef(false);
+  const accountCreationCompleted = useRef(false);
 
   useEffect(() => {
     // Generate trading credentials and create trading account
     const generateCredentialsAndAccount = async () => {
+      // Prevent duplicate execution - guard against React Strict Mode double-invocation
+      if (accountCreationInProgress.current || accountCreationCompleted.current) {
+        console.log('Account creation already in progress or completed, skipping...');
+        return;
+      }
+
       try {
         const userUuid = sessionStorage.getItem('signup_user_uuid');
         if (!userUuid) {
@@ -29,65 +37,38 @@ export default function SignUpSuccess() {
           return;
         }
 
-        console.log('Creating trading account for user:', userUuid);
+        // Mark as in progress immediately to prevent race conditions
+        accountCreationInProgress.current = true;
 
-        // Generate trading credentials using your exact logic
-        const tradingId = generateTradingId();
-        const password = generatePassword();
+        console.log('Checking for existing trading account for user:', userUuid);
 
-        // Check if trading ID already exists (in case of collision)
-        const { data: existingAccount, error: checkError } = await supabase
+        // FIRST: Check if user already has a trading account (idempotency check)
+        const { data: existingUserAccount, error: existingAccountError } = await supabase
           .from('tradingAccounts')
-          .select('account_uid')
-          .eq('account_uid', tradingId)
+          .select('account_uid, account_password')
+          .eq('user_id', userUuid)
+          .eq('status', 'active')
           .maybeSingle();
 
-        if (checkError) {
-          console.error('Error checking existing trading ID:', checkError);
-          alert('Failed to verify trading ID. Please try again.');
-          return;
+        if (existingAccountError) {
+          console.error('Error checking for existing account:', existingAccountError);
+          // Continue with creation if check fails (non-blocking)
         }
 
-        if (existingAccount) {
-          // Generate a new ID if collision occurs
-          const newTradingId = generateTradingId();
-          const newPassword = generatePassword();
+        // If user already has an account, use those credentials instead of creating a new one
+        if (existingUserAccount) {
+          console.log('User already has a trading account, using existing credentials:', existingUserAccount.account_uid);
           
-          // Update the credentials
-          setCredentials({ tradingId: newTradingId, password: newPassword });
+          setCredentials({ 
+            tradingId: existingUserAccount.account_uid, 
+            password: existingUserAccount.account_password 
+          });
           
-          // Create trading account with new credentials
-          const { error: accountError } = await supabase
-            .from('tradingAccounts')
-            .insert({
-              account_uid: newTradingId,
-              account_password: newPassword,
-              user_id: userUuid,
-              levarage: 100.0,
-              balance: 0.0, // Start with zero balance - user needs to deposit
-              currency: 'USD',
-              status: 'active',
-              free_margin: 0.0, // Start with zero free margin
-              equity: 0.0, // Start with zero equity
-              margin: 0.0,
-              watchlist: [],
-              account_type: 'real', // Real live account, not demo
-              created_at: new Date().toISOString()
-            });
-
-          if (accountError) {
-            console.error('Error creating trading account with new ID:', accountError);
-            alert(`Failed to create trading account: ${accountError.message}`);
-            return;
-          }
-
-          // Dispatch event to refresh accounts list in UI
-          if (typeof window !== 'undefined') {
-            window.dispatchEvent(new CustomEvent('accountsRefreshNeeded'));
-          }
-
           // Store credentials in sessionStorage for login
-          sessionStorage.setItem('trading_credentials', JSON.stringify({ tradingId: newTradingId, password: newPassword }));
+          sessionStorage.setItem('trading_credentials', JSON.stringify({ 
+            tradingId: existingUserAccount.account_uid, 
+            password: existingUserAccount.account_password 
+          }));
           
           // Get user email from sessionStorage
           const userEmail = sessionStorage.getItem('signup_email') || '';
@@ -106,31 +87,6 @@ export default function SignUpSuccess() {
             console.warn('Could not fetch user name, using default:', error);
           }
           
-          // Send trading credentials via email API
-          if (userEmail) {
-            try {
-              console.log('📧 Sending trading credentials to email:', userEmail);
-              const emailResult = await TradingCredentialsService.sendTradingCredentials(
-                userEmail,
-                newTradingId,
-                newPassword,
-                userName
-              );
-              
-              if (emailResult.success) {
-                console.log('✅ Trading credentials email sent successfully');
-              } else {
-                console.warn('⚠️ Failed to send trading credentials email:', emailResult.error);
-                // Don't block the flow if email fails
-              }
-            } catch (emailError) {
-              console.error('❌ Error sending trading credentials email:', emailError);
-              // Don't block the flow if email fails
-            }
-          } else {
-            console.warn('⚠️ No user email found, skipping email notification');
-          }
-          
           // Also store basic user info for immediate access
           const basicUserInfo = {
             id: userUuid,
@@ -143,50 +99,122 @@ export default function SignUpSuccess() {
           sessionStorage.setItem('user', JSON.stringify(basicUserInfo));
           sessionStorage.setItem('token', 'trading-auth-token');
           
+          accountCreationCompleted.current = true;
+          accountCreationInProgress.current = false;
           setIsCreatingAccount(false);
           return;
         }
 
-        // Create trading account in the tradingAccounts table
-        try {
-          const { error: accountError } = await supabase
-            .from('tradingAccounts')
-            .insert({
-              account_uid: tradingId,
-              account_password: password,
-              user_id: userUuid,
-              levarage: 100.0, // Default leverage as float8
-              balance: 0.0, // Start with zero balance - user needs to deposit
-              currency: 'USD', // Default currency as varchar
-              status: 'active', // Default status as enum
-              free_margin: 0.0, // Start with zero free margin
-              equity: 0.0, // Start with zero equity
-              margin: 0.0, // Default margin as float8
-              watchlist: [], // Empty watchlist as array
-              account_type: 'real', // Real live account, not demo
-              created_at: new Date().toISOString()
-            });
+        console.log('No existing account found, creating new trading account for user:', userUuid);
 
-          if (accountError) {
-            console.error('Error creating trading account:', accountError);
-            console.error('Error details:', {
-              code: accountError.code,
-              message: accountError.message,
-              details: accountError.details,
-              hint: accountError.hint
-            });
-            alert(`Failed to create trading account: ${accountError.message}`);
+        // Generate trading credentials using your exact logic
+        // Use a loop to ensure we get a unique trading ID
+        let tradingId = generateTradingId();
+        let password = generatePassword();
+        let maxAttempts = 10;
+        let accountCreated = false;
+
+        while (maxAttempts > 0 && !accountCreated) {
+          // Check if trading ID already exists (in case of collision)
+          const { data: existingAccountWithId, error: checkError } = await supabase
+            .from('tradingAccounts')
+            .select('account_uid')
+            .eq('account_uid', tradingId)
+            .maybeSingle();
+
+          if (checkError) {
+            console.error('Error checking existing trading ID:', checkError);
+            accountCreationInProgress.current = false;
+            alert('Failed to verify trading ID. Please try again.');
             return;
           }
 
-          // Dispatch event to refresh accounts list in UI
-          if (typeof window !== 'undefined') {
-            window.dispatchEvent(new CustomEvent('accountsRefreshNeeded'));
+          if (existingAccountWithId) {
+            // Generate a new ID if collision occurs
+            console.log(`Trading ID ${tradingId} already exists, generating new one...`);
+            tradingId = generateTradingId();
+            password = generatePassword();
+            maxAttempts--;
+            continue;
           }
-        } catch (insertError) {
-          console.error('Exception during insert:', insertError);
-          alert('Database error occurred. Please try again.');
+
+          // Create trading account in the tradingAccounts table
+          try {
+            const { error: accountError, data: insertedData } = await supabase
+              .from('tradingAccounts')
+              .insert({
+                account_uid: tradingId,
+                account_password: password,
+                user_id: userUuid,
+                levarage: 100.0, // Default leverage as float8
+                balance: 0.0, // Start with zero balance - user needs to deposit
+                currency: 'USD', // Default currency as varchar
+                status: 'active', // Default status as enum
+                free_margin: 0.0, // Start with zero free margin
+                equity: 0.0, // Start with zero equity
+                margin: 0.0, // Default margin as float8
+                watchlist: [], // Empty watchlist as array
+                account_type: 'real', // Real live account, not demo
+                created_at: new Date().toISOString()
+              })
+              .select()
+              .single();
+
+            if (accountError) {
+              // Check if error is due to duplicate user_id (user already has account)
+              if (accountError.code === '23505' || accountError.message.includes('duplicate') || accountError.message.includes('unique')) {
+                console.log('Account already exists for this user, fetching existing account...');
+                
+                // Fetch the existing account
+                const { data: existingAccount } = await supabase
+                  .from('tradingAccounts')
+                  .select('account_uid, account_password')
+                  .eq('user_id', userUuid)
+                  .eq('status', 'active')
+                  .maybeSingle();
+
+                if (existingAccount) {
+                  tradingId = existingAccount.account_uid;
+                  password = existingAccount.account_password;
+                  accountCreated = true;
+                  break;
+                }
+              }
+              
+              console.error('Error creating trading account:', accountError);
+              console.error('Error details:', {
+                code: accountError.code,
+                message: accountError.message,
+                details: accountError.details,
+                hint: accountError.hint
+              });
+              accountCreationInProgress.current = false;
+              alert(`Failed to create trading account: ${accountError.message}`);
+              return;
+            }
+
+            // Successfully created account
+            if (insertedData) {
+              accountCreated = true;
+              console.log('Trading account created successfully:', insertedData);
+            }
+          } catch (insertError) {
+            console.error('Exception during insert:', insertError);
+            accountCreationInProgress.current = false;
+            alert('Database error occurred. Please try again.');
+            return;
+          }
+        }
+
+        if (!accountCreated) {
+          accountCreationInProgress.current = false;
+          alert('Failed to create trading account after multiple attempts. Please try again.');
           return;
+        }
+
+        // Dispatch event to refresh accounts list in UI
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('accountsRefreshNeeded'));
         }
 
         // Store credentials in sessionStorage for login
@@ -247,6 +275,8 @@ export default function SignUpSuccess() {
         sessionStorage.setItem('token', 'trading-auth-token');
         
         setCredentials({ tradingId, password });
+        accountCreationCompleted.current = true;
+        accountCreationInProgress.current = false;
         setIsCreatingAccount(false);
         
         console.log('Trading account created successfully:', {
@@ -262,6 +292,7 @@ export default function SignUpSuccess() {
         });
       } catch (error) {
         console.error('Error in credential generation:', error);
+        accountCreationInProgress.current = false;
         alert('Failed to generate trading credentials. Please try again.');
       }
     };
