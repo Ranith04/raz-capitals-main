@@ -9,7 +9,7 @@ import { NavItem } from '@/types';
 const navItems: NavItem[] = [
   { label: 'Home', href: '/' },
   { label: 'Features', href: '/features' },
-  { label: 'Pricing', href: '/pricing' },
+  { label: 'Trading Charts', href: '/trading-charts' },
   { label: 'Contact', href: '/contact' },
 ];
 

@@ -116,10 +116,10 @@ export default function FeatureCards() {
             </div>
           </div>
 
-          {/* Market-Leading Pricing */}
+          {/* Market-Leading Spreads */}
           <div className="bg-white p-8 rounded-md shadow-sm">
-            <h3 className="text-xl font-bold text-gray-900 mb-2">Market-Leading Pricing</h3>
-            <p className="text-gray-600 text-sm mb-6">Tight spreads, zero commissions* & no hidden fees with customised pricing available upon request.</p>
+            <h3 className="text-xl font-bold text-gray-900 mb-2">Market-Leading Spreads</h3>
+            <p className="text-gray-600 text-sm mb-6">Tight spreads, zero commissions* & no hidden fees with customised rates available upon request.</p>
             <div className="flex flex-wrap justify-center items-center gap-3">
               <div className="w-10 h-10 flex items-center justify-center">
                 <span className="text-green-500 text-xl font-bold">₹</span>

@@ -12,7 +12,7 @@ export function middleware(request: NextRequest) {
   // Define protected routes
   const adminRoutes = ['/admin'];
   const userRoutes = ['/dashboard'];
-  const publicRoutes = ['/', '/features', '/pricing', '/contact', '/signin', '/signup'];
+  const publicRoutes = ['/', '/features', '/trading-charts', '/contact', '/signin', '/signup'];
 
   // Check if current path is an admin route
   const isAdminRoute = adminRoutes.some(route => pathname.startsWith(route));

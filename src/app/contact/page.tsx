@@ -27,59 +27,6 @@ export default function ContactPage() {
         </div>
       </section>
 
-      {/* Multiple Ways to Connect */}
-      <section className="py-12 sm:py-16 lg:py-20 overflow-hidden">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12 sm:mb-16">
-            <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-3 sm:mb-4">Multiple Ways to Connect</h2>
-            <p className="text-lg sm:text-xl text-gray-600 leading-relaxed max-w-4xl mx-auto">
-              Choose the contact method that works best for you. Our team is ready to assist with any questions about trading, accounts, or platform features.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
-            {/* Phone Support */}
-            <div className="bg-white rounded-lg shadow-lg p-6 sm:p-8 text-center hover:shadow-xl transition-shadow duration-300">
-              <div className="w-14 h-14 sm:w-16 sm:h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4 sm:mb-6">
-                <svg className="w-7 h-7 sm:w-8 sm:h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                </svg>
-              </div>
-              <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-2 sm:mb-3">Phone Support</h3>
-              <p className="text-sm sm:text-base text-gray-600 mb-3 sm:mb-4 leading-relaxed">Speak directly with our trading experts</p>
-              <p className="text-base sm:text-lg font-semibold text-gray-900 mb-1 sm:mb-2">+1 (555) 123-4567</p>
-              <p className="text-xs sm:text-sm text-green-600 font-semibold">24/7 Support</p>
-            </div>
-
-            {/* Email Support */}
-            <div className="bg-white rounded-lg shadow-lg p-6 sm:p-8 text-center hover:shadow-xl transition-shadow duration-300">
-              <div className="w-14 h-14 sm:w-16 sm:h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4 sm:mb-6">
-                <svg className="w-7 h-7 sm:w-8 sm:h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                </svg>
-              </div>
-              <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-2 sm:mb-3">Email Support</h3>
-              <p className="text-sm sm:text-base text-gray-600 mb-3 sm:mb-4 leading-relaxed">Get detailed assistance via email</p>
-              <p className="text-base sm:text-lg font-semibold text-gray-900 mb-1 sm:mb-2 break-words overflow-hidden">support@goldtrader.com</p>
-              <p className="text-xs sm:text-sm text-green-600 font-semibold">Response within 2 hours</p>
-            </div>
-
-            {/* Live Chat */}
-            <div className="bg-white rounded-lg shadow-lg p-6 sm:p-8 text-center hover:shadow-xl transition-shadow duration-300 sm:col-span-2 lg:col-span-1">
-              <div className="w-14 h-14 sm:w-16 sm:h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4 sm:mb-6">
-                <svg className="w-7 h-7 sm:w-8 sm:h-8 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                </svg>
-              </div>
-              <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-2 sm:mb-3">Live Chat</h3>
-              <p className="text-sm sm:text-base text-gray-600 mb-3 sm:mb-4 leading-relaxed">Instant chat with our support team</p>
-              <p className="text-base sm:text-lg font-semibold text-gray-900 mb-1 sm:mb-2">Available on website</p>
-              <p className="text-xs sm:text-sm text-green-600 font-semibold">24/7 Live Chat</p>
-            </div>
-          </div>
-        </div>
-      </section>
-
       {/* Contact Form and Support Features */}
       <section className="py-12 sm:py-16 lg:py-20 bg-white overflow-hidden">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -265,74 +212,6 @@ export default function ContactPage() {
                   </svg>
                 </div>
                 <span className="text-sm sm:text-base text-gray-700">Global market access</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Global Offices */}
-      <section className="py-12 sm:py-16 lg:py-20 bg-white overflow-hidden">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12 sm:mb-16">
-            <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-3 sm:mb-4">Global Offices</h2>
-            <p className="text-lg sm:text-xl text-gray-600 leading-relaxed">
-              With offices in major financial centers, we provide local support and expertise worldwide.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
-            {/* New York */}
-            <div className="bg-gray-50 rounded-lg p-6 sm:p-8">
-              <div className="flex items-center space-x-3 mb-3 sm:mb-4">
-                <div className="w-7 h-7 sm:w-8 sm:h-8 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
-                  <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                  </svg>
-                </div>
-                <h3 className="text-lg sm:text-xl font-bold text-gray-900">New York</h3>
-              </div>
-              <div className="space-y-1.5 sm:space-y-2 text-xs sm:text-sm">
-                <p className="text-gray-600 leading-relaxed">123 Wall Street, New York, NY 10005</p>
-                <p className="text-gray-900 font-medium">+1 (555) 123-4567</p>
-                <p className="text-blue-600 break-words overflow-hidden">ny@goldtrader.com</p>
-              </div>
-            </div>
-
-            {/* London */}
-            <div className="bg-gray-50 rounded-lg p-6 sm:p-8">
-              <div className="flex items-center space-x-3 mb-3 sm:mb-4">
-                <div className="w-7 h-7 sm:w-8 sm:h-8 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0">
-                  <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                  </svg>
-                </div>
-                <h3 className="text-lg sm:text-xl font-bold text-gray-900">London</h3>
-              </div>
-              <div className="space-y-1.5 sm:space-y-2 text-xs sm:text-sm">
-                <p className="text-gray-600 leading-relaxed">456 Canary Wharf, London, E14 5AB</p>
-                <p className="text-gray-900 font-medium">+44 20 7123 4567</p>
-                <p className="text-blue-600 break-words overflow-hidden">london@goldtrader.com</p>
-              </div>
-            </div>
-
-            {/* Singapore */}
-            <div className="bg-gray-50 rounded-lg p-6 sm:p-8 sm:col-span-2 lg:col-span-1">
-              <div className="flex items-center space-x-3 mb-3 sm:mb-4">
-                <div className="w-7 h-7 sm:w-8 sm:h-8 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
-                  <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                  </svg>
-                </div>
-                <h3 className="text-lg sm:text-xl font-bold text-gray-900">Singapore</h3>
-              </div>
-              <div className="space-y-1.5 sm:space-y-2 text-xs sm:text-sm">
-                <p className="text-gray-600 leading-relaxed">789 Marina Bay, Singapore 018956</p>
-                <p className="text-gray-900 font-medium">+65 6234 5678</p>
-                <p className="text-blue-600 break-words overflow-hidden">singapore@goldtrader.com</p>
               </div>
             </div>
           </div>

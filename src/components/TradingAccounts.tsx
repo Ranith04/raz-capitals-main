@@ -14,7 +14,7 @@ export default function TradingAccounts() {
           </p>
         </div>
 
-        {/* Pricing Cards */}
+        {/* Account Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16">
           {/* Starter Plan */}
           <div className="bg-[#1E2E23] rounded-xl p-8 border border-[#A0C8A9]/20 relative">

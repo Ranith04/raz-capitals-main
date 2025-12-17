@@ -149,7 +149,7 @@ export default function SupportTicketsClient() {
 
       {/* Footer */}
       <div className="px-6 py-4 bg-gray-200">
-        <p className="text-gray-600 text-sm">All rights reserved @GGCCFX</p>
+        <p className="text-gray-600 text-sm">All rights reserved @razcapitals</p>
       </div>
 
       {/* Chat Widget */}

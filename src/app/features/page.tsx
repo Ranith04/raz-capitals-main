@@ -1,27 +1,11 @@
 'use client';
 
 import Navbar from '@/components/Navbar';
-import { useEffect } from 'react';
+import HomeFooter from '@/components/HomeFooter';
 
 // Note: metadata is handled in layout.tsx for client components
 
 export default function FeaturesPage() {
-  useEffect(() => {
-    // Hide the global footer on this page
-    const globalFooter = document.querySelector('footer:not(.custom-footer)');
-    if (globalFooter) {
-      (globalFooter as HTMLElement).style.display = 'none';
-    }
-
-    // Cleanup function to restore footer when leaving the page
-    return () => {
-      const globalFooter = document.querySelector('footer:not(.custom-footer)');
-      if (globalFooter) {
-        (globalFooter as HTMLElement).style.display = '';
-      }
-    };
-  }, []);
-
   return (
     <div className="bg-gray-50 min-h-screen">
       <Navbar />
@@ -211,19 +195,19 @@ export default function FeaturesPage() {
                 title: "1 Gram Gold Trading",
                 price: "$",
                 description: "Perfect for beginners with flexible investment amounts",
-                features: ["Low barrier to entry", "Instant execution", "Real-time pricing"]
+                features: ["Low barrier to entry", "Instant execution", "Real-time quotes"]
               },
               {
                 title: "10 Gram Gold Bars",
                 price: "$$",
                 description: "Ideal for intermediate traders seeking better value",
-                features: ["Better pricing", "Physical delivery option", "Advanced analytics"]
+                features: ["Better rates", "Physical delivery option", "Advanced analytics"]
               },
               {
                 title: "Kilogram Gold Bars",
                 price: "$$$",
                 description: "For serious investors with substantial capital",
-                features: ["Institutional pricing", "Priority support", "Custom solutions"]
+                features: ["Institutional rates", "Priority support", "Custom solutions"]
               },
               {
                 title: "FX Bar Trading",
@@ -339,72 +323,13 @@ export default function FeaturesPage() {
               Open Free Account
             </button>
             <button className="border border-[#A0C8A9] text-[#A0C8A9] hover:bg-[#A0C8A9] hover:text-[#1E2E23] px-8 py-4 rounded-lg text-lg font-semibold transition-colors duration-200">
-              View Pricing
+              View Trading Charts
           </button>
           </div>
         </div>
       </section>
 
-      {/* Custom Footer */}
-      <footer className="custom-footer text-white py-16" style={{ background: 'linear-gradient(180deg, #1E2E23 0%, #2A3A2F 100%)' }}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid md:grid-cols-4 gap-8 mb-8">
-            {/* Company Info */}
-            <div className="md:col-span-1">
-              <div className="flex items-center space-x-2 mb-4">
-                <svg className="w-6 h-6 text-white" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                  <path d="M2 17L12 22L22 17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                  <path d="M2 12L12 17L22 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-                <span className="text-lg font-bold">RAZ CAPITALS</span>
-              </div>
-              <p className="text-[#C4CEC1] text-sm leading-relaxed">
-                Your trusted partner in precious metals trading.
-              </p>
-            </div>
-
-            {/* Features */}
-            <div>
-              <h3 className="text-white font-semibold mb-4">Features</h3>
-              <ul className="space-y-3">
-                <li><a href="#" className="text-[#C4CEC1] hover:text-white text-sm transition-colors">Trading Platform</a></li>
-                <li><a href="#" className="text-[#C4CEC1] hover:text-white text-sm transition-colors">Mobile Apps</a></li>
-                <li><a href="#" className="text-[#C4CEC1] hover:text-white text-sm transition-colors">Analytics</a></li>
-              </ul>
-            </div>
-
-            {/* Support */}
-            <div>
-              <h3 className="text-white font-semibold mb-4">Support</h3>
-              <ul className="space-y-3">
-                <li><a href="#" className="text-[#C4CEC1] hover:text-white text-sm transition-colors">Help Center</a></li>
-                <li><a href="#" className="text-[#C4CEC1] hover:text-white text-sm transition-colors">Contact Us</a></li>
-                <li><a href="#" className="text-[#C4CEC1] hover:text-white text-sm transition-colors">FAQ</a></li>
-              </ul>
-            </div>
-
-            {/* Company */}
-            <div>
-              <h3 className="text-white font-semibold mb-4">Company</h3>
-              <ul className="space-y-3">
-                <li><a href="#" className="text-[#C4CEC1] hover:text-white text-sm transition-colors">About Us</a></li>
-                <li><a href="#" className="text-[#C4CEC1] hover:text-white text-sm transition-colors">Careers</a></li>
-                <li><a href="#" className="text-[#C4CEC1] hover:text-white text-sm transition-colors">Legal</a></li>
-              </ul>
-            </div>
-          </div>
-
-          {/* Copyright */}
-          <div className="border-t border-white/20 pt-6">
-            <div className="text-center">
-              <p className="text-[#C4CEC1] text-sm">
-                © 2025 RazCapitals. All rights reserved.
-              </p>
-            </div>
-          </div>
-        </div>
-      </footer>
+      <HomeFooter showQuestions={false} />
     </div>
   );
 } 
