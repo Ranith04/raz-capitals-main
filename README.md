@@ -10,7 +10,7 @@ A modern, responsive trading platform built with Next.js 14, TypeScript, and Tai
 - **Advanced Analytics**: Comprehensive trading analytics and insights
 - **Mobile Trading**: Full-featured mobile app interface
 - **Secure Trading**: Bank-grade security and encryption
-- **Multiple Plans**: Starter, Professional, and Enterprise pricing tiers
+- **Multiple Plans**: Starter, Professional, and Enterprise account tiers
 
 ## 🛠️ Tech Stack
 
@@ -33,7 +33,7 @@ raz-capitals/
 │   │   ├── layout.tsx          # Root layout
 │   │   ├── page.tsx            # Home page
 │   │   ├── features/           # Features page
-│   │   ├── pricing/            # Pricing page
+│   │   ├── trading-charts/     # Trading charts page
 │   │   ├── contact/            # Contact page
 │   │   ├── dashboard/          # Dashboard (future)
 │   │   └── api/                # API routes
@@ -95,7 +95,7 @@ raz-capitals/
 - Portfolio management showcase
 - Analytics and insights
 - Market choice and speed features
-- Trading accounts/pricing
+- Trading accounts overview
 
 ### Features Page (`/features`)
 - Detailed feature descriptions
@@ -104,11 +104,10 @@ raz-capitals/
 - API access information
 - Customer support details
 
-### Pricing Page (`/pricing`)
-- Three pricing tiers (Starter, Professional, Enterprise)
-- Feature comparison
-- FAQ section
-- Call-to-action
+### Trading Charts Page (`/trading-charts`)
+- Live charts view
+- Symbol switching
+- Dark theme
 
 ### Contact Page (`/contact`)
 - Contact form with validation
@@ -140,7 +139,7 @@ raz-capitals/
 - Responsive navigation
 - Hero sections with gradients
 - Feature cards
-- Pricing tables
+- Plan cards
 - Contact forms
 - Mobile mockups
 - Charts and analytics
