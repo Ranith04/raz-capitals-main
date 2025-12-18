@@ -4,7 +4,7 @@ import React, { useMemo, useState } from 'react';
 
 import TradingViewLiveChart from './TradingViewLiveChart';
 
-type SymbolOption = 'EURUSD' | 'XAUUSD';
+type SymbolOption = 'EURUSD' | 'USDJPY' | 'XAUUSD';
 
 export default function TradingChartsClient() {
   const symbols: SymbolOption[] = useMemo(() => ['EURUSD', 'USDJPY', 'XAUUSD'], []);
