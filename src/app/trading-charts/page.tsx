@@ -1,5 +1,6 @@
 import Navbar from '@/components/Navbar';
 import TradingChartsClient from '@/components/trading-charts/TradingChartsClient';
+import HomeFooter from '@/components/HomeFooter';
 import { Metadata } from 'next';
 
 export const metadata: Metadata = {
@@ -29,6 +30,8 @@ export default function TradingChartsPage() {
           <TradingChartsClient />
         </div>
       </section>
+
+      <HomeFooter showQuestions={false} />
     </div>
   );
 }

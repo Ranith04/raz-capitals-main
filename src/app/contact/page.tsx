@@ -1,4 +1,5 @@
 import Navbar from '@/components/Navbar';
+import HomeFooter from '@/components/HomeFooter';
 import { Metadata } from 'next';
 
 export const metadata: Metadata = {
@@ -235,6 +236,8 @@ export default function ContactPage() {
           </div>
         </div>
       </section>
+
+      <HomeFooter showQuestions={false} />
     </div>
   );
 }
