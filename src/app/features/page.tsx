@@ -1,11 +1,111 @@
 'use client';
 
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Navbar from '@/components/Navbar';
 import HomeFooter from '@/components/HomeFooter';
 
 // Note: metadata is handled in layout.tsx for client components
 
 export default function FeaturesPage() {
+  const router = useRouter();
+  const [isLiveDataLoading, setIsLiveDataLoading] = useState(true);
+  const [livePrice, setLivePrice] = useState<number | null>(null);
+  const [series, setSeries] = useState<number[]>([]);
+  const lastPriceRef = useRef<number | null>(null);
+  const [change, setChange] = useState<number | null>(null);
+  const [changePct, setChangePct] = useState<number | null>(null);
+
+  const formatUsd = useMemo(
+    () =>
+      new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: 'USD',
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }),
+    [],
+  );
+
+  useEffect(() => {
+    let isMounted = true;
+    let interval: ReturnType<typeof setInterval> | null = null;
+
+    const tick = async () => {
+      try {
+        const res = await fetch('/api/market/xauusd', { cache: 'no-store' });
+        const data = (await res.json()) as { ok: boolean; price?: number };
+        if (!isMounted) return;
+        if (!res.ok || !data?.ok || typeof data.price !== 'number') {
+          // Keep existing values; just stop showing the loading state after first attempt.
+          setIsLiveDataLoading(false);
+          return;
+        }
+
+        const next = data.price;
+        const prev = lastPriceRef.current;
+        lastPriceRef.current = next;
+
+        setLivePrice(next);
+        setSeries((curr) => {
+          const nextArr = [...curr, next];
+          return nextArr.length > 20 ? nextArr.slice(-20) : nextArr;
+        });
+
+        if (typeof prev === 'number' && Number.isFinite(prev) && prev !== 0) {
+          const delta = next - prev;
+          setChange(delta);
+          setChangePct((delta / prev) * 100);
+        } else {
+          setChange(0);
+          setChangePct(0);
+        }
+
+        setIsLiveDataLoading(false);
+      } catch {
+        if (!isMounted) return;
+        setIsLiveDataLoading(false);
+      }
+    };
+
+    // Initial load + poll for live updates.
+    tick();
+    interval = setInterval(tick, 10_000);
+
+    return () => {
+      isMounted = false;
+      if (interval) clearInterval(interval);
+    };
+  }, []);
+
+  const chartHeights = useMemo(() => {
+    const padding: Array<number | null> = Array.from({ length: Math.max(0, 20 - series.length) }, () => null);
+    const points: Array<number | null> = series.length >= 20 ? series.slice(-20) : [...padding, ...series];
+
+    const numeric = points.filter((p): p is number => typeof p === 'number' && Number.isFinite(p));
+    if (numeric.length < 2) return points.map((p) => (p == null ? 20 : 60));
+
+    const min = Math.min(...numeric);
+    const max = Math.max(...numeric);
+    const denom = max - min;
+
+    return points.map((p) => {
+      if (p == null || denom === 0) return 60;
+      // Match previous visual range: 20% .. 120%
+      return 20 + ((p - min) / denom) * 100;
+    });
+  }, [series]);
+
+  const priceText = isLiveDataLoading || livePrice == null ? '$—' : formatUsd.format(livePrice);
+  const changeText =
+    isLiveDataLoading || change == null
+      ? '—'
+      : `${change >= 0 ? '+' : '-'}${formatUsd.format(Math.abs(change))}`;
+  const pctText =
+    isLiveDataLoading || changePct == null
+      ? '—'
+      : `${changePct >= 0 ? '+' : '-'}${Math.abs(changePct).toFixed(2)}%`;
+
   return (
     <div className="bg-gray-50 min-h-screen">
       <Navbar />
@@ -83,22 +183,22 @@ export default function FeaturesPage() {
               <div className="bg-gray-50 rounded-xl p-6">
                 <div className="flex items-center justify-between mb-4">
                   <div>
-                    <div className="text-2xl font-bold text-gray-900">$2,045.22</div>
+                    <div className="text-2xl font-bold text-gray-900">{priceText}</div>
                     <div className="text-sm text-gray-500">GOLD Live Chart</div>
                   </div>
                   <div className="text-right">
-                    <div className="text-lg font-semibold text-green-600">+$12.45</div>
-                    <div className="text-sm text-green-600">+0.61%</div>
+                    <div className="text-lg font-semibold text-green-600">{changeText}</div>
+                    <div className="text-sm text-green-600">{pctText}</div>
                   </div>
                 </div>
                 
                 {/* Simple chart visualization */}
                 <div className="h-32 flex items-end space-x-1">
-                  {Array.from({ length: 20 }).map((_, i) => (
+                  {chartHeights.map((height, i) => (
                     <div
                       key={i}
                       className="bg-[#A0C8A9] w-3 rounded-t"
-                      style={{ height: `${Math.random() * 100 + 20}%` }}
+                      style={{ height: `${height}%` }}
                     />
                   ))}
             </div>
@@ -319,10 +419,16 @@ export default function FeaturesPage() {
           </p>
           
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <button className="bg-[#A0C8A9] hover:bg-[#8FB89A] text-[#1E2E23] px-8 py-4 rounded-lg text-lg font-semibold transition-colors duration-200">
+            <button
+              onClick={() => router.push('/signup')}
+              className="bg-[#A0C8A9] hover:bg-[#8FB89A] text-[#1E2E23] px-8 py-4 rounded-lg text-lg font-semibold transition-colors duration-200"
+            >
               Open Free Account
             </button>
-            <button className="border border-[#A0C8A9] text-[#A0C8A9] hover:bg-[#A0C8A9] hover:text-[#1E2E23] px-8 py-4 rounded-lg text-lg font-semibold transition-colors duration-200">
+            <button
+              onClick={() => router.push('/trading-charts')}
+              className="border border-[#A0C8A9] text-[#A0C8A9] hover:bg-[#A0C8A9] hover:text-[#1E2E23] px-8 py-4 rounded-lg text-lg font-semibold transition-colors duration-200"
+            >
               View Trading Charts
           </button>
           </div>

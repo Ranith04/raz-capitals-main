@@ -45,7 +45,7 @@ export default function ContactPage() {
                       type="text"
                       id="fullName"
                       placeholder="Enter your full name"
-                      className="w-full min-w-0 px-3 py-3 sm:px-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-base"
+                      className="w-full min-w-0 px-3 py-3 sm:px-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-base text-gray-900 placeholder:text-gray-400"
                     />
                   </div>
                   <div>
@@ -56,7 +56,7 @@ export default function ContactPage() {
                       type="email"
                       id="email"
                       placeholder="Enter your email"
-                      className="w-full min-w-0 px-3 py-3 sm:px-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-base"
+                      className="w-full min-w-0 px-3 py-3 sm:px-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-base text-gray-900 placeholder:text-gray-400"
                     />
                   </div>
                 </div>
@@ -70,7 +70,7 @@ export default function ContactPage() {
                       type="tel"
                       id="phone"
                       placeholder="Enter your phone number"
-                      className="w-full min-w-0 px-3 py-3 sm:px-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-base"
+                      className="w-full min-w-0 px-3 py-3 sm:px-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-base text-gray-900 placeholder:text-gray-400"
                     />
                   </div>
                   <div>
@@ -79,7 +79,7 @@ export default function ContactPage() {
                     </label>
                     <select
                       id="subject"
-                      className="w-full min-w-0 px-3 py-3 sm:px-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-base bg-white"
+                      className="w-full min-w-0 px-3 py-3 sm:px-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-base bg-white text-gray-900"
                     >
                       <option>What&apos;s this about?</option>
                       <option>Account Support</option>
@@ -98,7 +98,7 @@ export default function ContactPage() {
                     id="message"
                     rows={5}
                     placeholder="Tell us how we can help you..."
-                    className="w-full min-w-0 px-3 py-3 sm:px-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-base resize-none"
+                    className="w-full min-w-0 px-3 py-3 sm:px-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-base resize-none text-gray-900 placeholder:text-gray-400"
                   ></textarea>
                 </div>
 
@@ -215,24 +215,6 @@ export default function ContactPage() {
                 <span className="text-sm sm:text-base text-gray-700">Global market access</span>
               </div>
             </div>
-          </div>
-        </div>
-      </section>
-
-      {/* CTA Section */}
-      <section className="bg-[#0A2E1D] text-white py-12 sm:py-16 overflow-hidden">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-2xl sm:text-3xl font-bold mb-3 sm:mb-4 leading-tight">Ready to Start Trading?</h2>
-          <p className="text-lg sm:text-xl mb-6 sm:mb-8 text-white/80 leading-relaxed max-w-3xl mx-auto">
-            Join thousands of successful traders who trust our platform. Get your account opened in minutes and start trading gold today.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center max-w-md sm:max-w-none mx-auto">
-            <button className="bg-[#A0C8A9] text-[#0A2E1D] hover:bg-[#8FB89A] px-6 py-3 sm:px-8 rounded-lg font-semibold transition-colors duration-200 text-base touch-manipulation">
-              Open Free Account
-            </button>
-            <button className="border-2 border-[#A0C8A9] text-[#A0C8A9] hover:bg-[#A0C8A9] hover:text-[#0A2E1D] px-6 py-3 sm:px-8 rounded-lg font-semibold transition-colors duration-200 text-base touch-manipulation">
-              Contact Support
-            </button>
           </div>
         </div>
       </section>
